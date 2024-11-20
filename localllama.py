@@ -1,13 +1,26 @@
-import ollama
+try:
+    import ollama
+except ImportError as e:
+    print(f"Error importing ollama: {str(e)}")
+    # Handle the error or exit the application
+    exit(1)
+
 import tkinter as tk
 from tkinter import scrolledtext, filedialog
 import threading
-from tkinter import ttk
+from tkinter import ttk, font
 from tkinterdnd2 import DND_FILES, TkinterDnD
 import os
 from docx import Document
 import PyPDF2
 import re
+import markdown
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters import BBCodeFormatter
+import matplotlib.pyplot as plt
+import io
+from PIL import Image, ImageTk
 
 class OllamaChatGUI:
     def __init__(self, root):
@@ -19,12 +32,13 @@ class OllamaChatGUI:
         self.word_count = 0
         self.selected_model = None
         
-        # Create model selector frame
+        # Define model_frame
         model_frame = ttk.Frame(root)
-        model_frame.pack(padx=10, pady=(10,0), fill='x')
+        model_frame.pack(side='top', padx=10, pady=5)
         
-        ttk.Label(model_frame, text="Model:").pack(side='left')
+        # Create model_selector
         self.model_selector = ttk.Combobox(model_frame, state='readonly')
+        
         self.model_selector.pack(side='left', padx=(5,0))
         self.update_model_list()
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
@@ -39,8 +53,19 @@ class OllamaChatGUI:
         self.include_chat_checkbox.pack(side='left', padx=(10,0))
         
         # Create main chat display
-        self.chat_display = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20)
-        self.chat_display.pack(padx=10, pady=10, expand=True, fill='both')
+        self.chat_frame = ttk.Frame(root)
+        self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
+        
+        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20)
+        self.chat_display.pack(side='left', expand=True, fill='both')
+        
+        # Add scrollbar
+        scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
+        scrollbar.pack(side='right', fill='y')
+        self.chat_display['yscrollcommand'] = scrollbar.set
+
+        # Configure text tags
+        self.configure_tags()
         
         # Create input frame
         input_frame = ttk.Frame(root)
@@ -122,6 +147,11 @@ class OllamaChatGUI:
             print(f"Error extracting content: {str(e)}")
             return None
 
+    def display_message(self, message, tags=None):
+        """Display a message in the chat window with optional tags"""
+        self.chat_display.insert(tk.END, message, tags)
+        self.chat_display.see(tk.END)
+
     def update_status(self):
         if self.file_img:
             status = f"Image loaded: {self.file_img}"
@@ -129,8 +159,7 @@ class OllamaChatGUI:
             status = f"Document loaded: {self.file_type.upper()} - {self.word_count} words"
         else:
             status = "No file loaded"
-        self.chat_display.insert(tk.END, f"\n{status}\n")
-        self.chat_display.see(tk.END)
+        self.display_message(f"\n{status}\n", 'status')
 
     def send_message(self):
         user_input = self.input_field.get()
@@ -138,8 +167,8 @@ class OllamaChatGUI:
             return
             
         # Display user message
-        self.chat_display.insert(tk.END, f"\nYou: {user_input}\n")
-        self.chat_display.see(tk.END)
+        self.display_message("\nYou: ", 'user')
+        self.display_message(f"{user_input}\n", 'user')
         
         self.input_field.delete(0, tk.END)
         
@@ -170,24 +199,30 @@ class OllamaChatGUI:
         
     def get_response(self, message):
         try:
-            self.chat_display.insert(tk.END, "\nAssistant: ")
+            self.display_message("\nAssistant: ", 'assistant')
             
-            # Stream the response using selected model
+            # Create a mark for the response start
+            self.chat_display.mark_set("response_start", "end-1c")
+            full_response = ""
+            
             for chunk in ollama.chat(
                 model=self.selected_model,
                 messages=[message],
                 stream=True
             ):
                 if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    self.chat_display.insert(tk.END, chunk['message']['content'])
-                    self.chat_display.see(tk.END)
+                    content = chunk['message']['content']
+                    full_response += content
+                    # Delete previous response and insert updated one
+                    self.chat_display.delete("response_start", "end-1c")
+                    self.display_message(content, 'assistant')
                     
-            self.chat_display.insert(tk.END, "\n")
-            self.file_img = None  # Clear image after sending
+            self.display_message("\n", 'assistant')
+            self.file_img = None
             self.update_status()
             
         except Exception as e:
-            self.chat_display.insert(tk.END, f"\nError: {str(e)}\n")
+            self.display_message(f"\nError: {str(e)}\n", 'error')
             
         self.chat_display.see(tk.END)
 
@@ -282,7 +317,58 @@ class OllamaChatGUI:
         self.chat_display.delete(1.0, tk.END)
         self.update_status()
 
-if __name__ == "__main__":
+    def configure_tags(self):
+        self.chat_display.tag_configure('user', foreground='#0077cc', font=('Arial', 10, 'bold'))
+        self.chat_display.tag_configure('assistant', foreground='#800080', font=('Arial', 10))
+        self.chat_display.tag_configure('code', font=('Courier', 10))
+        self.chat_display.tag_configure('error', foreground='red')
+        self.chat_display.tag_configure('status', foreground='gray')
+
+    def format_markdown(self, text):
+        # Convert markdown to plain text while preserving formatting
+        try:
+            # Remove HTML tags but keep content
+            def clean_html(html_text):
+                # Basic HTML tag removal while preserving content
+                text = re.sub(r'<[^>]+>', '', html_text)
+                # Convert HTML entities
+                text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')
+                text = text.replace('&quot;', '"').replace('&apos;', "'")
+                return text
+    
+            # Convert markdown to HTML first
+            html = markdown.markdown(text, extensions=['fenced_code', 'tables'])
+            
+            # Process code blocks specially
+            code_pattern = r'<pre><code.*?>(.*?)</code></pre>'
+            result = ''
+            last_end = 0
+            
+            for match in re.finditer(code_pattern, html, re.DOTALL):
+                # Add cleaned text before code block
+                result += clean_html(html[last_end:match.start()]) 
+                
+                # Format code block
+                code = match.group(1)
+                code = clean_html(code)
+                # Add code block with proper formatting
+                result += f"\n```\n{code}\n```\n"
+                
+                last_end = match.end()
+            
+            # Add remaining cleaned text
+            result += clean_html(html[last_end:])
+            
+            return result.strip()
+            
+        except Exception:
+            # Fallback to raw text if markdown processing fails
+            return text
+
+def main():
     root = TkinterDnD.Tk()
     app = OllamaChatGUI(root)
     root.mainloop()
+
+if __name__ == "__main__":
+    main()
