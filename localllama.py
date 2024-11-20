@@ -29,6 +29,15 @@ class OllamaChatGUI:
         self.update_model_list()
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
         
+        # Add include chat checkbox
+        self.include_chat_var = tk.BooleanVar()
+        self.include_chat_checkbox = ttk.Checkbutton(
+            model_frame, 
+            text="Include chat?",
+            variable=self.include_chat_var
+        )
+        self.include_chat_checkbox.pack(side='left', padx=(10,0))
+        
         # Create main chat display
         self.chat_display = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20)
         self.chat_display.pack(padx=10, pady=10, expand=True, fill='both')
@@ -44,6 +53,10 @@ class OllamaChatGUI:
         # Create button frame
         button_frame = ttk.Frame(input_frame)
         button_frame.pack(side='right', padx=(5, 0))
+        
+        # Create clear chat button
+        clear_button = ttk.Button(button_frame, text="Clear Chat", command=self.clear_chat)
+        clear_button.pack(side='right', padx=(5, 0))
         
         # Create batch process button
         batch_button = ttk.Button(button_frame, text="Batch Process", command=self.start_batch_process)
@@ -128,13 +141,20 @@ class OllamaChatGUI:
         self.chat_display.insert(tk.END, f"\nYou: {user_input}\n")
         self.chat_display.see(tk.END)
         
-        # Clear input field
         self.input_field.delete(0, tk.END)
+        
+        # Prepare message content
+        content = user_input
+        if self.file_content:
+            content += f"\n\nDocument content:\n{self.file_content}"
+        if self.include_chat_var.get():
+            chat_history = self.chat_display.get(1.0, tk.END).strip()
+            content += f"\n\nChat history:\n{chat_history}"
         
         # Prepare message
         message = {
             'role': 'user',
-            'content': user_input + (f"\n\nDocument content:\n{self.file_content}" if self.file_content else "")
+            'content': content
         }
         
         # Add image if available
@@ -211,9 +231,13 @@ class OllamaChatGUI:
                 with open(file_path, 'rb') as img_file:
                     message['images'] = [img_file.read()]
             else:
-                content = self.extract_content(file_path)
-                if content:
-                    message['content'] = f"{prompt}\n\nDocument content:\n{content}"
+                content = prompt
+                if self.extract_content(file_path):
+                    content += f"\n\nDocument content:\n{self.extract_content(file_path)}"
+                if self.include_chat_var.get():
+                    chat_history = self.chat_display.get(1.0, tk.END).strip()
+                    content += f"\n\nChat history:\n{chat_history}"
+                message['content'] = content
             
             try:
                 self.chat_display.insert(tk.END, f"Assistant (for {os.path.basename(file_path)}): ")
@@ -253,6 +277,10 @@ class OllamaChatGUI:
         self.selected_model = self.model_selector.get()
         self.chat_display.insert(tk.END, f"\nSwitched to model: {self.selected_model}\n")
         self.chat_display.see(tk.END)
+
+    def clear_chat(self):
+        self.chat_display.delete(1.0, tk.END)
+        self.update_status()
 
 if __name__ == "__main__":
     root = TkinterDnD.Tk()
