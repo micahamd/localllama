@@ -17,6 +17,17 @@ class OllamaChatGUI:
         self.file_content = None
         self.file_type = None
         self.word_count = 0
+        self.selected_model = None
+        
+        # Create model selector frame
+        model_frame = ttk.Frame(root)
+        model_frame.pack(padx=10, pady=(10,0), fill='x')
+        
+        ttk.Label(model_frame, text="Model:").pack(side='left')
+        self.model_selector = ttk.Combobox(model_frame, state='readonly')
+        self.model_selector.pack(side='left', padx=(5,0))
+        self.update_model_list()
+        self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
         
         # Create main chat display
         self.chat_display = scrolledtext.ScrolledText(root, wrap=tk.WORD, width=50, height=20)
@@ -141,9 +152,9 @@ class OllamaChatGUI:
         try:
             self.chat_display.insert(tk.END, "\nAssistant: ")
             
-            # Stream the response
+            # Stream the response using selected model
             for chunk in ollama.chat(
-                model="minicpm-v:latest",
+                model=self.selected_model,
                 messages=[message],
                 stream=True
             ):
@@ -207,7 +218,7 @@ class OllamaChatGUI:
             try:
                 self.chat_display.insert(tk.END, f"Assistant (for {os.path.basename(file_path)}): ")
                 for chunk in ollama.chat(
-                    model="minicpm-v:latest",
+                    model=self.selected_model,
                     messages=[message],
                     stream=True
                 ):
@@ -224,6 +235,23 @@ class OllamaChatGUI:
         
         self.is_processing = False
         self.chat_display.insert(tk.END, "\nBatch processing completed.\n")
+        self.chat_display.see(tk.END)
+
+    def update_model_list(self):
+        try:
+            models = ollama.list()
+            model_names = [model['name'] for model in models['models']]
+            self.model_selector['values'] = model_names
+            if model_names:
+                self.model_selector.set(model_names[0])
+                self.selected_model = model_names[0]
+        except Exception as e:
+            self.chat_display.insert(tk.END, f"\nError fetching models: {str(e)}\n")
+            self.chat_display.see(tk.END)
+
+    def on_model_selected(self, event):
+        self.selected_model = self.model_selector.get()
+        self.chat_display.insert(tk.END, f"\nSwitched to model: {self.selected_model}\n")
         self.chat_display.see(tk.END)
 
 if __name__ == "__main__":
