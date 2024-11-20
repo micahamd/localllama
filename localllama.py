@@ -36,25 +36,36 @@ class OllamaChatGUI:
         self.word_count = 0
         self.selected_model = None
         
-        # Define model_frame
+        # 1. Create main chat frame first
+        self.chat_frame = ttk.Frame(root)
+        self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
+        
+        # 2. Create chat display with scrollbar
+        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20)
+        self.chat_display.pack(side='left', expand=True, fill='both')
+        scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
+        scrollbar.pack(side='right', fill='y')
+        self.chat_display['yscrollcommand'] = scrollbar.set
+        
+        # Make read-only but allow selection
+        self.chat_display.bind("<Key>", lambda e: "break" if e.keysym not in ("c", "C", "Control_L", "Control_R") else "")
+        
+        # 3. Create model frame and controls
         model_frame = ttk.Frame(root)
         model_frame.pack(side='top', padx=10, pady=5)
         
-        # Create model_selector
-        self.model_selector = ttk.Combobox(model_frame, state='readonly')
-        
+        # Model selector
+        self.model_selector = ttk.Combobox(model_frame, state='readonly')        
         self.model_selector.pack(side='left', padx=(5,0))
         self.update_model_list()
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
         
-        # Add temperature control
+        # Temperature controls
         temp_frame = ttk.Frame(model_frame)
         temp_frame.pack(side='left', padx=(10,0))
         
         ttk.Label(temp_frame, text="Temp:").pack(side='left')
-        self.temperature = tk.DoubleVar(value=0.7)  # Default temperature
-        
-        # Add label to show temperature value
+        self.temperature = tk.DoubleVar(value=0.7)
         self.temp_label = ttk.Label(temp_frame, text="0.70")
         self.temp_label.pack(side='right', padx=(5,0))
         
@@ -65,11 +76,11 @@ class OllamaChatGUI:
             orient='horizontal',
             length=100,
             variable=self.temperature,
-            command=self.on_temp_change  # Add callback
+            command=self.on_temp_change
         )
-        self.temp_slider.pack(side='left')   
+        self.temp_slider.pack(side='left')
 
-        # Add include chat checkbox
+        # Chat history checkbox
         self.include_chat_var = tk.BooleanVar()
         self.include_chat_checkbox = ttk.Checkbutton(
             model_frame, 
@@ -77,56 +88,37 @@ class OllamaChatGUI:
             variable=self.include_chat_var
         )
         self.include_chat_checkbox.pack(side='left', padx=(10,0))
-        
-        # Create main chat display
-        self.chat_frame = ttk.Frame(root)
-        self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
-        
-        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20)
-        self.chat_display.pack(side='left', expand=True, fill='both')
-        
-        # Add scrollbar
-        scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
-        scrollbar.pack(side='right', fill='y')
-        self.chat_display['yscrollcommand'] = scrollbar.set
 
-        # Configure text tags
-        self.configure_tags()
-        
-        # Create input frame
+        # 4. Create input area
         input_frame = ttk.Frame(root)
         input_frame.pack(padx=10, pady=(0, 10), fill='x')
         
-        # Create input field
         self.input_field = ttk.Entry(input_frame)
         self.input_field.pack(side='left', expand=True, fill='x', padx=(0, 5))
         
-        # Create button frame
+        # Button frame
         button_frame = ttk.Frame(input_frame)
         button_frame.pack(side='right', padx=(5, 0))
         
-        # Create clear chat button
         clear_button = ttk.Button(button_frame, text="Clear Chat", command=self.clear_chat)
         clear_button.pack(side='right', padx=(5, 0))
         
-        # Create batch process button
         batch_button = ttk.Button(button_frame, text="Batch Process", command=self.start_batch_process)
         batch_button.pack(side='right', padx=(5, 0))
         
-        # Create send button
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)
         send_button.pack(side='right')
         
+        # 5. Final setup
         self.is_processing = False
-        
-        # Bind Enter key to send
         self.input_field.bind('<Return>', lambda e: self.send_message())
-        
-        # Setup drag and drop
         self.chat_display.drop_target_register(DND_FILES)
         self.chat_display.dnd_bind('<<Drop>>', self.handle_drop)
         
+        # Configure tags and update status
+        self.configure_tags()
         self.update_status()
+
 
     def handle_drop(self, event):
         file_path = event.data.strip('{}')
@@ -175,7 +167,15 @@ class OllamaChatGUI:
 
     def display_message(self, message, tags=None):
         """Display a message in the chat window with optional tags"""
+        # Temporarily enable editing
+        current_state = self.chat_display["state"]
+        self.chat_display["state"] = "normal"
+        
+        # Insert the message
         self.chat_display.insert(tk.END, message, tags)
+        
+        # Restore state
+        self.chat_display["state"] = current_state
         self.chat_display.see(tk.END)
 
     def update_status(self):
