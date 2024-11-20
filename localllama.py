@@ -23,6 +23,10 @@ import io
 from PIL import Image, ImageTk
 
 class OllamaChatGUI:
+    def on_temp_change(self, value):
+        """Update temperature label when slider moves"""
+        self.temp_label.config(text=f"{float(value):.2f}")   
+
     def __init__(self, root):
         self.root = root
         self.root.title("Ollama Chat")
@@ -43,6 +47,28 @@ class OllamaChatGUI:
         self.update_model_list()
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
         
+        # Add temperature control
+        temp_frame = ttk.Frame(model_frame)
+        temp_frame.pack(side='left', padx=(10,0))
+        
+        ttk.Label(temp_frame, text="Temp:").pack(side='left')
+        self.temperature = tk.DoubleVar(value=0.7)  # Default temperature
+        
+        # Add label to show temperature value
+        self.temp_label = ttk.Label(temp_frame, text="0.70")
+        self.temp_label.pack(side='right', padx=(5,0))
+        
+        self.temp_slider = ttk.Scale(
+            temp_frame,
+            from_=0.0,
+            to=1.0,
+            orient='horizontal',
+            length=100,
+            variable=self.temperature,
+            command=self.on_temp_change  # Add callback
+        )
+        self.temp_slider.pack(side='left')   
+
         # Add include chat checkbox
         self.include_chat_var = tk.BooleanVar()
         self.include_chat_checkbox = ttk.Checkbutton(
@@ -208,12 +234,12 @@ class OllamaChatGUI:
             for chunk in ollama.chat(
                 model=self.selected_model,
                 messages=[message],
-                stream=True
+                stream=True,
+                options={"temperature": self.temperature.get()}  # Add temperature
             ):
                 if chunk and 'message' in chunk and 'content' in chunk['message']:
                     content = chunk['message']['content']
                     full_response += content
-                    # Delete previous response and insert updated one
                     self.chat_display.delete("response_start", "end-1c")
                     self.display_message(content, 'assistant')
                     
@@ -279,6 +305,7 @@ class OllamaChatGUI:
                 for chunk in ollama.chat(
                     model=self.selected_model,
                     messages=[message],
+                    options={"temperature": self.temperature.get()}, 
                     stream=True
                 ):
                     if not self.is_processing:
