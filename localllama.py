@@ -36,11 +36,11 @@ class OllamaChatGUI:
         self.word_count = 0
         self.selected_model = None
         
-        # 1. Create main chat frame first
+        # Create main chat frame first
         self.chat_frame = ttk.Frame(root)
         self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
         
-        # 2. Create chat display with scrollbar
+        # Create chat display with scrollbar
         self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20)
         self.chat_display.pack(side='left', expand=True, fill='both')
         scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
@@ -50,7 +50,7 @@ class OllamaChatGUI:
         # Make read-only but allow selection
         self.chat_display.bind("<Key>", lambda e: "break" if e.keysym not in ("c", "C", "Control_L", "Control_R") else "")
         
-        # 3. Create model frame and controls
+        # Create model frame and controls
         model_frame = ttk.Frame(root)
         model_frame.pack(side='top', padx=10, pady=5)
         
@@ -79,6 +79,27 @@ class OllamaChatGUI:
             command=self.on_temp_change
         )
         self.temp_slider.pack(side='left')
+
+        # Context window controls
+        context_frame = ttk.Frame(model_frame)
+        context_frame.pack(side='left', padx=(10,0))
+        
+        ttk.Label(context_frame, text="Context:").pack(side='left')
+        self.context_size = tk.IntVar(value=4096)  # Default size
+        self.context_label = ttk.Label(context_frame, text="4096")
+        self.context_label.pack(side='right', padx=(5,0))
+        
+        self.context_slider = ttk.Scale(
+            context_frame,
+            from_=100,
+            to=30000,
+            orient='horizontal',
+            length=100,
+            variable=self.context_size,
+            command=self.on_context_change
+        )
+        self.context_slider.pack(side='left')
+
 
         # Chat history checkbox
         self.include_chat_var = tk.BooleanVar()
@@ -119,6 +140,10 @@ class OllamaChatGUI:
         self.configure_tags()
         self.update_status()
 
+    # Context tab
+    def on_context_change(self, value):
+        """Update context window label when slider moves"""
+        self.context_label.config(text=f"{int(float(value))}")
 
     def handle_drop(self, event):
         file_path = event.data.strip('{}')
@@ -235,7 +260,9 @@ class OllamaChatGUI:
                 model=self.selected_model,
                 messages=[message],
                 stream=True,
-                options={"temperature": self.temperature.get()}  # Add temperature
+                options={"temperature": self.temperature.get(),
+                         "num_ctx": self.context_size.get()
+                } 
             ):
                 if chunk and 'message' in chunk and 'content' in chunk['message']:
                     content = chunk['message']['content']
