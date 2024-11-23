@@ -1,0 +1,8 @@
+ollama
+tkinterdnd2
+python-docx
+PyPDF2
+markdown
+Pygments
+matplotlib
+Pillow
