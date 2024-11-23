@@ -29,7 +29,7 @@ class OllamaChatGUI:
     
     def __init__(self, root):
         self.root = root  # Set the root window
-        self.root.title("Ollama Chat")  # Set window title
+        self.root.title("Local(o)llama Chat")  # Set window title
         self.file_img = None  # Initialize file image variable
         self.file_content = None  # Initialize file content variable
         self.file_type = None  # Initialize file type variable
@@ -64,8 +64,8 @@ class OllamaChatGUI:
         temp_frame = ttk.Frame(model_frame)  # Create a frame for temperature controls
         temp_frame.pack(side='left', padx=(10,0))  # Pack the temperature frame on the left with padding
         
-        ttk.Label(temp_frame, text="Temp:").pack(side='left')  # Create and pack a label for temperature
-        self.temperature = tk.DoubleVar(value=0.7)  # Initialize temperature variable with default value
+        ttk.Label(temp_frame, text="Creativity:").pack(side='left')  # Create and pack a label for temperature
+        self.temperature = tk.DoubleVar(value=0.4)  # Initialize temperature variable with default value
         self.temp_label = ttk.Label(temp_frame, text="0.70")  # Create a label to display temperature value
         self.temp_label.pack(side='right', padx=(5,0))  # Pack the temperature label on the right with padding
         
@@ -109,7 +109,7 @@ class OllamaChatGUI:
         )  # Create a checkbox to include chat history
         self.include_chat_checkbox.pack(side='left', padx=(10,0))  # Pack the checkbox on the left with padding
         
-        # 4. Create input area
+        # Create input area
         input_frame = ttk.Frame(root)  # Create a frame for input area
         input_frame.pack(padx=10, pady=(0, 10), fill='x')  # Pack the input frame with padding and fill horizontally
         
@@ -129,7 +129,7 @@ class OllamaChatGUI:
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)  # Create a button to send message
         send_button.pack(side='right')  # Pack the send button on the right
         
-        # 5. Final setup
+        # Input processing
         self.is_processing = False  # Initialize processing flag
         self.input_field.bind('<Return>', lambda e: self.send_message())  # Bind Enter key to send message
         self.chat_display.drop_target_register(DND_FILES)  # Register drop target for files

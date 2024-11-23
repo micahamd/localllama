@@ -1,30 +1,36 @@
-Local(o)llama chatbot
+# Local(o)llama chatbot
 
-A Python desktop application providing a functional interface for interacting with your locally installed LLMs from Ollama. 
+A Python application for interacting with local LLMs from Ollama. 
 
 Features:
 💬 Real-time chat interface with streaming responses
-📁 Drag-and-drop support for documents (.docx, .pdf, .txt) and images
-🎛️ Set the context window in the GUI (instead of working directly with the .modelfile)
+📁 Drag-and-drop support for documents (.docx, .pdf, .txt) and images.
+🎛️ Set the context window in the GUI to match document length (no need to generate a .modelfile)
 📦 Batch file processing 
 🔄 Optional chat history inclusion
 
-Prerequisites
- - Python 3.x
- - Ollama installed and running
+## Prerequisites
 
-----------
-To run the application: 
+- Python 3.x
+- [Ollama](https://ollama.ai/) installed and running
+- Windows/Linux/MacOS
 
-# Install required packages
-`pip install -r requirements.txt`
+## Quick Start
 
-# or 
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/local-ollama-chat.git
+cd local-ollama-chat
 
-`pip install ollama tkinterdnd2 python-docx PyPDF2 markdown pygments matplotlib pillow`
+# Install dependencies
+pip install -r [requirements.txt](http://_vscodecontentref_/0)
 
-# then run from the CLI in the installed directory
-`python localllama.py`
+# Run the application
+python [localllama.py](http://_vscodecontentref_/1)
+```
 
-----------
+📄 License
+Distributed under the MIT License
+
+Thanks to Ollama for making this possible.
 
