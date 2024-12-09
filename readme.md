@@ -1,6 +1,6 @@
 # Local(o)llama chatbot
 
-A Python application for interacting with local LLMs from Ollama. 
+A minimal Python application for easily interacting with local LLMs from Ollama. 
 
 Features:
 💬 Real-time chat interface with streaming responses

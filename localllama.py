@@ -59,6 +59,15 @@ class OllamaChatGUI:
         self.model_selector.pack(side='left', padx=(5,0))  # Pack the Combobox on the left with padding
         self.update_model_list()  # Populate the model list
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)  # Bind selection event to handler
+
+        # System instructions frame
+        system_frame = ttk.LabelFrame(root, text="System Instructions")
+        system_frame.pack(padx=10, pady=5, fill='x')
+
+        # System instructions text box with scrollbar
+        self.system_text = scrolledtext.ScrolledText(system_frame, height=3, wrap=tk.WORD)
+        self.system_text.pack(padx=5, pady=5, fill='x')
+        self.system_text.insert('1.0', "You are a helpful AI assistant who only gives accurate and objective information.")
         
         # Temperature controls
         temp_frame = ttk.Frame(model_frame)  # Create a frame for temperature controls
@@ -199,11 +208,12 @@ class OllamaChatGUI:
             parts = message.split('```')
             for i, part in enumerate(parts):
                 if i % 2 == 0:  # Regular text
+                    # Always insert regular text, even if empty
                     self.chat_display.insert(tk.END, part, 'assistant')
                 else:  # Code block
-                    self.chat_display.insert(tk.END, '\n')  # Add newline before code
-                    self.chat_display.insert(tk.END, part.strip(), 'code')
-                    self.chat_display.insert(tk.END, '\n')  # Add newline after code
+                    self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline before code
+                    self.chat_display.insert(tk.END, part.strip(), 'code')  # Code with code tag
+                    self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline after code
         else:
             self.chat_display.insert(tk.END, message, tags)
         
@@ -216,7 +226,7 @@ class OllamaChatGUI:
         elif self.file_content:
             status = f"Document loaded: {self.file_type.upper()} - {self.word_count} words"  # Status for document
         else:
-            status = "No file loaded"  # Status when no file is loaded
+            status = ""  # Status when no file is loaded
         self.display_message(f"\n{status}\n", 'status')  # Display status message with 'status' tag
     
     def send_message(self):
@@ -257,34 +267,41 @@ class OllamaChatGUI:
             
     def get_response(self, message):
         try:
-            self.display_message("\nAssistant: ", 'assistant')  # Display "Assistant: " with 'assistant' tag
-            
+            self.display_message("\nAssistant: ", 'assistant')
+
+            # Get system instructions
+            system_msg = self.system_text.get('1.0', tk.END).strip()
+
+            # Create messages array with system message first
+            messages = []
+            if system_msg:
+                messages.append({
+                    'role': 'system',
+                    'content': system_msg
+                })
+            messages.append(message)
+
             # Create a mark for the response start
-            self.chat_display.mark_set("response_start", "end-1c")  # Mark the start position of the response
-            full_response = ""  # Initialize full response string
-            
+            self.chat_display.mark_set("response_start", "end-1c")
+            full_response = ""
+
             for chunk in ollama.chat(
-                model=self.selected_model,  # Use the selected model
-                messages=[message],  # Send the message
-                stream=True,  # Enable streaming of response
-                options={"temperature": self.temperature.get(),
-                         "num_ctx": self.context_size.get()
-                }  # Set temperature and context size
+                model=self.selected_model,
+                messages=messages,
+                stream=True,
+                options={
+                    "temperature": self.temperature.get(),
+                    "num_ctx": self.context_size.get()
+                }
             ):
                 if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    content = chunk['message']['content']  # Get content from chunk
-                    full_response += content  # Append to full response
-                    self.chat_display.delete("response_start", "end-1c")  # Delete previous response text
-                    self.display_message(content, 'assistant')  # Display new content with 'assistant' tag
-                        
-            self.display_message("\n", 'assistant')  # Add a newline after response
-            self.file_img = None  # Reset file image
-            self.update_status()  # Update status display
-                
+                    content = chunk['message']['content']
+                    full_response += content
+                    self.chat_display.delete("response_start", "end-1c")
+                    self.display_message(content, 'assistant')
         except Exception as e:
-            self.display_message(f"\nError: {str(e)}\n", 'error')  # Display error message with 'error' tag
-                
-        self.chat_display.see(tk.END)  # Scroll to the end
+            self.display_message(f"\nError: {str(e)}\n", 'error')
+            self.chat_display.see(tk.END)
     
     def start_batch_process(self):
         if not self.input_field.get().strip():
@@ -336,9 +353,20 @@ class OllamaChatGUI:
                 
         try:
             self.display_message(f"Assistant (for {os.path.basename(file_path)}): ", 'assistant')
+
+            # Add system instructions
+            system_msg = self.system_text.get('1.0', tk.END).strip()
+            messages = []
+            if system_msg:
+                messages.append({
+                    'role': 'system',
+                    'content': system_msg
+                })
+            messages.append(message)
+                
             for chunk in ollama.chat(
                 model=self.selected_model,
-                messages=[message],
+                messages=messages,  # Use messages array instead of [message]
                 options={"temperature": self.temperature.get(),
                          "num_ctx": self.context_size.get()
                 }, 
