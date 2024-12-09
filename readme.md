@@ -3,11 +3,11 @@
 A minimal Python application for easily interacting with local LLMs from Ollama. 
 
 Features:
-💬 Real-time chat interface with streaming responses
-📁 Drag-and-drop support for documents (.docx, .pdf, .txt) and images.
-🎛️ Set the context window in the GUI to match document length (no need to generate a .modelfile)
-📦 Batch file processing 
-🔄 Optional chat history inclusion
+- 💬 Real-time chat interface with streaming responses
+- 📁 Drag-and-drop support for documents (.docx, .pdf, .txt) and images.
+- 🎛️ Set the context window and system instructions in the GUI (no need to generate a .modelfile)
+- 📦 Batch file processing 
+- 🔄 Optional chat history inclusion
 
 ## Prerequisites
 
