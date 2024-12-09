@@ -100,8 +100,8 @@ class OllamaChatGUI:
         
         self.context_slider = ttk.Scale(
             context_frame,
-            from_=100,
-            to=128000,
+            from_=1000,
+            to=30000,
             orient='horizontal',
             length=100,
             variable=self.context_size,
@@ -128,13 +128,10 @@ class OllamaChatGUI:
         # Button frame
         button_frame = ttk.Frame(input_frame)  # Create a frame for buttons
         button_frame.pack(side='right', padx=(5, 0))  # Pack the button frame on the right with padding
-        
         clear_button = ttk.Button(button_frame, text="Clear Chat", command=self.clear_chat)  # Create a button to clear chat
         clear_button.pack(side='right', padx=(5, 0))  # Pack the clear button on the right with padding
-        
         batch_button = ttk.Button(button_frame, text="Batch Process", command=self.start_batch_process)  # Create a button for batch processing
         batch_button.pack(side='right', padx=(5, 0))  # Pack the batch button on the right with padding
-        
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)  # Create a button to send message
         send_button.pack(side='right')  # Pack the send button on the right
         
