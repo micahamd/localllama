@@ -11,8 +11,7 @@ import threading  # Import threading for concurrent execution
 from tkinter import ttk, font  # Import themed tkinter widgets and font module
 from tkinterdnd2 import DND_FILES, TkinterDnD  # Import drag-and-drop support for tkinter
 import os  # Import os for operating system related functions
-from docx import Document  # Import Document from python-docx for .docx file handling
-import PyPDF2  # Import PyPDF2 for PDF file handling
+from markitdown import MarkItDown  # New import
 import re  # Import regular expressions module
 import markdown  # Import markdown for processing markdown text
 from pygments import highlight  # Import highlight function from pygments for syntax highlighting
@@ -100,8 +99,8 @@ class OllamaChatGUI:
         
         self.context_slider = ttk.Scale(
             context_frame,
-            from_=100,
-            to=128000,
+            from_=1000,
+            to=30000,
             orient='horizontal',
             length=100,
             variable=self.context_size,
@@ -128,13 +127,10 @@ class OllamaChatGUI:
         # Button frame
         button_frame = ttk.Frame(input_frame)  # Create a frame for buttons
         button_frame.pack(side='right', padx=(5, 0))  # Pack the button frame on the right with padding
-        
         clear_button = ttk.Button(button_frame, text="Clear Chat", command=self.clear_chat)  # Create a button to clear chat
         clear_button.pack(side='right', padx=(5, 0))  # Pack the clear button on the right with padding
-        
         batch_button = ttk.Button(button_frame, text="Batch Process", command=self.start_batch_process)  # Create a button for batch processing
         batch_button.pack(side='right', padx=(5, 0))  # Pack the batch button on the right with padding
-        
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)  # Create a button to send message
         send_button.pack(side='right')  # Pack the send button on the right
         
@@ -172,28 +168,15 @@ class OllamaChatGUI:
         ext = os.path.splitext(file_path)[1].lower()  # Get file extension in lowercase
         if ext in ['.jpg', '.jpeg', '.png', '.gif']:
             return 'image'  # Return image type
-        elif ext == '.docx':
-            return 'docx'  # Return docx type
-        elif ext == '.pdf':
-            return 'pdf'  # Return pdf type
-        elif ext == '.txt':
-            return 'txt'  # Return txt type
-        return None  # Return None if unsupported
+        return 'document'  # All other file types handled by markitdown
     
     def extract_content(self, file_path):
         try:
-            ext = os.path.splitext(file_path)[1].lower()  # Get file extension in lowercase
-            if ext == '.docx':
-                doc = Document(file_path)  # Open .docx file
-                return ' '.join([paragraph.text for paragraph in doc.paragraphs])  # Extract and join text
-            elif ext == '.pdf':
-                with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)  # Read PDF file
-                    return ' '.join([page.extract_text() for page in pdf_reader.pages])  # Extract and join text
-            elif ext == '.txt':
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    return file.read()  # Read and return text
-            return None  # Return None if unsupported
+            if self.get_file_type(file_path) == 'document':
+                md = MarkItDown()
+                result = md.convert(file_path)
+                return result.text_content
+            return None
         except Exception as e:
             print(f"Error extracting content: {str(e)}")  # Print extraction error
             return None  # Return None on failure
@@ -409,64 +392,10 @@ class OllamaChatGUI:
         self.update_status()  # Update status display
     
     def configure_tags(self):
-        self.chat_display.tag_configure('user', foreground='#0077cc', font=('Arial', 10, 'bold'))  # Configure 'user' text style
-        self.chat_display.tag_configure('assistant', foreground='#800080', font=('Arial', 10))  # Configure 'assistant' text style
-            # Enhanced code block styling
-        self.chat_display.tag_configure('code', 
-            font=('Consolas', 10, 'bold'),         # Monospaced bold font
-            background='#e0e0e0',                  # Slightly darker gray background
-            foreground='black',                    # Black text for contrast
-            spacing1=10,                           # Space above
-            spacing3=10,                           # Space below
-            lmargin1=20,                           # Left margin for first line
-            lmargin2=20,                           # Left margin for wrapped lines
-            relief='raised',                       # Raised border for distinction
-            borderwidth=1,                         # Border width
-            wrap='none'                            # Prevent text wrapping within code blocks
-        )
-        self.chat_display.tag_configure('error', foreground='red')  # Configure 'error' text style
-        self.chat_display.tag_configure('status', foreground='gray')  # Configure 'status' text style
-    
-    def format_markdown(self, text):
-        # Convert markdown to plain text while preserving formatting
-        try:
-            # Remove HTML tags but keep content
-            def clean_html(html_text):
-                # Basic HTML tag removal while preserving content
-                text = re.sub(r'<[^>]+>', '', html_text)  # Remove HTML tags
-                # Convert HTML entities
-                text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')  # Replace HTML entities
-                text = text.replace('&quot;', '"').replace('&apos;', "'")  # Replace more HTML entities
-                return text
-        
-            # Convert markdown to HTML first
-            html = markdown.markdown(text, extensions=['fenced_code', 'tables'])  # Convert markdown to HTML with extensions
-            
-            # Process code blocks specially
-            code_pattern = r'<pre><code.*?>(.*?)</code></pre>'  # Regex pattern to find code blocks
-            result = ''  # Initialize result string
-            last_end = 0  # Initialize last end position
-            
-            for match in re.finditer(code_pattern, html, re.DOTALL):
-                # Add cleaned text before code block
-                result += clean_html(html[last_end:match.start()])  # Append text before code block
-                
-                # Format code block
-                code = match.group(1)  # Extract code content
-                code = clean_html(code)  # Clean code content
-                # Add code block with proper formatting
-                result += f"\n```\n{code}\n```\n"  # Append formatted code block
-                
-                last_end = match.end()  # Update last end position
-            
-            # Add remaining cleaned text
-            result += clean_html(html[last_end:])  # Append any remaining text after last code block
-                
-            return result.strip()  # Return the formatted result stripped of leading/trailing whitespace
-                
-        except Exception:
-            # Fallback to raw text if markdown processing fails
-            return text  # Return original text if an error occurs
+        self.chat_display.tag_configure('user', foreground='#0077cc')  # Blue for user
+        self.chat_display.tag_configure('assistant', foreground='#800080')  # Purple for assistant
+        self.chat_display.tag_configure('error', foreground='red')  # Keep error in red
+        self.chat_display.tag_configure('status', foreground='gray')  # Keep status in gray
 
 def main():
     root = TkinterDnD.Tk()  # Initialize the main TkinterDnD root window
