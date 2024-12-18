@@ -392,64 +392,10 @@ class OllamaChatGUI:
         self.update_status()  # Update status display
     
     def configure_tags(self):
-        self.chat_display.tag_configure('user', foreground='#0077cc', font=('Arial', 10, 'bold'))  # Configure 'user' text style
-        self.chat_display.tag_configure('assistant', foreground='#800080', font=('Arial', 10))  # Configure 'assistant' text style
-            # Enhanced code block styling
-        self.chat_display.tag_configure('code', 
-            font=('Consolas', 10, 'bold'),         # Monospaced bold font
-            background='#e0e0e0',                  # Slightly darker gray background
-            foreground='black',                    # Black text for contrast
-            spacing1=10,                           # Space above
-            spacing3=10,                           # Space below
-            lmargin1=20,                           # Left margin for first line
-            lmargin2=20,                           # Left margin for wrapped lines
-            relief='raised',                       # Raised border for distinction
-            borderwidth=1,                         # Border width
-            wrap='none'                            # Prevent text wrapping within code blocks
-        )
-        self.chat_display.tag_configure('error', foreground='red')  # Configure 'error' text style
-        self.chat_display.tag_configure('status', foreground='gray')  # Configure 'status' text style
-    
-    def format_markdown(self, text):
-        # Convert markdown to plain text while preserving formatting
-        try:
-            # Remove HTML tags but keep content
-            def clean_html(html_text):
-                # Basic HTML tag removal while preserving content
-                text = re.sub(r'<[^>]+>', '', html_text)  # Remove HTML tags
-                # Convert HTML entities
-                text = text.replace('&lt;', '<').replace('&gt;', '>').replace('&amp;', '&')  # Replace HTML entities
-                text = text.replace('&quot;', '"').replace('&apos;', "'")  # Replace more HTML entities
-                return text
-        
-            # Convert markdown to HTML first
-            html = markdown.markdown(text, extensions=['fenced_code', 'tables'])  # Convert markdown to HTML with extensions
-            
-            # Process code blocks specially
-            code_pattern = r'<pre><code.*?>(.*?)</code></pre>'  # Regex pattern to find code blocks
-            result = ''  # Initialize result string
-            last_end = 0  # Initialize last end position
-            
-            for match in re.finditer(code_pattern, html, re.DOTALL):
-                # Add cleaned text before code block
-                result += clean_html(html[last_end:match.start()])  # Append text before code block
-                
-                # Format code block
-                code = match.group(1)  # Extract code content
-                code = clean_html(code)  # Clean code content
-                # Add code block with proper formatting
-                result += f"\n```\n{code}\n```\n"  # Append formatted code block
-                
-                last_end = match.end()  # Update last end position
-            
-            # Add remaining cleaned text
-            result += clean_html(html[last_end:])  # Append any remaining text after last code block
-                
-            return result.strip()  # Return the formatted result stripped of leading/trailing whitespace
-                
-        except Exception:
-            # Fallback to raw text if markdown processing fails
-            return text  # Return original text if an error occurs
+        self.chat_display.tag_configure('user', foreground='#0077cc')  # Blue for user
+        self.chat_display.tag_configure('assistant', foreground='#800080')  # Purple for assistant
+        self.chat_display.tag_configure('error', foreground='red')  # Keep error in red
+        self.chat_display.tag_configure('status', foreground='gray')  # Keep status in gray
 
 def main():
     root = TkinterDnD.Tk()  # Initialize the main TkinterDnD root window

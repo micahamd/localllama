@@ -4,5 +4,6 @@ python-docx
 PyPDF2
 markdown
 Pygments
+markitdown
 matplotlib
 Pillow
