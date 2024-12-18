@@ -11,8 +11,7 @@ import threading  # Import threading for concurrent execution
 from tkinter import ttk, font  # Import themed tkinter widgets and font module
 from tkinterdnd2 import DND_FILES, TkinterDnD  # Import drag-and-drop support for tkinter
 import os  # Import os for operating system related functions
-from docx import Document  # Import Document from python-docx for .docx file handling
-import PyPDF2  # Import PyPDF2 for PDF file handling
+from markitdown import MarkItDown  # New import
 import re  # Import regular expressions module
 import markdown  # Import markdown for processing markdown text
 from pygments import highlight  # Import highlight function from pygments for syntax highlighting
@@ -169,28 +168,15 @@ class OllamaChatGUI:
         ext = os.path.splitext(file_path)[1].lower()  # Get file extension in lowercase
         if ext in ['.jpg', '.jpeg', '.png', '.gif']:
             return 'image'  # Return image type
-        elif ext == '.docx':
-            return 'docx'  # Return docx type
-        elif ext == '.pdf':
-            return 'pdf'  # Return pdf type
-        elif ext == '.txt':
-            return 'txt'  # Return txt type
-        return None  # Return None if unsupported
+        return 'document'  # All other file types handled by markitdown
     
     def extract_content(self, file_path):
         try:
-            ext = os.path.splitext(file_path)[1].lower()  # Get file extension in lowercase
-            if ext == '.docx':
-                doc = Document(file_path)  # Open .docx file
-                return ' '.join([paragraph.text for paragraph in doc.paragraphs])  # Extract and join text
-            elif ext == '.pdf':
-                with open(file_path, 'rb') as file:
-                    pdf_reader = PyPDF2.PdfReader(file)  # Read PDF file
-                    return ' '.join([page.extract_text() for page in pdf_reader.pages])  # Extract and join text
-            elif ext == '.txt':
-                with open(file_path, 'r', encoding='utf-8') as file:
-                    return file.read()  # Read and return text
-            return None  # Return None if unsupported
+            if self.get_file_type(file_path) == 'document':
+                md = MarkItDown()
+                result = md.convert(file_path)
+                return result.text_content
+            return None
         except Exception as e:
             print(f"Error extracting content: {str(e)}")  # Print extraction error
             return None  # Return None on failure
