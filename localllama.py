@@ -134,6 +134,9 @@ class OllamaChatGUI:
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)  # Create a button to send message
         send_button.pack(side='right')  # Pack the send button on the right
         
+        stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_processing)
+        stop_button.pack(side='right', padx=(5, 0))
+        
         # Input processing
         self.is_processing = False  # Initialize processing flag
         self.input_field.bind('<Return>', lambda e: self.send_message())  # Bind Enter key to send message
@@ -390,6 +393,11 @@ class OllamaChatGUI:
     def clear_chat(self):
         self.chat_display.delete(1.0, tk.END)  # Clear all text in chat display
         self.update_status()  # Update status display
+    
+    def stop_processing(self):
+        """Stop any ongoing process."""
+        self.is_processing = False
+        self.display_message("\nStopped ongoing processes.\n", 'status')
     
     def configure_tags(self):
         self.chat_display.tag_configure('user', foreground='#0077cc')  # Blue for user
