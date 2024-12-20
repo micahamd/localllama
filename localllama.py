@@ -117,6 +117,12 @@ class OllamaChatGUI:
         )  # Create a checkbox to include chat history
         self.include_chat_checkbox.pack(side='left', padx=(10,0))  # Pack the checkbox on the left with padding
         
+        # Show image checkbox
+        self.show_image_var = tk.BooleanVar(value=True)
+        show_image_checkbox = ttk.Checkbutton(model_frame, text="Show Image?", variable=self.show_image_var)
+        show_image_checkbox.pack(side='left', padx=(10,0))
+        self.show_image_var.trace_add("write", self.on_show_image_toggle)
+        
         # Create input area
         input_frame = ttk.Frame(root)  # Create a frame for input area
         input_frame.pack(padx=10, pady=(0, 10), fill='x')  # Pack the input frame with padding and fill horizontally
@@ -146,6 +152,10 @@ class OllamaChatGUI:
         # Configure tags and update status
         self.configure_tags()  # Configure text tags for styling
         self.update_status()  # Update status display
+
+        # Image preview
+        self.image_preview = tk.Label(root)
+        self.image_preview.pack()
     
     # Context tab
     def on_context_change(self, value):
@@ -159,6 +169,13 @@ class OllamaChatGUI:
         if self.file_type == 'image':
             self.file_img = file_path  # Set image path
             self.file_content = None  # Reset file content
+            if self.show_image_var.get():
+                pil_img = Image.open(file_path)
+                pil_img.thumbnail((300, 300))
+                self.preview_image = ImageTk.PhotoImage(pil_img)
+                self.image_preview.config(image=self.preview_image)
+            else:
+                self.image_preview.config(image="")
         else:
             self.file_img = None  # Reset image path
             self.file_content = self.extract_content(file_path)  # Extract content from file
@@ -247,8 +264,6 @@ class OllamaChatGUI:
                 
         # Send message in separate thread
         threading.Thread(target=self.get_response, args=(message,)).start()  # Start thread for response
-        self.file_content = None  # Reset file content
-        self.file_img = None  # Reset file image
         self.is_processing = False  # Stop any ongoing batch processing
             
     def get_response(self, message):
@@ -404,6 +419,16 @@ class OllamaChatGUI:
         self.chat_display.tag_configure('assistant', foreground='#800080')  # Purple for assistant
         self.chat_display.tag_configure('error', foreground='red')  # Keep error in red
         self.chat_display.tag_configure('status', foreground='gray')  # Keep status in gray
+
+    def on_show_image_toggle(self, *args):
+        """Show or hide the image preview depending on the checkbox."""
+        if self.show_image_var.get() and self.file_type == 'image' and self.file_img:
+            pil_img = Image.open(self.file_img)
+            pil_img.thumbnail((300, 300))
+            self.preview_image = ImageTk.PhotoImage(pil_img)
+            self.image_preview.config(image=self.preview_image)
+        else:
+            self.image_preview.config(image="")
 
 def main():
     root = TkinterDnD.Tk()  # Initialize the main TkinterDnD root window
