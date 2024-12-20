@@ -34,6 +34,7 @@ class OllamaChatGUI:
         self.file_type = None  # Initialize file type variable
         self.word_count = 0  # Initialize word count
         self.selected_model = None  # Initialize selected model variable
+        self.stop_event = threading.Event()  # Add this line to create a stop event
         
         # Create main chat frame first
         self.chat_frame = ttk.Frame(root)  # Create a frame for chat
@@ -145,6 +146,7 @@ class OllamaChatGUI:
         
         # Input processing
         self.is_processing = False  # Initialize processing flag
+        self.active_stream = None  # Add this line to track active stream
         self.input_field.bind('<Return>', lambda e: self.send_message())  # Bind Enter key to send message
         self.chat_display.drop_target_register(DND_FILES)  # Register drop target for files
         self.chat_display.dnd_bind('<<Drop>>', self.handle_drop)  # Bind drop event to handler
@@ -264,9 +266,9 @@ class OllamaChatGUI:
                 
         # Send message in separate thread
         threading.Thread(target=self.get_response, args=(message,)).start()  # Start thread for response
-        self.is_processing = False  # Stop any ongoing batch processing
             
     def get_response(self, message):
+        self.stop_event.clear()  # Clear the stop event before starting
         try:
             self.display_message("\nAssistant: ", 'assistant')
 
@@ -286,7 +288,7 @@ class OllamaChatGUI:
             self.chat_display.mark_set("response_start", "end-1c")
             full_response = ""
 
-            for chunk in ollama.chat(
+            stream = ollama.chat(
                 model=self.selected_model,
                 messages=messages,
                 stream=True,
@@ -294,12 +296,20 @@ class OllamaChatGUI:
                     "temperature": self.temperature.get(),
                     "num_ctx": self.context_size.get()
                 }
-            ):
-                if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    content = chunk['message']['content']
-                    full_response += content
-                    self.chat_display.delete("response_start", "end-1c")
-                    self.display_message(content, 'assistant')
+            )
+            self.active_stream = stream  # Store the stream
+
+            try:
+                for chunk in stream:
+                    if self.stop_event.is_set():
+                        break  # Exit loop if stop event is set
+                    if chunk and 'message' in chunk and 'content' in chunk['message']:
+                        content = chunk['message']['content']
+                        full_response += content
+                        self.chat_display.delete("response_start", "end-1c")
+                        self.display_message(content, 'assistant')
+            finally:
+                self.active_stream = None
         except Exception as e:
             self.display_message(f"\nError: {str(e)}\n", 'error')
             self.chat_display.see(tk.END)
@@ -311,7 +321,6 @@ class OllamaChatGUI:
                 
         directory = filedialog.askdirectory(title="Select Directory for Batch Processing")  # Open directory selection dialog
         if directory:
-            self.is_processing = True  # Set processing flag
             threading.Thread(target=self.process_directory, args=(directory,)).start()  # Start batch processing in a new thread
     
     def process_directory(self, directory):
@@ -330,9 +339,11 @@ class OllamaChatGUI:
         self.chat_display.insert(tk.END, f"Found {total_files} files to process.\n")  # Display number of files
         self.chat_display.see(tk.END)  # Scroll to the end
         
+        self.stop_event.clear()  # Clear the stop event before starting
+
         for idx, file_path in enumerate(files_to_process, 1):
-            if not self.is_processing:
-                break  # Exit loop if processing is stopped
+            if self.stop_event.is_set():
+                break  # Exit loop if stop event is set
                 
             self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{total_files}: {os.path.basename(file_path)}\n")  # Inform about current file
             self.chat_display.see(tk.END)  # Scroll to the end
@@ -365,27 +376,30 @@ class OllamaChatGUI:
                 })
             messages.append(message)
                 
-            for chunk in ollama.chat(
+            stream = ollama.chat(
                 model=self.selected_model,
-                messages=messages,  # Use messages array instead of [message]
+                messages=messages,
                 options={"temperature": self.temperature.get(),
                          "num_ctx": self.context_size.get()
                 }, 
                 stream=True
-            ):
-                if not self.is_processing:
-                    break
-                if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    # Use display_message instead of direct insert
-                    self.display_message(chunk['message']['content'], 'assistant')
-            self.display_message("\n", 'assistant')
+            )
+            self.active_stream = stream  # Store the stream
+
+            try:
+                for chunk in stream:
+                    if self.stop_event.is_set():
+                        break  # Exit loop if stop event is set
+                    if chunk and 'message' in chunk and 'content' in chunk['message']:
+                        self.display_message(chunk['message']['content'], 'assistant')
+            finally:
+                self.active_stream = None
         except Exception as e:
             self.display_message(f"Error processing file: {str(e)}\n", 'error')
                 
             self.chat_display.see(tk.END)  # Scroll to the end
         
-        self.is_processing = False  # Reset processing flag
-        self.chat_display.insert(tk.END, "\nBatch processing completed.\n")  # Inform user about completion
+        self.display_message("\nBatch processing completed.\n", 'status')
         self.chat_display.see(tk.END)  # Scroll to the end
     
     def update_model_list(self):
@@ -411,7 +425,7 @@ class OllamaChatGUI:
     
     def stop_processing(self):
         """Stop any ongoing process."""
-        self.is_processing = False
+        self.stop_event.set()  # Signal to stop
         self.display_message("\nStopped ongoing processes.\n", 'status')
     
     def configure_tags(self):
