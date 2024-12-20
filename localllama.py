@@ -124,6 +124,15 @@ class OllamaChatGUI:
         show_image_checkbox.pack(side='left', padx=(10,0))
         self.show_image_var.trace_add("write", self.on_show_image_toggle)
         
+        # File content checkbox
+        self.include_file_var = tk.BooleanVar(value=True)  # Variable to control inclusion of file content
+        self.include_file_checkbox = ttk.Checkbutton(
+            model_frame,
+            text="Include file content?",
+            variable=self.include_file_var
+        )
+        self.include_file_checkbox.pack(side='left', padx=(10,0))
+
         # Create input area
         input_frame = ttk.Frame(root)  # Create a frame for input area
         input_frame.pack(padx=10, pady=(0, 10), fill='x')  # Pack the input frame with padding and fill horizontally
@@ -143,6 +152,10 @@ class OllamaChatGUI:
         
         stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_processing)
         stop_button.pack(side='right', padx=(5, 0))
+        
+        # Add "Clear File" button
+        clear_file_button = ttk.Button(button_frame, text="Clear File", command=self.clear_file)
+        clear_file_button.pack(side='right', padx=(5, 0))
         
         # Input processing
         self.is_processing = False  # Initialize processing flag
@@ -167,6 +180,10 @@ class OllamaChatGUI:
     def handle_drop(self, event):
         file_path = event.data.strip('{}')  # Get the dropped file path and remove braces
         self.file_type = self.get_file_type(file_path)  # Determine the file type
+        
+        # Enable the include file checkbox when a file is dropped
+        self.include_file_checkbox.state(['!disabled'])
+        self.include_file_var.set(True)
         
         if self.file_type == 'image':
             self.file_img = file_path  # Set image path
@@ -226,13 +243,17 @@ class OllamaChatGUI:
         self.chat_display.see(tk.END)
     
     def update_status(self):
+        """Update status display with current file information."""
         if self.file_img:
             status = f"Image loaded: {self.file_img}"  # Status message for image
         elif self.file_content:
             status = f"Document loaded: {self.file_type.upper()} - {self.word_count} words"  # Status for document
         else:
             status = ""  # Status when no file is loaded
-        self.display_message(f"\n{status}\n", 'status')  # Display status message with 'status' tag
+            
+        # Only display status if there's actually a file loaded
+        if status:
+            self.display_message(f"\n{status}\n", 'status')  # Display status message with 'status' tag
     
     def send_message(self):
         user_input = self.input_field.get()  # Get user input from entry field
@@ -246,21 +267,28 @@ class OllamaChatGUI:
         self.input_field.delete(0, tk.END)  # Clear the input field
         
         # Prepare message content
-        content = user_input  # Start with user input
-        if self.file_content:
-            content += f"\n\nDocument content:\n{self.file_content}"  # Append document content if available
+        content = user_input
+
+        # Include file content based on the checkbox
+        if self.include_file_var.get() and self.file_content:
+            content += f"\n\nDocument content:\n{self.file_content}"
+
+        # Include chat history if selected
         if self.include_chat_var.get():
-            chat_history = self.chat_display.get(1.0, tk.END).strip()  # Get chat history
-            content += f"\n\nChat history:\n{chat_history}"  # Append chat history if checkbox is selected
-        
+            chat_history = self.chat_display.get(1.0, tk.END).strip()
+            # Exclude file content from chat history if not including it
+            if not self.include_file_var.get() and self.file_content:
+                chat_history = chat_history.replace(self.file_content, '')
+            content += f"\n\nChat history:\n{chat_history}"
+
         # Prepare message
         message = {
             'role': 'user',
             'content': content  # Set message content
         }
         
-        # Add image if available
-        if self.file_img:
+        # Add image if available and included
+        if self.include_file_var.get() and self.file_img:
             with open(self.file_img, 'rb') as img_file:
                 message['images'] = [img_file.read()]  # Attach image data to message
                 
@@ -427,6 +455,34 @@ class OllamaChatGUI:
         """Stop any ongoing process."""
         self.stop_event.set()  # Signal to stop
         self.display_message("\nStopped ongoing processes.\n", 'status')
+    
+    def clear_file(self):
+        """Clear the uploaded file or image from memory."""
+        # Clear all file-related variables
+        self.file_content = None
+        self.file_img = None
+        self.file_type = None
+        self.word_count = 0
+        
+        # Clear image preview
+        self.image_preview.config(image="")
+        self.preview_image = None  # Clear the reference to prevent memory leaks
+        
+        # Disable the include file checkbox since there's no file
+        self.include_file_checkbox.state(['!selected', 'disabled'])
+        self.include_file_var.set(False)
+        
+        # Clear any previous status messages about files
+        current_text = self.chat_display.get("1.0", tk.END)
+        lines = current_text.split('\n')
+        # Remove status lines about files
+        filtered_lines = [line for line in lines 
+                         if not (line.startswith("Image loaded:") or 
+                                line.startswith("Document loaded:"))]
+        
+        # Update chat display without file status
+        self.chat_display.delete("1.0", tk.END)
+        self.chat_display.insert("1.0", "\n".join(filtered_lines))
     
     def configure_tags(self):
         self.chat_display.tag_configure('user', foreground='#0077cc')  # Blue for user
