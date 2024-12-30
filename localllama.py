@@ -49,6 +49,7 @@ class OllamaChatGUI:
         
         # Make read-only but allow selection
         self.chat_display.bind("<Key>", lambda e: "break" if e.keysym not in ("c", "C", "Control_L", "Control_R") else "")  # Bind keys to prevent editing
+        self.chat_display.bind("<Control-c>", lambda e: self.chat_display.event_generate("<<Copy>>"))
         
         # Create model frame and controls
         model_frame = ttk.Frame(root)  # Create a frame for model controls
@@ -92,7 +93,6 @@ class OllamaChatGUI:
         # Context window controls
         context_frame = ttk.Frame(model_frame)  # Create a frame for context window controls
         context_frame.pack(side='left', padx=(10,0))  # Pack the context frame on the left with padding
-        
         ttk.Label(context_frame, text="Context:").pack(side='left')  # Create and pack a label for context size
         self.context_size = tk.IntVar(value=4096)  # Initialize context size variable with default value
         self.context_label = ttk.Label(context_frame, text="4096")  # Create a label to display context size
