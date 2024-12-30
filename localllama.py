@@ -134,11 +134,10 @@ class OllamaChatGUI:
         self.include_file_checkbox.pack(side='left', padx=(10,0))
 
         # Create input area
-        input_frame = ttk.Frame(root)  # Create a frame for input area
+        input_frame = ttk.Frame(root, style='InputFrame.TFrame')  # Create a frame for input area
         input_frame.pack(padx=10, pady=(0, 10), fill='x')  # Pack the input frame with padding and fill horizontally
-        
-        self.input_field = ttk.Entry(input_frame)  # Create an Entry widget for user input
-        self.input_field.pack(side='left', expand=True, fill='x', padx=(0, 5))  # Pack the input field on the left with expansion and padding
+        self.input_field = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=3, borderwidth=1, relief="solid")  # Create a ScrolledText widget for user input
+        self.input_field.pack(side='left', expand=True, fill='both', padx=5, pady=5)  # Pack the input field on the left with expansion and padding
         
         # Button frame
         button_frame = ttk.Frame(input_frame)  # Create a frame for buttons
@@ -160,7 +159,7 @@ class OllamaChatGUI:
         # Input processing
         self.is_processing = False  # Initialize processing flag
         self.active_stream = None  # Add this line to track active stream
-        self.input_field.bind('<Return>', lambda e: self.send_message())  # Bind Enter key to send message
+        self.input_field.bind('<Control-Return>', lambda e: self.send_message())  # Bind Ctrl+Enter to send message
         self.chat_display.drop_target_register(DND_FILES)  # Register drop target for files
         self.chat_display.dnd_bind('<<Drop>>', self.handle_drop)  # Bind drop event to handler
         
@@ -256,7 +255,7 @@ class OllamaChatGUI:
             self.display_message(f"\n{status}\n", 'status')  # Display status message with 'status' tag
     
     def send_message(self):
-        user_input = self.input_field.get()  # Get user input from entry field
+        user_input = self.input_field.get("1.0", tk.END)  # Get user input from entry field
         if not user_input.strip():
             return  # Do nothing if input is empty
                 
@@ -264,7 +263,7 @@ class OllamaChatGUI:
         self.display_message("\nYou: ", 'user')  # Display "You: " with 'user' tag
         self.display_message(f"{user_input}\n", 'user')  # Display the actual user input
         
-        self.input_field.delete(0, tk.END)  # Clear the input field
+        self.input_field.delete("1.0", tk.END)  # Clear the input field
         
         # Prepare message content
         content = user_input
