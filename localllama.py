@@ -41,7 +41,7 @@ class OllamaChatGUI:
         self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')  # Pack the chat frame with padding and expansion
         
         # Create chat display with scrollbar
-        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20)  # Create a Text widget for chat display
+        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20, font=("Arial", 12), padx=5, pady=5)  # Create a Text widget for chat display
         self.chat_display.pack(side='left', expand=True, fill='both')  # Pack the chat display on the left
         scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)  # Create a vertical scrollbar
         scrollbar.pack(side='right', fill='y')  # Pack the scrollbar on the right
@@ -136,8 +136,9 @@ class OllamaChatGUI:
         # Create input area
         input_frame = ttk.Frame(root, style='InputFrame.TFrame')  # Create a frame for input area
         input_frame.pack(padx=10, pady=(0, 10), fill='x')  # Pack the input frame with padding and fill horizontally
-        self.input_field = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=3, borderwidth=1, relief="solid")  # Create a ScrolledText widget for user input
+        self.input_field = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=3, borderwidth=1, relief="solid", font=("Arial", 12))  # Create a ScrolledText widget for user input
         self.input_field.pack(side='left', expand=True, fill='both', padx=5, pady=5)  # Pack the input field on the left with expansion and padding
+        self.input_field.config(borderwidth=1, relief="solid", highlightthickness=1, highlightbackground="#cccccc")
         
         # Button frame
         button_frame = ttk.Frame(input_frame)  # Create a frame for buttons
@@ -488,6 +489,7 @@ class OllamaChatGUI:
         self.chat_display.tag_configure('assistant', foreground='#800080')  # Purple for assistant
         self.chat_display.tag_configure('error', foreground='red')  # Keep error in red
         self.chat_display.tag_configure('status', foreground='gray')  # Keep status in gray
+        self.chat_display.tag_configure('code', font=("Consolas", 12), background="#f0f0f0") # Monospace font for code
 
     def on_show_image_toggle(self, *args):
         """Show or hide the image preview depending on the checkbox."""
