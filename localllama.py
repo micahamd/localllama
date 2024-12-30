@@ -433,7 +433,7 @@ class OllamaChatGUI:
     def update_model_list(self):
         try:
             models = ollama.list()  # Retrieve list of available models
-            model_names = [model['name'] for model in models['models']]  # Extract model names
+            model_names = [model.model for model in models.models]  # Extract model names
             self.model_selector['values'] = model_names  # Set model names in Combobox
             if model_names:
                 self.model_selector.set(model_names[0])  # Select the first model by default
