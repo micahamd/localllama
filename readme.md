@@ -19,7 +19,7 @@ Features:
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/local-ollama-chat.git
+git clone https://github.com/micahamd/localllama/tree/master
 cd local-ollama-chat
 
 # Install dependencies
