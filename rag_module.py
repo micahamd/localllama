@@ -27,9 +27,8 @@ class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
         return embeddings # Return the embeddings, not the dictionaries
 
 class RAG:
-    def __init__(self, embedding_model_name="gguf/mxbai-embed-large-v1-f16-1728036732480:latest", llm_model_name="x/llama3.2-vision:11b", persist_directory="chroma_db"):
+    def __init__(self, embedding_model_name, persist_directory="chroma_db"):
         self.embedding_model_name = embedding_model_name
-        self.llm_model_name = llm_model_name
         self.persist_directory = persist_directory
         self.client = chromadb.PersistentClient(path=self.persist_directory)
         self.embedding_function = self.get_embedding_function()
@@ -53,6 +52,14 @@ class RAG:
             return self.client.get_collection(name="rag_collection", embedding_function=self.embedding_function)
         except chromadb.errors.InvalidCollectionException:
             return self.client.create_collection(name="rag_collection", embedding_function=self.embedding_function)
+    
+    def update_embedding_function(self, new_embedding_model_name):
+            """Updates the embedding function and recreates the collection."""
+            self.embedding_model_name = new_embedding_model_name
+            self.embedding_function = self.get_embedding_function()
+            self.clear_db() #clear the old collection
+            self.collection = self.get_or_create_collection() # create new collection using new function
+            print(f"Updated embedding function to {self.embedding_model_name}")
 
     def _extract_sentences(self, text: str) -> List[str]:
         """Extracts sentences from the given text."""
@@ -67,17 +74,21 @@ class RAG:
             chunks.append(" ".join(chunk))
           return chunks
 
-
     def _extract_text_from_files(self, file_paths: List[str]) -> str:
         """Extracts and concatenates text from the given file paths."""
         md = MarkItDown()
         all_text = []
         for file_path in file_paths:
+            file = None
             try:
+                file = open(file_path, 'r', encoding='utf-8', errors='ignore')
                 text = md.convert(file_path).text_content
                 all_text.append(text)
             except Exception as e:
                 print(f"Error reading file {file_path}: {e}")
+            finally:
+                if file:
+                    file.close()
         return "\n".join(all_text)
 
     def ingest_data(self, file_paths: List[str]):
@@ -100,23 +111,6 @@ class RAG:
       else:
           return "No context retrieved"  # Handle the case of no results
 
-
-    def query_llm(self, query: str, context: str = None):
-        """Queries the LLM using the given query and optional context."""
-        messages = []
-        if context:
-            messages.append({"role": "user", "content": f"Context:\n{context}\n\nQuery:{query}"})
-        else:
-            messages.append({"role": "user", "content": query})
-
-        try:
-            response = ollama.chat(model=self.llm_model_name, messages=messages)
-            # Swap to the correct field for text
-            return response["message"]["content"].strip()
-        except Exception as e:
-            print(f"Error querying LLM: {e}")
-            return None
-
     def clear_db(self):
         """Clears the current database"""
         try:
@@ -125,4 +119,3 @@ class RAG:
             print("Chroma DB cleared")
         except Exception as e:
             print(f"Error clearing Chroma DB {e}")
-

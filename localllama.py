@@ -4,6 +4,7 @@ import threading
 from tkinter import ttk, font
 from tkinterdnd2 import DND_FILES, TkinterDnD
 import os
+from markitdown import MarkItDown
 import re
 import markdown
 from pygments import highlight
@@ -12,15 +13,13 @@ from pygments.formatters import BBCodeFormatter
 import matplotlib.pyplot as plt
 import io
 from PIL import Image, ImageTk
-import ollama
-from rag_module import RAG  # Import the RAG class
-from markitdown import MarkItDown  # Import MarkItDown
+import ollama  # Assuming ollama is already imported
 
 class OllamaChatGUI:
     def on_temp_change(self, value):
         """Update temperature label when slider moves"""
         self.temp_label.config(text=f"{float(value):.2f}")  # Update temperature label with slider value
-    
+
     def __init__(self, root):
         self.root = root
         self.root.title("Local(o)llama Chat")
@@ -29,18 +28,14 @@ class OllamaChatGUI:
         self.file_type = None
         self.word_count = 0
         self.selected_model = None
+        self.selected_embedding_model = None # new attribute
         self.stop_event = threading.Event()
-        self.rag_files = []  # List to store selected RAG file paths
-        self.rag_button_text = "RAG"  # Initial text for the RAG button
         
-        # Create RAG instance
-        self.rag = RAG()
-
-        # Create main chat frame first
+        # Main chat frame
         self.chat_frame = ttk.Frame(root)
         self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
         
-        # Create chat display with scrollbar
+        # Chat display
         self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20, font=("Arial", 12), padx=5, pady=5)
         self.chat_display.pack(side='left', expand=True, fill='both')
         scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
@@ -51,16 +46,24 @@ class OllamaChatGUI:
         self.chat_display.bind("<Key>", lambda e: "break" if e.keysym not in ("c", "C", "Control_L", "Control_R") else "")
         self.chat_display.bind("<Control-c>", lambda e: self.chat_display.event_generate("<<Copy>>"))
         
-        # Create model frame and controls
+        # Model and Embedding Frame
         model_frame = ttk.Frame(root)
         model_frame.pack(side='top', padx=10, pady=5)
         
-        # Model selector
+        # LLM Model selector
+        ttk.Label(model_frame, text="LLM Model:").pack(side='left', padx=(0,5))
         self.model_selector = ttk.Combobox(model_frame, state='readonly')
         self.model_selector.pack(side='left', padx=(5,0))
-        self.update_model_list()
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
-
+        
+        # Embedding Model selector
+        ttk.Label(model_frame, text="Embed Model:").pack(side='left', padx=(10,5))
+        self.embedding_selector = ttk.Combobox(model_frame, state='readonly')
+        self.embedding_selector.pack(side='left', padx=(5,0))
+        self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
+        
+        self.update_model_list()
+        
         # System instructions frame
         system_frame = ttk.LabelFrame(root, text="System Instructions")
         system_frame.pack(padx=10, pady=5, fill='x')
@@ -149,17 +152,18 @@ class OllamaChatGUI:
         batch_button.pack(side='right', padx=(5, 0))
         send_button = ttk.Button(button_frame, text="Send", command=self.send_message)
         send_button.pack(side='right')
-
+        
         stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_processing)
         stop_button.pack(side='right', padx=(5, 0))
         
         # Add "Clear File" button
         clear_file_button = ttk.Button(button_frame, text="Clear File", command=self.clear_file)
         clear_file_button.pack(side='right', padx=(5, 0))
-
-        # Add RAG button
-        self.rag_button = ttk.Button(button_frame, text=self.rag_button_text, command=self.toggle_rag)
+        
+        # Add "RAG" button
+        self.rag_button = ttk.Button(button_frame, text="RAG", command=self.select_rag_files)  # RAG button
         self.rag_button.pack(side='right', padx=(5, 0))
+        self.rag_files = [] # list of selected files for RAG
         
         # Input processing
         self.is_processing = False
@@ -179,7 +183,7 @@ class OllamaChatGUI:
     # Context tab
     def on_context_change(self, value):
         """Update context window label when slider moves"""
-        self.context_label.config(text=f"{int(float(value))}")
+        self.context_label.config(text=f"{int(float(value))}")  # Update context label with slider value
     
     def handle_drop(self, event):
         file_path = event.data.strip('{}')
@@ -284,7 +288,12 @@ class OllamaChatGUI:
             if not self.include_file_var.get() and self.file_content:
                 chat_history = chat_history.replace(self.file_content, '')
             content += f"\n\nChat history:\n{chat_history}"
-
+            
+        # Include RAG context
+        if self.rag_files:
+             rag_context = rag.retrieve_context(query=user_input)
+             content += f"\n\nRAG Context:\n{rag_context}"
+             
         # Prepare message
         message = {
             'role': 'user',
@@ -296,11 +305,6 @@ class OllamaChatGUI:
             with open(self.file_img, 'rb') as img_file:
                 message['images'] = [img_file.read()]
                 
-        # Retrieve context for RAG if RAG files are available
-        if self.rag_files:
-              rag_context = self.rag.retrieve_context(user_input)
-              message['content'] += f"\n\nContext:\n{rag_context}"
-
         # Send message in separate thread
         threading.Thread(target=self.get_response, args=(message,)).start()
             
@@ -438,15 +442,32 @@ class OllamaChatGUI:
         
         self.display_message("\nBatch processing completed.\n", 'status')
         self.chat_display.see(tk.END)
-    
+        
     def update_model_list(self):
         try:
             models = ollama.list()
-            model_names = [model.model for model in models.models]
-            self.model_selector['values'] = model_names
-            if model_names:
-                self.model_selector.set(model_names[0])
-                self.selected_model = model_names[0]
+            all_model_names = [model.model for model in models.models]
+            
+            # Filter model names into LLMs and embedding models
+            llm_models = [name for name in all_model_names if 'embed' not in name]
+            embedding_models = [name for name in all_model_names if 'embed' in name]
+            
+            # Update the LLM combobox
+            self.model_selector['values'] = llm_models
+            if llm_models:
+                self.model_selector.set(llm_models[0])
+                self.selected_model = llm_models[0]
+            
+            # Update the embedding combobox
+            self.embedding_selector['values'] = embedding_models
+            if embedding_models:
+                self.embedding_selector.set(embedding_models[0])
+                self.selected_embedding_model = embedding_models[0]
+            
+            if not all_model_names:
+               self.chat_display.insert(tk.END, "\nNo models found.\nPlease ensure ollama is running\n")
+               self.chat_display.see(tk.END)
+               
         except Exception as e:
             self.chat_display.insert(tk.END, f"\nError fetching models: {str(e)}\n")
             self.chat_display.see(tk.END)
@@ -455,6 +476,16 @@ class OllamaChatGUI:
         self.selected_model = self.model_selector.get()
         self.chat_display.insert(tk.END, f"\nSwitched to model: {self.selected_model}\n")
         self.chat_display.see(tk.END)
+    
+    def on_embedding_model_selected(self, event):
+        self.selected_embedding_model = self.embedding_selector.get()
+        self.chat_display.insert(tk.END, f"\nSwitched to embedding model: {self.selected_embedding_model}\n")
+        self.chat_display.see(tk.END)
+        
+        # Update the embedding function in the RAG class and clear db
+        rag.update_embedding_function(self.selected_embedding_model) # update the model
+        self.rag_files = [] # Clear the selected files
+        self.rag_button.config(text="RAG")
     
     def clear_chat(self):
         self.chat_display.delete(1.0, tk.END)
@@ -492,14 +523,14 @@ class OllamaChatGUI:
         # Update chat display without file status
         self.chat_display.delete("1.0", tk.END)
         self.chat_display.insert("1.0", "\n".join(filtered_lines))
-    
+
     def configure_tags(self):
         self.chat_display.tag_configure('user', foreground='#0077cc')
         self.chat_display.tag_configure('assistant', foreground='#800080')
         self.chat_display.tag_configure('error', foreground='red')
         self.chat_display.tag_configure('status', foreground='gray')
         self.chat_display.tag_configure('code', font=("Consolas", 12), background="#f0f0f0")
-
+        
     def on_show_image_toggle(self, *args):
         """Show or hide the image preview depending on the checkbox."""
         if self.show_image_var.get() and self.file_type == 'image' and self.file_img:
@@ -509,31 +540,31 @@ class OllamaChatGUI:
             self.image_preview.config(image=self.preview_image)
         else:
             self.image_preview.config(image="")
-
-    def toggle_rag(self):
-        """Toggles RAG functionality by selecting files or clearing the cache"""
-        if self.rag_files:
-           # Clear the RAG cache
-            self.rag.clear_db()
-            self.rag_files = []
-            self.rag_button_text = "RAG"
-            self.rag_button.config(text=self.rag_button_text)
-            self.display_message("\nRAG cache cleared.\n", 'status')
-            self.chat_display.see(tk.END)
-        else:
-            # Open file dialog to select files for RAG
-            file_paths = filedialog.askopenfilenames(title="Select files for RAG")
-            if file_paths:
-                self.rag_files = list(file_paths)  # Store selected file paths as a list
-                self.rag.ingest_data(self.rag_files) # ingest data
-                self.rag_button_text = f"RAG ({len(self.rag_files)})"
-                self.rag_button.config(text=self.rag_button_text)
-                self.display_message(f"\nRAG enabled with {len(self.rag_files)} file(s).\n", 'status')
-                self.chat_display.see(tk.END)
+    
+    def select_rag_files(self):
+      """Handles the selection of files for RAG."""
+      selected_files = filedialog.askopenfiles(title="Select files for RAG", mode="r")
+      if selected_files:
+          # Clear any previous RAG cache
+          rag.clear_db()
+          self.rag_files = [file.name for file in selected_files]
+          rag.ingest_data(self.rag_files) # ingest the new files for RAG
+          self.rag_button.config(text=f"RAG ({len(self.rag_files)})")
+      else:
+         # Clear RAG if cancelled
+         rag.clear_db()
+         self.rag_files = [] # remove the stored files
+         self.rag_button.config(text="RAG")
 
 def main():
     root = TkinterDnD.Tk()
     app = OllamaChatGUI(root)
+    # Get the initial embedding model from the combobox
+    app.update_model_list()
+    initial_embedding_model = app.embedding_selector.get()
+    from rag_module import RAG
+    global rag
+    rag = RAG(embedding_model_name = initial_embedding_model)
     root.mainloop()
 
 if __name__ == "__main__":
