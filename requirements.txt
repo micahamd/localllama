@@ -1,9 +1,13 @@
+chromadb
 ollama
-tkinterdnd2
+Pillow
 python-docx
 PyPDF2
-markdown
 Pygments
 markitdown
 matplotlib
-Pillow
+markdown
+numpy
+nltk
+typing
+tkinterdnd2

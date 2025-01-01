@@ -5,7 +5,8 @@ A no-frills Python application for easily interacting with Ollama models.
 Features:
 - 💬 Real-time chat interface with streaming responses
 - 📁 Drag-and-drop multimodal support for documents (.docx, .pdf, .txt) and images.
-- 🎛️ Customizable context window and system instructions in the GUI (no need to generate a .modelfile)
+- 🎛️ Customizable context window and system instructions in the GUI (no need to generate a separate .modelfile)
+- 📊 RAG functionality (vector embeddings stored in Chroma DB)
 - 📦 Batch file processing 
 - 🔄 Optional chat history inclusion
 

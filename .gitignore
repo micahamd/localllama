@@ -1,6 +1,8 @@
 .env
-modelfile_create.py
-modelfile_template.txt
-local_chat.py
 \modelfiles
+\venv
+\chroma_db
+\__pycache__
+
+
 
