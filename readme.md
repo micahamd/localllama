@@ -21,7 +21,7 @@ Features:
 ```bash
 # Clone the repository
 git clone https://github.com/micahamd/localllama.git
-cd local-ollama-chat
+cd localllama
 
 # Install dependencies
 pip install -r requirements.txt
