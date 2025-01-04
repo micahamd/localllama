@@ -28,7 +28,7 @@ class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
         return embeddings # Return the embeddings, not the dictionaries
 
 class RAG:
-    def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128):
+    def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128, use_semantic_chunking = False):
         self.embedding_model_name = embedding_model_name
         self.persist_directory = persist_directory
         self.client = chromadb.PersistentClient(path=self.persist_directory)
@@ -42,8 +42,15 @@ class RAG:
             nltk.data.find("tokenizers/punkt_tab")
         except LookupError:
             nltk.download("punkt_tab")
-        self.sentence_transformer = None # Removed Sentence Transformer
+        self.sentence_transformer = None
         self.chunk_size = chunk_size
+        self.use_semantic_chunking = use_semantic_chunking
+        if self.use_semantic_chunking:
+          try:
+              self.sentence_transformer = SentenceTransformer('all-mpnet-base-v2')  # or any model
+          except Exception as e:
+              print(f"Error loading sentence transformer model: {e}")
+              self.sentence_transformer = None  # Set to None if there's an error
 
     def get_embedding_function(self):
         """Retrieves a ollama embedding function."""
@@ -69,9 +76,34 @@ class RAG:
         return sent_tokenize(text)
 
     def _semantic_chunk(self, sentences, max_chunk_size=5, min_chunk_size=2):
-       """Group sentences semantically."""
-       print("Using basic chunking")
-       return self._chunk_sentences(sentences, max_chunk_size, 1)
+        """Group sentences semantically."""
+        if not self.use_semantic_chunking or self.sentence_transformer is None:
+            print("Using basic chunking")
+            return self._chunk_sentences(sentences, self.chunk_size, 1)
+        
+        chunks = []
+        current_chunk = []
+        for sentence in sentences:
+            if not current_chunk:
+                current_chunk.append(sentence) # start a new chunk
+            else:
+                # compute the embedding for this sentence and the current chunk
+                current_chunk_embedding = self.sentence_transformer.encode(' '.join(current_chunk))
+                sentence_embedding = self.sentence_transformer.encode(sentence)
+                
+                # compute cosine similarity
+                similarity = np.dot(current_chunk_embedding, sentence_embedding) / (np.linalg.norm(current_chunk_embedding) * np.linalg.norm(sentence_embedding))
+
+                # if the similarity is low, start a new chunk
+                if similarity < 0.7 or len(current_chunk) >= max_chunk_size:
+                    chunks.append(" ".join(current_chunk))
+                    current_chunk = [sentence]
+                else:
+                    current_chunk.append(sentence)
+
+        if current_chunk:
+              chunks.append(" ".join(current_chunk))
+        return chunks
     
     def _chunk_sentences(self, sentences: List[str], chunk_size: int = 4, chunk_overlap: int = 1) -> List[str]:
           """Chunks a list of sentences into chunks with overlap."""

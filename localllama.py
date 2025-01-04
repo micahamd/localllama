@@ -14,6 +14,7 @@ import matplotlib.pyplot as plt
 import io
 from PIL import Image, ImageTk
 import ollama  # Assuming ollama is already imported
+from sentence_transformers import SentenceTransformer
 
 class OllamaChatGUI:
     def on_temp_change(self, value):
@@ -119,6 +120,15 @@ class OllamaChatGUI:
         self.chunk_size = tk.IntVar(value=128)
         self.chunk_entry = ttk.Entry(chunk_frame, textvariable=self.chunk_size, width=5)
         self.chunk_entry.pack(side='left', padx=(5, 0))
+
+        # Semantic Chunking control
+        self.semantic_chunking_var = tk.BooleanVar(value=False)
+        semantic_chunking_checkbox = ttk.Checkbutton(
+            model_frame,
+            text="Semantic Chunking for RAG? (Slow)",
+            variable=self.semantic_chunking_var
+        )
+        semantic_chunking_checkbox.pack(side='left', padx=(10, 0))
         
         # Chat history checkbox
         self.include_chat_var = tk.BooleanVar()
@@ -574,9 +584,37 @@ def main():
     # Get the initial chunk size
     initial_chunk_size = app.chunk_size.get()
     
+    # Get initial semantic chunking state
+    initial_semantic_chunking = app.semantic_chunking_var.get()
+    
     from rag_module import RAG
     global rag
-    rag = RAG(embedding_model_name = initial_embedding_model, chunk_size = initial_chunk_size)
+    rag = RAG(embedding_model_name = initial_embedding_model, chunk_size = initial_chunk_size, use_semantic_chunking = initial_semantic_chunking)
+    
+    # Track changes in chunk size
+    def update_rag_chunk_size(*args):
+      global rag
+      rag.chunk_size = app.chunk_size.get() # update the chunk size
+      
+    app.chunk_size.trace_add("write", update_rag_chunk_size)
+    
+    # Track changes in semantic chunking
+    def update_rag_semantic_chunking(*args):
+       global rag
+       rag.use_semantic_chunking = app.semantic_chunking_var.get() # update semantic chunking state
+       
+       # Re-initialize the sentence transformer if semantic chunking is enabled
+       if rag.use_semantic_chunking:
+            try:
+                rag.sentence_transformer = SentenceTransformer('all-mpnet-base-v2')
+            except Exception as e:
+                print(f"Error loading sentence transformer model: {e}")
+                rag.sentence_transformer = None
+       else:
+          rag.sentence_transformer = None # set to none if semantic chunking is disabled
+    
+    app.semantic_chunking_var.trace_add("write", update_rag_semantic_chunking)
+    
     root.mainloop()
 
 if __name__ == "__main__":
