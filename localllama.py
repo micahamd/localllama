@@ -111,6 +111,14 @@ class OllamaChatGUI:
             command=self.on_context_change
         )
         self.context_slider.pack(side='left')
+
+        # Chunk Size control
+        chunk_frame = ttk.Frame(model_frame)
+        chunk_frame.pack(side='left', padx=(10, 0))
+        ttk.Label(chunk_frame, text="RAG Chunk Size:").pack(side='left')
+        self.chunk_size = tk.IntVar(value=128)
+        self.chunk_entry = ttk.Entry(chunk_frame, textvariable=self.chunk_size, width=5)
+        self.chunk_entry.pack(side='left', padx=(5, 0))
         
         # Chat history checkbox
         self.include_chat_var = tk.BooleanVar()
@@ -562,9 +570,13 @@ def main():
     # Get the initial embedding model from the combobox
     app.update_model_list()
     initial_embedding_model = app.embedding_selector.get()
+    
+    # Get the initial chunk size
+    initial_chunk_size = app.chunk_size.get()
+    
     from rag_module import RAG
     global rag
-    rag = RAG(embedding_model_name = initial_embedding_model)
+    rag = RAG(embedding_model_name = initial_embedding_model, chunk_size = initial_chunk_size)
     root.mainloop()
 
 if __name__ == "__main__":
