@@ -1,8 +1,8 @@
 .env
-\modelfiles
-\venv
-\chroma_db
-\__pycache__
+/modelfiles
+/venv
+/chroma_db
+/__pycache__
 
 
 
