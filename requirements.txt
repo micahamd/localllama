@@ -9,5 +9,6 @@ matplotlib
 markdown
 numpy
 nltk
+sentence-transformers
 typing
 tkinterdnd2
