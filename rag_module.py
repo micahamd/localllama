@@ -28,7 +28,7 @@ class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
         return embeddings # Return the embeddings, not the dictionaries
 
 class RAG:
-    def __init__(self, embedding_model_name, persist_directory="chroma_db"):
+    def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128):
         self.embedding_model_name = embedding_model_name
         self.persist_directory = persist_directory
         self.client = chromadb.PersistentClient(path=self.persist_directory)
@@ -42,11 +42,8 @@ class RAG:
             nltk.data.find("tokenizers/punkt_tab")
         except LookupError:
             nltk.download("punkt_tab")
-        try:
-            self.sentence_transformer = SentenceTransformer('all-mpnet-base-v2')  # or any model
-        except Exception as e:
-            print(f"Error loading sentence transformer model: {e}")
-            self.sentence_transformer = None  # Set to None if there's an error
+        self.sentence_transformer = None # Removed Sentence Transformer
+        self.chunk_size = chunk_size
 
     def get_embedding_function(self):
         """Retrieves a ollama embedding function."""
@@ -73,40 +70,20 @@ class RAG:
 
     def _semantic_chunk(self, sentences, max_chunk_size=5, min_chunk_size=2):
        """Group sentences semantically."""
-       if self.sentence_transformer is None:
-           print("Sentence transformer model not loaded. Using basic chunking")
-           return self._chunk_sentences(sentences, max_chunk_size, 1)
-
-       chunks = []
-       current_chunk = []
-       for sentence in sentences:
-           if not current_chunk:
-              current_chunk.append(sentence) # start a new chunk
-           else:
-                # compute the embedding for this sentence and the current chunk
-               current_chunk_embedding = self.sentence_transformer.encode(' '.join(current_chunk))
-               sentence_embedding = self.sentence_transformer.encode(sentence)
-               
-                # compute cosine similarity
-               similarity = np.dot(current_chunk_embedding, sentence_embedding) / (np.linalg.norm(current_chunk_embedding) * np.linalg.norm(sentence_embedding))
-
-                # if the similarity is low, start a new chunk
-               if similarity < 0.7 or len(current_chunk) >= max_chunk_size:
-                    chunks.append(" ".join(current_chunk))
-                    current_chunk = [sentence]
-               else:
-                  current_chunk.append(sentence)
-
-       if current_chunk:
-             chunks.append(" ".join(current_chunk))
-       return chunks
+       print("Using basic chunking")
+       return self._chunk_sentences(sentences, max_chunk_size, 1)
     
     def _chunk_sentences(self, sentences: List[str], chunk_size: int = 4, chunk_overlap: int = 1) -> List[str]:
           """Chunks a list of sentences into chunks with overlap."""
           chunks = []
-          for i in range(0, len(sentences), chunk_size - chunk_overlap):
-            chunk = sentences[i:i + chunk_size]
-            chunks.append(" ".join(chunk))
+          current_chunk = []
+          for sentence in sentences:
+             current_chunk.append(sentence)
+             if len(current_chunk) >= chunk_size:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = []
+          if current_chunk:
+             chunks.append(" ".join(current_chunk))
           return chunks
 
 
@@ -134,19 +111,34 @@ class RAG:
             sentences = self._extract_sentences(text)
             chunks = self._semantic_chunk(sentences)
             ids = [str(i) for i in range(len(chunks))]
-            embeddings = self.embedding_function(chunks) # batch the embeddings
+            embeddings = self.embedding_function(chunks)
             self.collection.add(documents=chunks, ids=ids, embeddings=embeddings)
             print(f"Successfully ingested {len(chunks)} chunks")
         else:
             print("No content found to ingest")
 
     def retrieve_context(self, query: str, n_results: int = 5) -> str:
-      """Retrieves context for the given query"""
-      results = self.collection.query(query_texts=[query], n_results=n_results)
-      if results and 'documents' in results and results['documents']:  # Check if there are any results
-            return "\n".join(results['documents'][0])  # Return the document strings
-      else:
-          return "No context retrieved"  # Handle the case of no results
+        """Retrieves context for the given query, preserving original order."""
+        results = self.collection.query(query_texts=[query], n_results=n_results, include=['documents', 'metadatas'])
+        if results and 'documents' in results and results['metadatas']:
+            # Create a list of (chunk, id) tuples
+            chunk_id_pairs = []
+            for doc_group, metadata_group in zip(results['documents'], results['metadatas']):
+                for doc, metadata in zip(doc_group, metadata_group):
+                    if metadata and 'id' in metadata:
+                        chunk_id_pairs.append((doc, int(metadata.get('id'))))
+                    else:
+                       chunk_id_pairs.append((doc, -1)) # if no id, append with -1 to maintain order
+            
+            # Sort by the integer ID
+            sorted_pairs = sorted(chunk_id_pairs, key=lambda x: x[1])
+            
+            # Extract the ordered chunks
+            ordered_chunks = [chunk for chunk, _ in sorted_pairs]
+            
+            return "\n".join(ordered_chunks)
+        else:
+            return "No context retrieved"
 
     def clear_db(self):
         """Clears the current database"""
