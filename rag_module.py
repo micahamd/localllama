@@ -134,7 +134,8 @@ class RAG:
             sentences = self._extract_sentences(text)
             chunks = self._semantic_chunk(sentences)
             ids = [str(i) for i in range(len(chunks))]
-            self.collection.add(documents=chunks, ids=ids)
+            embeddings = self.embedding_function(chunks) # batch the embeddings
+            self.collection.add(documents=chunks, ids=ids, embeddings=embeddings)
             print(f"Successfully ingested {len(chunks)} chunks")
         else:
             print("No content found to ingest")
