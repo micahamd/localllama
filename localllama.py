@@ -105,7 +105,7 @@ class OllamaChatGUI:
         self.context_slider = ttk.Scale(
             context_frame,
             from_=1000,
-            to=30000,
+            to=128000,
             orient='horizontal',
             length=100,
             variable=self.context_size,
