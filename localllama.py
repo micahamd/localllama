@@ -298,6 +298,7 @@ class OllamaChatGUI:
         # Include file content based on the checkbox
         if self.include_file_var.get() and self.file_content:
             content += f"\n\nDocument content:\n{self.file_content}"
+            content += f"\n\nFile path: {self.file_img}"
 
         # Include chat history if selected
         if self.include_chat_var.get():
@@ -388,7 +389,7 @@ class OllamaChatGUI:
 
     def process_files(self, files):
         prompt = self.input_field.get("1.0", tk.END).strip()
-        self.chat_display.insert(tk.END, f"\nStarting batch processing of {len(files)} files\n")
+        self.chat_display.insert(tk.END, f"\nStarting batch processing of {len(files)} files\nFile paths: {files}\n")
 
         for idx, file_path in enumerate(files, 1):
             if self.stop_event.is_set():
@@ -407,7 +408,10 @@ class OllamaChatGUI:
                 content = prompt
                 file_content = self.extract_content(file_path)
                 if file_content:
+                    word_count = len(re.findall(r'\w+', file_content))
+                    self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)} - {word_count} words\n")
                     content += f"\n\nDocument content:\n{file_content}"
+                    content += f"\n\nFile path: {file_path}"
                 message['content'] = content
 
             try:
