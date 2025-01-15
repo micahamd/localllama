@@ -374,90 +374,78 @@ class OllamaChatGUI:
             self.chat_display.see(tk.END)
     
     def start_batch_process(self):
-        if not self.input_field.get().strip():
+        if not self.input_field.get("1.0", tk.END).strip():
             self.chat_display.insert(tk.END, "\nPlease enter a prompt first.\n")
             return
-                
-        directory = filedialog.askdirectory(title="Select Directory for Batch Processing")
-        if directory:
-            threading.Thread(target=self.process_directory, args=(directory,)).start()
-    
-    def process_directory(self, directory):
-        prompt = self.input_field.get()
-        self.chat_display.insert(tk.END, f"\nStarting batch processing of directory: {directory}\n")
-        
-        # Collect all files
-        files_to_process = []
-        for root, _, files in os.walk(directory):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if self.get_file_type(file_path):
-                    files_to_process.append(file_path)
-        
-        total_files = len(files_to_process)
-        self.chat_display.insert(tk.END, f"Found {total_files} files to process.\n")
-        self.chat_display.see(tk.END)
-        
-        self.stop_event.clear()
 
-        for idx, file_path in enumerate(files_to_process, 1):
+        if not self.selected_model:
+            self.chat_display.insert(tk.END, "\nNo model selected!\n")
+            return
+
+        files = filedialog.askopenfilenames(title="Select Files for Batch Processing")
+        if files:
+            threading.Thread(target=self.process_files, args=(files,)).start()
+
+    def process_files(self, files):
+        prompt = self.input_field.get("1.0", tk.END).strip()
+        self.chat_display.insert(tk.END, f"\nStarting batch processing of {len(files)} files\n")
+
+        for idx, file_path in enumerate(files, 1):
             if self.stop_event.is_set():
                 break
-                
-            self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{total_files}: {os.path.basename(file_path)}\n")
+
+            self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)}\n")
             self.chat_display.see(tk.END)
-                
+
             file_type = self.get_file_type(file_path)
             message = {'role': 'user', 'content': prompt}
-                
+
             if file_type == 'image':
                 with open(file_path, 'rb') as img_file:
                     message['images'] = [img_file.read()]
             else:
                 content = prompt
-                if self.extract_content(file_path):
-                    content += f"\n\nDocument content:\n{self.extract_content(file_path)}"
-                if self.include_chat_var.get():
-                    chat_history = self.chat_display.get(1.0, tk.END).strip()
-                    content += f"\n\nChat history:\n{chat_history}"
+                file_content = self.extract_content(file_path)
+                if file_content:
+                    content += f"\n\nDocument content:\n{file_content}"
                 message['content'] = content
-                
-        try:
-            self.display_message(f"Assistant (for {os.path.basename(file_path)}): ", 'assistant')
-
-            # Add system instructions
-            system_msg = self.system_text.get('1.0', tk.END).strip()
-            messages = []
-            if system_msg:
-                messages.append({
-                    'role': 'system',
-                    'content': system_msg
-                })
-            messages.append(message)
-                
-            stream = ollama.chat(
-                model=self.selected_model,
-                messages=messages,
-                options={"temperature": self.temperature.get(),
-                         "num_ctx": self.context_size.get()
-                }, 
-                stream=True
-            )
-            self.active_stream = stream
 
             try:
-                for chunk in stream:
-                    if self.stop_event.is_set():
-                        break
-                    if chunk and 'message' in chunk and 'content' in chunk['message']:
-                        self.display_message(chunk['message']['content'], 'assistant')
-            finally:
-                self.active_stream = None
-        except Exception as e:
-            self.display_message(f"Error processing file: {str(e)}\n", 'error')
-                
+                self.display_message(f"Assistant (for {os.path.basename(file_path)}): ", 'assistant')
+
+                system_msg = self.system_text.get('1.0', tk.END).strip()
+                messages = []
+                if system_msg:
+                    messages.append({
+                        'role': 'system',
+                        'content': system_msg
+                    })
+                messages.append(message)
+
+                stream = ollama.chat(
+                    model=self.selected_model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": self.temperature.get(),
+                        "num_ctx": self.context_size.get()
+                    }
+                )
+                self.active_stream = stream
+
+                try:
+                    for chunk in stream:
+                        if self.stop_event.is_set():
+                            break
+                        if chunk and 'message' in chunk and 'content' in chunk['message']:
+                            self.display_message(chunk['message']['content'], 'assistant')
+                finally:
+                    self.active_stream = None
+            except Exception as e:
+                self.display_message(f"Error processing file: {str(e)}\n", 'error')
+
             self.chat_display.see(tk.END)
-        
+
         self.display_message("\nBatch processing completed.\n", 'status')
         self.chat_display.see(tk.END)
         
