@@ -9,6 +9,7 @@ from werkzeug.utils import secure_filename
 from markitdown import MarkItDown
 import re
 from flask_cors import CORS
+import base64
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
@@ -122,11 +123,10 @@ def chat():
     system_msg = data.get('system_msg', '')
     include_chat = data.get('include_chat', False)
     include_file = data.get('include_file', False)
-    file_content = data.get('file_content', '')
-    file_path = data.get('file_path', '')
     temperature = data.get('temperature', 0.4)
     context_size = data.get('context_size', 4096)
     rag_files = data.get('rag_files', [])
+    file_data = data.get('file')
     
     if not selected_model:
         return jsonify({'error': 'No model selected'}), 400
@@ -142,9 +142,24 @@ def chat():
         })
     
     content = message
-    if include_file and file_content:
-        content += f"\n\nDocument content:\n{file_content}"
-        content += f"\n\nFile path: {file_path}"
+    
+    if include_file and file_data:
+        if file_data['type'] == 'image':
+            # For images, add to the message's images field
+            try:
+                image_bytes = base64.b64decode(file_data['content'])
+                messages.append({
+                    'role': 'user',
+                    'content': content,
+                    'images': [image_bytes]
+                })
+                return handle_chat(messages, developer, temperature, context_size)
+            except Exception as e:
+                return jsonify({'error': f'Error processing image: {str(e)}'}), 500
+        else:
+            # For documents, add content to the message
+            content += f"\n\nDocument content:\n{file_data['content']}"
+            content += f"\n\nFile path: {file_data['name']}"
     
     if include_chat:
         # TODO: Implement chat history
@@ -161,6 +176,10 @@ def chat():
         'content': content
     })
     
+    return handle_chat(messages, developer, temperature, context_size)
+
+def handle_chat(messages, developer, temperature, context_size):
+    """Handle the chat response for both Ollama and Google"""
     try:
         if developer == 'ollama':
             stream = ollama.chat(
