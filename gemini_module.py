@@ -16,8 +16,10 @@ class GeminiChat:
             'flash': 'gemini-1.5-flash',  
             'pro': 'gemini-1.5-pro'
         }
+        self.embedding_model_name = 'models/text-embedding-004'
         
     def get_response(self, messages: List[dict], temperature: float = 0.7, max_tokens: int = 4096):
+        from google.generativeai.types import HarmCategory, HarmBlockThreshold
         """
         Get a response from the Gemini model.
         
@@ -38,8 +40,16 @@ class GeminiChat:
                 "max_output_tokens": max_tokens
             }
             
+            safety_settings = {
+                HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
+            }
+            
             # Get the model
-            model = genai.GenerativeModel('gemini-1.5-pro', generation_config=generation_config)
+            model = genai.GenerativeModel('gemini-1.5-pro', generation_config=generation_config, safety_settings=safety_settings)
             
             # Format messages for Gemini
             formatted_messages = []
