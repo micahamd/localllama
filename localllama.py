@@ -541,10 +541,11 @@ class OllamaChatGUI:
                     self.model_selector.set(gemini_models[0])
                     self.selected_model = gemini_models[0]
                 
-                # Disable embedding selector for Gemini
-                self.embedding_selector.set('')
-                self.embedding_selector['values'] = []
-                self.embedding_selector['state'] = 'disabled'
+                # Enable embedding selector for Gemini and set its value
+                self.embedding_selector['state'] = 'readonly'
+                self.embedding_selector['values'] = ['models/text-embedding-004']
+                self.embedding_selector.set('models/text-embedding-004')
+                self.selected_embedding_model = 'models/text-embedding-004'
                 
             except Exception as e:
                 self.chat_display.insert(tk.END, f"\nError fetching Gemini models: {str(e)}\n")
@@ -560,18 +561,15 @@ class OllamaChatGUI:
             self.selected_embedding_model = self.embedding_selector.get()
             self.chat_display.insert(tk.END, f"\nSwitched to embedding model: {self.selected_embedding_model}\n")
             self.chat_display.see(tk.END)
-            
-            # Update the embedding function in the RAG class and clear db
-            rag.update_embedding_function(self.selected_embedding_model) # update the model
-            self.rag_files = [] # Clear the selected files
-            self.rag_button.config(text="RAG")
         else: # google
             self.selected_embedding_model = 'models/text-embedding-004'
             self.chat_display.insert(tk.END, f"\nUsing Gemini embedding model: {self.selected_embedding_model}\n")
             self.chat_display.see(tk.END)
-            rag.update_embedding_function(self.selected_embedding_model)
-            self.rag_files = []
-            self.rag_button.config(text="RAG")
+        
+        # Update the embedding function in the RAG class and clear db
+        rag.update_embedding_function(self.selected_embedding_model)
+        self.rag_files = []
+        self.rag_button.config(text="RAG")
     
     def clear_chat(self):
         self.chat_display.delete(1.0, tk.END)

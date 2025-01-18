@@ -9,6 +9,7 @@ import numpy as np
 import nltk
 from nltk.tokenize import sent_tokenize
 from sentence_transformers import SentenceTransformer
+import google.generativeai as genai
 
 class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
     def __init__(self, model_name: str):
@@ -20,12 +21,35 @@ class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
             try:
                 # Call ollama.embeddings to get the embedding
                 response = ollama.embeddings(model=self.model_name, prompt=text)
-                # Extract the embedding from the dictionary and append to the list
-                embeddings.append(response['embedding'])
+                if response and 'embedding' in response and response['embedding'] is not None:
+                    embeddings.append(response['embedding'])
+                else:
+                    print(f"Error: Ollama embedding is None for text '{text}'. Using fallback.")
+                    embeddings.append([0.0] * 1024) # use zero embedding as a fallback
             except Exception as e:
                  print(f"Error getting embedding for text '{text}': {e}")
                  embeddings.append([0.0] * 1024) # use zero embedding as a fallback
-        return embeddings # Return the embeddings, not the dictionaries
+        return embeddings
+
+class GeminiEmbeddingFunction(embedding_functions.EmbeddingFunction):
+    def __init__(self, gemini_chat):
+        self.gemini_chat = gemini_chat
+
+    def __call__(self, texts: List[str]) -> List[List[float]]:
+        embeddings = []
+        for text in texts:
+            try:
+                # Call gemini_chat.get_embedding to get the embedding
+                embedding = self.gemini_chat.get_embedding(text)
+                if embedding is not None:
+                    embeddings.append(embedding)
+                else:
+                    print(f"Error: Gemini embedding is None for text '{text}'. Using fallback.")
+                    embeddings.append([0.0] * 768) # use zero embedding as a fallback
+            except Exception as e:
+                 print(f"Error getting embedding for text '{text}': {e}")
+                 embeddings.append([0.0] * 768) # use zero embedding as a fallback
+        return embeddings
 
 class RAG:
     def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128, use_semantic_chunking = False):
@@ -53,8 +77,13 @@ class RAG:
               self.sentence_transformer = None  # Set to None if there's an error
 
     def get_embedding_function(self):
-        """Retrieves a ollama embedding function."""
-        return OllamaEmbeddingFunction(model_name=self.embedding_model_name)
+        """Retrieves the correct embedding function based on the selected developer."""
+        if 'embed' in self.embedding_model_name:
+            return OllamaEmbeddingFunction(model_name=self.embedding_model_name)
+        else:
+            from gemini_module import GeminiChat
+            gemini_chat = GeminiChat()
+            return GeminiEmbeddingFunction(gemini_chat=gemini_chat)
 
     def get_or_create_collection(self):
         """Retrieves or creates a chroma collection."""

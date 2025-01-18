@@ -14,6 +14,7 @@ class GeminiChat:
         self.model_name_mapping = {
             'flash2':'gemini-flash-2.0-exp',
             'flash': 'gemini-1.5-flash',  
+            'flash-mini':'gemini-1.5-flash-8b',
             'pro': 'gemini-1.5-pro'
         }
         self.embedding_model_name = 'models/text-embedding-004'
@@ -44,8 +45,7 @@ class GeminiChat:
                 HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_NONE,
                 HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE,
-                HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY: HarmBlockThreshold.BLOCK_NONE,
+                HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_NONE
             }
             
             # Get the model
@@ -87,3 +87,22 @@ class GeminiChat:
         Returns a list of model names.
         """
         return list(self.model_name_mapping.keys())
+    
+    def get_embedding(self, text: str) -> List[float]:
+        """
+        Get an embedding for the given text using the Gemini embedding model.
+        
+        Args:
+            text: The text to embed.
+        
+        Returns:
+            A list of floats representing the embedding.
+        """
+        try:
+            genai.configure(api_key=self.api_key)
+            model = genai.GenerativeModel(model_name=self.embedding_model_name)
+            response = model.embed_content(content=text)
+            return response['embedding']
+        except Exception as e:
+            print(f"Error getting embedding: {e}")
+            return [0.0] * 768 # Return a zero vector in case of error
