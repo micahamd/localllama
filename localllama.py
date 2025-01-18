@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import scrolledtext, filedialog
+from tkinter import scrolledtext, filedialog, StringVar
 import threading
 from tkinter import ttk, font
 from tkinterdnd2 import DND_FILES, TkinterDnD
@@ -13,8 +13,9 @@ from pygments.formatters import BBCodeFormatter
 import matplotlib.pyplot as plt
 import io
 from PIL import Image, ImageTk
-import ollama  # Assuming ollama is already imported
+import ollama
 from sentence_transformers import SentenceTransformer
+from gemini_module import GeminiChat
 
 class OllamaChatGUI:
     def on_temp_change(self, value):
@@ -30,6 +31,8 @@ class OllamaChatGUI:
         self.word_count = 0
         self.selected_model = None
         self.selected_embedding_model = None # new attribute
+        self.developer = StringVar(value="ollama")  # Default to ollama
+        self.gemini_chat = GeminiChat()  # Initialize Gemini chat
         self.stop_event = threading.Event()
         
         # Main chat frame
@@ -50,6 +53,12 @@ class OllamaChatGUI:
         # Model and Embedding Frame
         model_frame = ttk.Frame(root)
         model_frame.pack(side='top', padx=10, pady=5)
+        
+        # Developer selector
+        ttk.Label(model_frame, text="Developer:").pack(side='left', padx=(0,5))
+        developer_selector = ttk.Combobox(model_frame, textvariable=self.developer, values=['ollama', 'google'], state='readonly')
+        developer_selector.pack(side='left', padx=(0,10))
+        developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
         
         # LLM Model selector
         ttk.Label(model_frame, text="LLM Model:").pack(side='left', padx=(0,5))
@@ -197,6 +206,13 @@ class OllamaChatGUI:
         # Image preview
         self.image_preview = tk.Label(root)
         self.image_preview.pack()
+    
+    def on_developer_changed(self, event):
+        """Handle developer selection change"""
+        developer = self.developer.get()
+        self.update_model_list()
+        self.chat_display.insert(tk.END, f"\nSwitched to {developer} models\n")
+        self.chat_display.see(tk.END)
     
     # Context tab
     def on_context_change(self, value):
@@ -348,28 +364,49 @@ class OllamaChatGUI:
             self.chat_display.mark_set("response_start", "end-1c")
             full_response = ""
 
-            stream = ollama.chat(
-                model=self.selected_model,
-                messages=messages,
-                stream=True,
-                options={
-                    "temperature": self.temperature.get(),
-                    "num_ctx": self.context_size.get()
-                }
-            )
-            self.active_stream = stream
+            if self.developer.get() == 'ollama':
+                stream = ollama.chat(
+                    model=self.selected_model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": self.temperature.get(),
+                        "num_ctx": self.context_size.get()
+                    }
+                )
+                self.active_stream = stream
 
-            try:
-                for chunk in stream:
-                    if self.stop_event.is_set():
-                        break
-                    if chunk and 'message' in chunk and 'content' in chunk['message']:
-                        content = chunk['message']['content']
-                        full_response += content
-                        self.chat_display.delete("response_start", "end-1c")
-                        self.display_message(content, 'assistant')
-            finally:
-                self.active_stream = None
+                try:
+                    for chunk in stream:
+                        if self.stop_event.is_set():
+                            break
+                        if chunk and 'message' in chunk and 'content' in chunk['message']:
+                            content = chunk['message']['content']
+                            full_response += content
+                            self.chat_display.delete("response_start", "end-1c")
+                            self.display_message(content, 'assistant')
+                finally:
+                    self.active_stream = None
+            else:  # google
+                stream = self.gemini_chat.get_response(
+                    messages=messages,
+                    temperature=self.temperature.get(),
+                    max_tokens=self.context_size.get()
+                )
+                self.active_stream = stream
+
+                try:
+                    for chunk in stream:
+                        if self.stop_event.is_set():
+                            break
+                        if chunk and 'message' in chunk and 'content' in chunk['message']:
+                            content = chunk['message']['content']
+                            full_response += content
+                            self.chat_display.delete("response_start", "end-1c")
+                            self.display_message(content, 'assistant')
+                finally:
+                    self.active_stream = None
+
         except Exception as e:
             self.display_message(f"\nError: {str(e)}\n", 'error')
             self.chat_display.see(tk.END)
@@ -426,15 +463,23 @@ class OllamaChatGUI:
                     })
                 messages.append(message)
 
-                stream = ollama.chat(
-                    model=self.selected_model,
-                    messages=messages,
-                    stream=True,
-                    options={
-                        "temperature": self.temperature.get(),
-                        "num_ctx": self.context_size.get()
-                    }
-                )
+                if self.developer.get() == 'ollama':
+                    stream = ollama.chat(
+                        model=self.selected_model,
+                        messages=messages,
+                        stream=True,
+                        options={
+                            "temperature": self.temperature.get(),
+                            "num_ctx": self.context_size.get()
+                        }
+                    )
+                else:  # google
+                    stream = self.gemini_chat.get_response(
+                        messages=messages,
+                        temperature=self.temperature.get(),
+                        max_tokens=self.context_size.get()
+                    )
+
                 self.active_stream = stream
 
                 try:
@@ -454,33 +499,55 @@ class OllamaChatGUI:
         self.chat_display.see(tk.END)
         
     def update_model_list(self):
-        try:
-            models = ollama.list()
-            all_model_names = [model.model for model in models.models]
-            
-            # Filter model names into LLMs and embedding models
-            llm_models = [name for name in all_model_names if 'embed' not in name]
-            embedding_models = [name for name in all_model_names if 'embed' in name]
-            
-            # Update the LLM combobox
-            self.model_selector['values'] = llm_models
-            if llm_models:
-                self.model_selector.set(llm_models[0])
-                self.selected_model = llm_models[0]
-            
-            # Update the embedding combobox
-            self.embedding_selector['values'] = embedding_models
-            if embedding_models:
-                self.embedding_selector.set(embedding_models[0])
-                self.selected_embedding_model = embedding_models[0]
-            
-            if not all_model_names:
-               self.chat_display.insert(tk.END, "\nNo models found.\nPlease ensure ollama is running\n")
-               self.chat_display.see(tk.END)
-               
-        except Exception as e:
-            self.chat_display.insert(tk.END, f"\nError fetching models: {str(e)}\n")
-            self.chat_display.see(tk.END)
+        """Update model list based on selected developer"""
+        if self.developer.get() == 'ollama':
+            try:
+                models = ollama.list()
+                all_model_names = [model.model for model in models.models]
+                
+                # Filter model names into LLMs and embedding models
+                llm_models = [name for name in all_model_names if 'embed' not in name]
+                embedding_models = [name for name in all_model_names if 'embed' in name]
+                
+                # Update the LLM combobox
+                self.model_selector['values'] = llm_models
+                if llm_models:
+                    self.model_selector.set(llm_models[0])
+                    self.selected_model = llm_models[0]
+                
+                # Update the embedding combobox
+                self.embedding_selector['state'] = 'readonly'
+                self.embedding_selector['values'] = embedding_models
+                if embedding_models:
+                    self.embedding_selector.set(embedding_models[0])
+                    self.selected_embedding_model = embedding_models[0]
+                
+                if not all_model_names:
+                   self.chat_display.insert(tk.END, "\nNo models found.\nPlease ensure ollama is running\n")
+                   self.chat_display.see(tk.END)
+                   
+            except Exception as e:
+                self.chat_display.insert(tk.END, f"\nError fetching ollama models: {str(e)}\n")
+                self.chat_display.see(tk.END)
+        else:  # google
+            try:
+                # Get Gemini models
+                gemini_models = self.gemini_chat.list_models()
+                
+                # Update the LLM combobox
+                self.model_selector['values'] = gemini_models
+                if gemini_models:
+                    self.model_selector.set(gemini_models[0])
+                    self.selected_model = gemini_models[0]
+                
+                # Disable embedding selector for Gemini
+                self.embedding_selector.set('')
+                self.embedding_selector['values'] = []
+                self.embedding_selector['state'] = 'disabled'
+                
+            except Exception as e:
+                self.chat_display.insert(tk.END, f"\nError fetching Gemini models: {str(e)}\n")
+                self.chat_display.see(tk.END)
     
     def on_model_selected(self, event):
         self.selected_model = self.model_selector.get()

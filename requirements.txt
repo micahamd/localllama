@@ -1,4 +1,5 @@
 chromadb
+google-generativeai
 ollama
 Pillow
 python-docx
@@ -12,3 +13,4 @@ nltk
 sentence-transformers
 typing
 tkinterdnd2
+
