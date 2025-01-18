@@ -1,4 +1,6 @@
 chromadb
+flask
+flask_cors
 google-generativeai
 ollama
 Pillow
