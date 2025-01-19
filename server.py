@@ -161,9 +161,12 @@ def chat():
             content += f"\n\nDocument content:\n{file_data['content']}"
             content += f"\n\nFile path: {file_data['name']}"
     
-    if include_chat:
-        # TODO: Implement chat history
-        pass
+    if include_chat and data.get('chat_history'):
+        chat_history = data.get('chat_history')
+        # Exclude file content from chat history if not including it
+        if not include_file and file_data:
+            chat_history = chat_history.replace(file_data['content'], '')
+        content += f"\n\nChat history:\n{chat_history}"
     
     if rag_files:
         if not rag:
