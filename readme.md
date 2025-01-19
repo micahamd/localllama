@@ -15,7 +15,7 @@ A feature-rich Python application for seamlessly interacting with local Ollama a
 
 ### File Handling
 - 📁 Drag-and-drop support for multiple file types:
-  - Documents (.docx, .pdf, .txt)
+  - Documents (.docx, .pdf, .txt, .csv)
   - Images (for visual analysis)
 - 📋 Optional file content inclusion in prompts
 - 🗑️ Easy file clearing and management
@@ -24,7 +24,7 @@ A feature-rich Python application for seamlessly interacting with local Ollama a
 - 📊 RAG (Retrieval-Augmented Generation):
   - Vector embeddings stored in Chroma DB
   - Configurable chunk sizes
-  - Optional semantic chunking
+  - Optional semantic chunking (more accurate but more resource-heavy)
   - Support for multiple embedding models
 - 📦 Batch file processing capabilities
 - ⚡ Streaming responses for real-time interaction
