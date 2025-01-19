@@ -1,6 +1,6 @@
 # Local(o)llama chatbot
 
-A no-frills Python application for easily interacting with Ollama models. 
+A no-frills Python application for easily interacting with local Ollama and proprietary Gemini models. 
 
 Features:
 - 💬 Real-time chat interface with streaming responses
