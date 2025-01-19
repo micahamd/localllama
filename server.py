@@ -134,32 +134,35 @@ def chat():
     if not message:
         return jsonify({'error': 'No message provided'}), 400
     
+    # Initialize messages array with system message if provided
     messages = []
-    if system_msg:
+    if system_msg and system_msg.strip():  # Only add if not empty
         messages.append({
             'role': 'system',
-            'content': system_msg
+            'content': system_msg.strip()
         })
     
     content = message
     
-    if include_file and file_data:
-        if file_data['type'] == 'image':
-            # For images, add to the message's images field
-            try:
-                image_bytes = base64.b64decode(file_data['content'])
-                messages.append({
-                    'role': 'user',
-                    'content': content,
-                    'images': [image_bytes]
-                })
-                return handle_chat(messages, developer, temperature, context_size)
-            except Exception as e:
-                return jsonify({'error': f'Error processing image: {str(e)}'}), 500
-        else:
-            # For documents, add content to the message
-            content += f"\n\nDocument content:\n{file_data['content']}"
-            content += f"\n\nFile path: {file_data['name']}"
+    # Handle file content if present and included
+    if file_data:
+        if include_file:
+            if file_data['type'] == 'image':
+                # For images, add to the message's images field
+                try:
+                    image_bytes = base64.b64decode(file_data['content'])
+                    messages.append({
+                        'role': 'user',
+                        'content': content,
+                        'images': [image_bytes]
+                    })
+                    return handle_chat(messages, developer, temperature, context_size)
+                except Exception as e:
+                    return jsonify({'error': f'Error processing image: {str(e)}'}), 500
+            else:
+                # For documents, add content to the message only if include_file is true
+                content += f"\n\nDocument content:\n{file_data['content']}"
+                content += f"\n\nFile path: {file_data['name']}"
     
     if include_chat and data.get('chat_history'):
         chat_history = data.get('chat_history')
@@ -168,11 +171,16 @@ def chat():
             chat_history = chat_history.replace(file_data['content'], '')
         content += f"\n\nChat history:\n{chat_history}"
     
-    if rag_files:
+    # Handle RAG files if they exist
+    if data.get('rag_files'):
         if not rag:
             rag = RAG(embedding_model_name = selected_embedding_model, chunk_size = chunk_size, use_semantic_chunking = use_semantic_chunking)
-        rag_context = rag.retrieve_context(query=message)
-        content += f"\n\nRAG Context:\n{rag_context}"
+        try:
+            rag_context = rag.retrieve_context(query=message)
+            if rag_context:
+                content += f"\n\nRAG Context:\n{rag_context}"
+        except Exception as e:
+            return jsonify({'error': f'Error retrieving RAG context: {str(e)}'}), 500
     
     messages.append({
         'role': 'user',
@@ -185,13 +193,17 @@ def handle_chat(messages, developer, temperature, context_size):
     """Handle the chat response for both Ollama and Google"""
     try:
         if developer == 'ollama':
+            # Validate and clamp temperature and context size
+            temp = max(0.0, min(1.0, float(temperature)))  # Clamp between 0 and 1
+            ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
+            
             stream = ollama.chat(
                 model=selected_model,
                 messages=messages,
                 stream=True,
                 options={
-                    "temperature": temperature,
-                    "num_ctx": context_size
+                    "temperature": temp,
+                    "num_ctx": ctx
                 }
             )
             response = ""
@@ -202,10 +214,14 @@ def handle_chat(messages, developer, temperature, context_size):
                     response += chunk['message']['content']
             return jsonify({'response': response})
         else: # google
+            # Validate and clamp temperature and context size for Gemini
+            temp = max(0.0, min(1.0, float(temperature)))  # Clamp between 0 and 1
+            ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
+            
             stream = gemini_chat.get_response(
                 messages=messages,
-                temperature=temperature,
-                max_tokens=context_size
+                temperature=temp,
+                max_tokens=ctx
             )
             response = ""
             for chunk in stream:
