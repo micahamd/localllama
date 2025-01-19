@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chat Interface</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fira+Code&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Model Controls -->
+        <div class="controls">
+            <div class="control-group">
+                <label for="developer-selector">Developer:</label>
+                <select id="developer-selector"></select>
+            </div>
+            <div class="control-group">
+                <label for="model-selector">Model:</label>
+                <select id="model-selector"></select>
+            </div>
+            <div class="control-group">
+                <label for="embedding-selector">Embedding Model:</label>
+                <select id="embedding-selector"></select>
+            </div>
+            <div class="control-group">
+                <label for="system-text">System Instructions:</label>
+                <textarea id="system-text"></textarea>
+            </div>
+            <div class="control-group">
+                <label for="temp-slider">Creativity:</label>
+                <input type="range" id="temp-slider">
+            </div>
+            <div class="control-group">
+                <label for="context-slider">Context Tokens:</label>
+                <input type="range" id="context-slider">
+            </div>
+            <div class="control-group">
+                <label for="chunk-entry">RAG Chunk Size:</label>
+                <input type="number" id="chunk-entry">
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="semantic-chunking">
+                    Semantic Chunking for RAG
+                </label>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="include-chat">
+                    Include Chat History
+                </label>
+            </div>
+            <div class="control-group">
+                <label>
+                    <input type="checkbox" id="include-file">
+                    Include File Content
+                </label>
+            </div>
+        </div>
+
+        <!-- File Upload Area -->
+        <div class="file-drop-zone" id="file-drop-zone">
+            <p>Drag & drop files here or click to upload</p>
+            <input type="file" id="file-input" style="display: none">
+        </div>
+
+        <!-- Image Preview -->
+        <div class="image-preview" id="image-preview"></div>
+
+        <!-- Chat Area -->
+        <div class="chat-display">
+            <div class="chat-welcome">
+                <h2>Chat Interface</h2>
+                <p>Select a developer and a model before starting to chat. You can:</p>
+                <ul>
+                    <li>Upload files by dragging them to the drop zone</li>
+                    <li>Use basic or semantic RAG for large documents</li>
+                    <li>Process multiple files iteratively in batch mode</li>
+                    <li>Set context size, temperature/creativity and chunk length (for RAG) in the UI</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <textarea class="input-field" placeholder="Type your message here..."></textarea>
+            <div class="button-group">
+                <button class="secondary-button" id="clear-chat">Clear Chat</button>
+                <button class="secondary-button" id="clear-file">Clear File</button>
+                <button class="secondary-button" id="batch-process">Batch Process</button>
+                <button class="secondary-button" id="rag-button">RAG</button>
+                <button class="send-button">Send</button>
+            </div>
+        </div>
+    </div>
+    <script src="script.js"></script>
+</body>
+</html>
