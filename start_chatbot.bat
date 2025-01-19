@@ -7,6 +7,8 @@ set VIRTUAL_ENV=%PROJECT_DIR%\venv
 set VIRTUAL_ENV_PROMPT=venv
 set PATH=%VIRTUAL_ENV%\Scripts;%PATH%
 
+set GOOGLE_API_KEY=AIzaSyDs8fnWnOJLwKSfBoaTKEcuW9uIh9cbZCc
+
 :: Start the server in a new window
 start "Python Server" cmd /k "cd /d %PROJECT_DIR% && call C:\ProgramData\miniconda3\Scripts\activate.bat base && python server.py"
 
