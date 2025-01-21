@@ -93,12 +93,13 @@ class RAG:
             return self.client.create_collection(name="rag_collection", embedding_function=self.embedding_function)
     
     def update_embedding_function(self, new_embedding_model_name):
-        """Updates the embedding function and recreates the collection."""
-        self.embedding_model_name = new_embedding_model_name
-        self.embedding_function = self.get_embedding_function()
-        self.clear_db() #clear the old collection
-        self.collection = self.get_or_create_collection() # create new collection using new function
-        print(f"Updated embedding function to {self.embedding_model_name}")
+        """Updates the embedding function and recreates the collection if needed."""
+        if self.embedding_model_name != new_embedding_model_name:
+            self.embedding_model_name = new_embedding_model_name
+            self.embedding_function = self.get_embedding_function()
+            self.clear_db() #clear the old collection since embeddings will be incompatible
+            self.collection = self.get_or_create_collection() # create new collection using new function
+            print(f"Updated embedding function to {self.embedding_model_name}")
     
     def _extract_sentences(self, text: str) -> List[str]:
         """Extracts sentences from the given text."""

@@ -217,8 +217,12 @@ const populateModels = (data, developer) => {
     
     if (developer === 'google') {
         embeddingSelector.disabled = true;
+        embeddingSelector.value = 'models/text-embedding-004';  // Set Google's embedding model
     } else {
         embeddingSelector.disabled = false;
+        if (embeddingSelector.options.length > 0) {
+            embeddingSelector.value = embeddingSelector.options[0].value;  // Set first Ollama embedding model
+        }
     }
 }
 

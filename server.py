@@ -18,9 +18,10 @@ UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 gemini_chat = GeminiChat()
-rag = RAG(embedding_model_name='nomic-embed-text', chunk_size=128, use_semantic_chunking=False)
+rag = None  # Will be initialized when developer and model are selected
 selected_model = None
 selected_embedding_model = None
+developer = 'ollama'  # Default developer
 chunk_size = 128
 use_semantic_chunking = False
 stop_event = threading.Event()
@@ -233,7 +234,7 @@ def handle_chat(messages, developer, temperature, context_size):
 
 @app.route('/models', methods=['GET'])
 def list_models():
-    global selected_model, selected_embedding_model
+    global selected_model, selected_embedding_model, developer, rag
     developer = request.args.get('developer', 'ollama')
     try:
         if developer == 'ollama':
@@ -245,12 +246,16 @@ def list_models():
                 selected_model = llm_models[0]
             if embedding_models:
                 selected_embedding_model = embedding_models[0]
+                if not rag:
+                    rag = RAG(embedding_model_name=selected_embedding_model, chunk_size=chunk_size, use_semantic_chunking=use_semantic_chunking)
             return jsonify({'llm_models': llm_models, 'embedding_models': embedding_models})
         else: # google
             gemini_models = gemini_chat.list_models()
             if gemini_models:
                 selected_model = gemini_models[0]
-            selected_embedding_model = 'models/text-embedding-004'
+                selected_embedding_model = 'models/text-embedding-004'
+                if not rag:
+                    rag = RAG(embedding_model_name='models/text-embedding-004', chunk_size=chunk_size, use_semantic_chunking=use_semantic_chunking)
             return jsonify({'llm_models': gemini_models, 'embedding_models': ['models/text-embedding-004']})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -267,8 +272,13 @@ def set_model():
     if selected_embedding_model:
         if not rag:
             rag = RAG(embedding_model_name = selected_embedding_model, chunk_size = chunk_size, use_semantic_chunking = use_semantic_chunking)
-        else:
+        elif rag.embedding_model_name != selected_embedding_model:
+            # Only update if embedding model actually changed
             rag.update_embedding_function(selected_embedding_model)
+            rag.chunk_size = chunk_size
+            rag.use_semantic_chunking = use_semantic_chunking
+        else:
+            # Just update chunk size and semantic chunking if only those changed
             rag.chunk_size = chunk_size
             rag.use_semantic_chunking = use_semantic_chunking
     
