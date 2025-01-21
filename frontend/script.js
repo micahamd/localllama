@@ -461,7 +461,7 @@ const sendMessage = async () => {
                     context_size: contextSize,
                     file: currentFile,
                     chat_history: includeChat ? chatDisplay.innerText : null,
-                    rag_files: ragFiles.length > 0 ? ragFiles.map(f => f.name) : null
+                    rag_files: ragFiles.length > 0 ? true : null  // Just indicate RAG is active
                 })
             });
             

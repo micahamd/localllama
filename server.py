@@ -18,7 +18,7 @@ UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
 gemini_chat = GeminiChat()
-rag = None
+rag = RAG(embedding_model_name='nomic-embed-text', chunk_size=128, use_semantic_chunking=False)
 selected_model = None
 selected_embedding_model = None
 chunk_size = 128
@@ -172,9 +172,7 @@ def chat():
         content += f"\n\nChat history:\n{chat_history}"
     
     # Handle RAG files if they exist
-    if data.get('rag_files'):
-        if not rag:
-            rag = RAG(embedding_model_name = selected_embedding_model, chunk_size = chunk_size, use_semantic_chunking = use_semantic_chunking)
+    if data.get('rag_files') and rag:
         try:
             rag_context = rag.retrieve_context(query=message)
             if rag_context:
