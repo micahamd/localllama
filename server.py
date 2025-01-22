@@ -105,6 +105,7 @@ def ingest_rag_files():
                 file_paths.append(file_path)
         
         if rag:
+            rag.clear_db()  # Clear existing RAG data
             rag.ingest_data(file_paths)
             return jsonify({'message': 'Files ingested successfully'})
         else:
@@ -190,47 +191,52 @@ def chat():
 
 def handle_chat(messages, developer, temperature, context_size):
     """Handle the chat response for both Ollama and Google"""
-    try:
-        if developer == 'ollama':
-            # Validate and clamp temperature and context size
-            temp = round(max(0.0, min(2.0, float(temperature))), 2) 
-            ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
-            
-            stream = ollama.chat(
-                model=selected_model,
-                messages=messages,
-                stream=True,
-                options={
-                    "temperature": temp,
-                    "num_ctx": ctx
-                }
-            )
-            response = ""
-            for chunk in stream:
-                if stop_event.is_set():
-                    break
-                if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    response += chunk['message']['content']
-            return jsonify({'response': response})
-        else: # google
-            # Validate and clamp temperature and context size for Gemini
-            temp = round(max(0.0, min(2.0, float(temperature))), 2) 
-            ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
-            
-            stream = gemini_chat.get_response(
-                messages=messages,
-                temperature=temp,
-                max_tokens=ctx
-            )
-            response = ""
-            for chunk in stream:
-                if stop_event.is_set():
-                    break
-                if chunk and 'message' in chunk and 'content' in chunk['message']:
-                    response += chunk['message']['content']
-            return jsonify({'response': response})
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+    def generate():
+        try:
+            if developer == 'ollama':
+                # Validate and clamp temperature and context size
+                temp = round(max(0.0, min(2.0, float(temperature))), 2) 
+                ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
+                
+                stream = ollama.chat(
+                    model=selected_model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": temp,
+                        "num_ctx": ctx
+                    }
+                )
+                
+                for chunk in stream:
+                    if stop_event.is_set():
+                        break
+                    if chunk and 'message' in chunk and 'content' in chunk['message']:
+                        yield f"data: {chunk['message']['content']}\n\n"
+            else: # google
+                # Validate and clamp temperature and context size for Gemini
+                temp = round(max(0.0, min(2.0, float(temperature))), 2) 
+                ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
+                
+                stream = gemini_chat.get_response(
+                    messages=messages,
+                    temperature=temp,
+                    max_tokens=ctx
+                )
+                
+                for chunk in stream:
+                    if stop_event.is_set():
+                        break
+                    if chunk and 'message' in chunk and 'content' in chunk['message']:
+                        yield f"data: {chunk['message']['content']}\n\n"
+        except Exception as e:
+            yield f"data: Error: {str(e)}\n\n"
+    
+    return app.response_class(
+        generate(),
+        mimetype='text/event-stream',
+        headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'}
+    )
 
 @app.route('/models', methods=['GET'])
 def list_models():

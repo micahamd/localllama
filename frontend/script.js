@@ -449,7 +449,12 @@ const sendMessage = async () => {
                 })
             });
             
-            // Then send chat message
+            // Create message div for assistant's response
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', 'assistant');
+            chatDisplay.appendChild(messageDiv);
+            
+            // Create SSE connection for streaming response
             const response = await fetch('http://localhost:5001/chat', {
                 method: 'POST',
                 headers: {
@@ -465,16 +470,55 @@ const sendMessage = async () => {
                     context_size: contextSize,
                     file: currentFile,
                     chat_history: includeChat ? chatDisplay.innerText : null,
-                    rag_files: ragFiles.length > 0 ? true : null  // Just indicate RAG is active
+                    rag_files: ragFiles.length > 0 ? true : null
                 })
             });
-            
-            const data = await response.json();
-            if (data.response) {
-                appendMessage(data.response, 'assistant');
-            } else if (data.error) {
-                appendMessage('Error: ' + data.error, 'error');
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            while (true) {
+                const {value, done} = await reader.read();
+                if (done) break;
+                
+                buffer += decoder.decode(value, {stream: true});
+                const lines = buffer.split('\n');
+                
+                // Process all complete lines
+                buffer = lines.pop() || ''; // Keep the last incomplete line in buffer
+                
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const content = line.slice(6); // Remove 'data: ' prefix
+                        if (content.startsWith('Error: ')) {
+                            messageDiv.innerHTML = content;
+                            messageDiv.classList.add('error');
+                        } else {
+                            messageDiv.innerHTML += content;
+                        }
+                        chatDisplay.scrollTop = chatDisplay.scrollHeight;
+                    }
+                }
             }
+            
+            // Process any remaining content in buffer
+            if (buffer) {
+                const lines = buffer.split('\n');
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const content = line.slice(6);
+                        if (content.startsWith('Error: ')) {
+                            messageDiv.innerHTML = content;
+                            messageDiv.classList.add('error');
+                        } else {
+                            messageDiv.innerHTML += content;
+                        }
+                    }
+                }
+            }
+            
+            chatDisplay.scrollTop = chatDisplay.scrollHeight;
         } catch (error) {
             appendMessage('Error: ' + error.message, 'error');
         }
