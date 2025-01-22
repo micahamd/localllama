@@ -294,6 +294,8 @@ def set_model():
 def stop_processing():
     global stop_event
     stop_event.set()
+    # Reset stop_event immediately after setting it
+    stop_event.clear()
     return jsonify({'message': 'Stopped ongoing processes'})
 
 if __name__ == '__main__':

@@ -5,9 +5,13 @@ const sendButton = document.querySelector('.send-button');
 const clearChatButton = document.getElementById('clear-chat');
 const batchProcessButton = document.getElementById('batch-process');
 const ragButton = document.getElementById('rag-button');
+const stopButton = document.getElementById('stop-button');
 const fileDropZone = document.getElementById('file-drop-zone');
 const fileInput = document.getElementById('file-input');
 const imagePreview = document.getElementById('image-preview');
+
+// Abort controller for stopping requests
+let currentController = null;
 
 // Form Controls
 const developerSelector = document.getElementById('developer-selector');
@@ -418,10 +422,37 @@ const clearFile = () => {
 // Add clear file button event listener
 document.getElementById('clear-file').addEventListener('click', clearFile);
 
+// Stop functionality
+stopButton.addEventListener('click', async () => {
+    if (currentController) {
+        currentController.abort();
+        currentController = null;
+        
+        // Also notify server to stop processing
+        try {
+            await fetch('http://localhost:5001/stop', {
+                method: 'POST'
+            });
+        } catch (error) {
+            console.error('Error stopping server:', error);
+        }
+        
+        appendMessage('Stopped response generation.', 'status');
+    }
+});
+
 // Send message function
 const sendMessage = async () => {
     const message = inputField.value.trim();
     if (message) {
+        // Abort any existing request
+        if (currentController) {
+            currentController.abort();
+        }
+        
+        // Create new controller for this request
+        currentController = new AbortController();
+        
         appendMessage(message, 'user');
         inputField.value = '';
         
@@ -460,6 +491,7 @@ const sendMessage = async () => {
                 headers: {
                     'Content-Type': 'application/json'
                 },
+                signal: currentController.signal,
                 body: JSON.stringify({
                     message: message,
                     developer: developer,
@@ -520,7 +552,13 @@ const sendMessage = async () => {
             
             chatDisplay.scrollTop = chatDisplay.scrollHeight;
         } catch (error) {
+            if (error.name === 'AbortError') {
+                // Don't show error message for intentional stops
+                return;
+            }
             appendMessage('Error: ' + error.message, 'error');
+        } finally {
+            currentController = null;
         }
     }
 };
