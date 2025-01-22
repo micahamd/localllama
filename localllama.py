@@ -96,7 +96,7 @@ class OllamaChatGUI:
         self.temp_slider = ttk.Scale(
             temp_frame,
             from_=0.0,
-            to=1.0,
+            to=2.0,
             orient='horizontal',
             length=100,
             variable=self.temperature,

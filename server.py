@@ -72,7 +72,7 @@ def batch_process():
                         model=selected_model,
                         messages=[message],
                         options={
-                            "temperature": 0.7,
+                            "temperature": 0.4,
                             "num_ctx": 4096
                         }
                     )
@@ -193,7 +193,7 @@ def handle_chat(messages, developer, temperature, context_size):
     try:
         if developer == 'ollama':
             # Validate and clamp temperature and context size
-            temp = max(0.0, min(1.0, float(temperature)))  # Clamp between 0 and 1
+            temp = round(max(0.0, min(2.0, float(temperature))), 2) 
             ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
             
             stream = ollama.chat(
@@ -214,7 +214,7 @@ def handle_chat(messages, developer, temperature, context_size):
             return jsonify({'response': response})
         else: # google
             # Validate and clamp temperature and context size for Gemini
-            temp = max(0.0, min(1.0, float(temperature)))  # Clamp between 0 and 1
+            temp = round(max(0.0, min(2.0, float(temperature))), 2) 
             ctx = max(1000, min(128000, int(context_size)))  # Clamp between 1000 and 128000
             
             stream = gemini_chat.get_response(
