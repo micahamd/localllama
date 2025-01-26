@@ -50,6 +50,9 @@ def batch_process():
     
     file = request.files['file']
     prompt = request.form.get('prompt')
+    system_msg = request.form.get('system_msg', '').strip()
+    temperature = float(request.form.get('temperature', 0.4))
+    context_size = int(request.form.get('context_size', 4096))
     
     if not prompt:
         return jsonify({'error': 'No prompt provided'}), 400
@@ -62,18 +65,30 @@ def batch_process():
         try:
             content = extract_content(file_path)
             if content:
-                message = {
+                # Prepare message content
+                content_text = f"{prompt}\n\nDocument content:\n{content}"
+                content_text += f"\n\nFile path: {filename}"
+                
+                # Create messages array with system message if provided
+                messages = []
+                if system_msg:
+                    messages.append({
+                        'role': 'system',
+                        'content': system_msg
+                    })
+                
+                messages.append({
                     'role': 'user',
-                    'content': f"{prompt}\n\nDocument content:\n{content}"
-                }
+                    'content': content_text
+                })
                 
                 if selected_model:
                     response = ollama.chat(
                         model=selected_model,
-                        messages=[message],
+                        messages=messages,
                         options={
-                            "temperature": 0.4,
-                            "num_ctx": 4096
+                            "temperature": temperature,
+                            "num_ctx": context_size
                         }
                     )
                     return jsonify({'response': response['message']['content']})

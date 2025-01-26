@@ -335,6 +335,11 @@ batchProcessButton.addEventListener('click', async () => {
             formData.append('prompt', prompt);
             
             try {
+                // Add system message, temperature, and context size to form data
+                formData.append('system_msg', systemText.value.trim());
+                formData.append('temperature', tempSlider.value);
+                formData.append('context_size', contextSlider.value);
+                
                 const response = await fetch('http://localhost:5001/batch', {
                     method: 'POST',
                     body: formData
