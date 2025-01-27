@@ -113,6 +113,8 @@ def ingest_rag_files():
     
     try:
         for file in files:
+            if stop_event.is_set():
+                break  # Exit loop if stop is signaled
             if file:
                 filename = secure_filename(file.filename)
                 file_path = os.path.join(UPLOAD_FOLDER, filename)
