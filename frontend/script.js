@@ -111,19 +111,31 @@ const handleFile = (file) => {
         };
         reader.readAsDataURL(file);
     } else {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            const content = e.target.result;
-            const wordCount = content.trim().split(/\s+/).length;
+        // For documents, send to backend for processing
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        fetch('http://localhost:5001/process_file', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                appendMessage(`Error processing file: ${data.error}`, 'error');
+                return;
+            }
             currentFile = {
                 type: 'document',
                 name: file.name,
-                content: content,
-                wordCount: wordCount
+                content: data.content,
+                wordCount: data.wordCount
             };
-            appendMessage(`File ${file.name} uploaded (${wordCount} words)`, 'status');
-        };
-        reader.readAsText(file);
+            appendMessage(`File ${file.name} uploaded (${data.wordCount} words)`, 'status');
+        })
+        .catch(error => {
+            appendMessage(`Error processing file: ${error.message}`, 'error');
+        });
     }
 
     includeFileCheckbox.disabled = false;

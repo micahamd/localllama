@@ -43,6 +43,32 @@ def extract_content(file_path):
         print(f"Error extracting content: {str(e)}")
         return None
 
+@app.route('/process_file', methods=['POST'])
+def process_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+    
+    file = request.files['file']
+    if file:
+        filename = secure_filename(file.filename)
+        file_path = os.path.join(UPLOAD_FOLDER, filename)
+        try:
+            file.save(file_path)
+            content = extract_content(file_path)
+            if content:
+                word_count = len(re.findall(r'\w+', content))
+                return jsonify({
+                    'content': content,
+                    'wordCount': word_count
+                })
+            return jsonify({'error': 'Could not extract content from file'}), 400
+        finally:
+            # Clean up uploaded file
+            if os.path.exists(file_path):
+                os.remove(file_path)
+    
+    return jsonify({'error': 'Invalid file'}), 400
+
 @app.route('/batch', methods=['POST'])
 def batch_process():
     if 'file' not in request.files:
@@ -63,39 +89,43 @@ def batch_process():
         file.save(file_path)
         
         try:
+            # First process the file to get its content
             content = extract_content(file_path)
-            if content:
-                # Prepare message content
-                content_text = f"{prompt}\n\nDocument content:\n{content}"
-                content_text += f"\n\nFile path: {filename}"
-                
-                # Create messages array with system message if provided
-                messages = []
-                if system_msg:
-                    messages.append({
-                        'role': 'system',
-                        'content': system_msg
-                    })
-                
-                messages.append({
-                    'role': 'user',
-                    'content': content_text
-                })
-                
-                if selected_model:
-                    response = ollama.chat(
-                        model=selected_model,
-                        messages=messages,
-                        options={
-                            "temperature": temperature,
-                            "num_ctx": context_size
-                        }
-                    )
-                    return jsonify({'response': response['message']['content']})
-                else:
-                    return jsonify({'error': 'No model selected'}), 400
-            else:
+            if not content:
                 return jsonify({'error': 'Could not extract content from file'}), 400
+            
+            # Get word count for logging
+            word_count = len(re.findall(r'\w+', content))
+            
+            # Prepare message content
+            content_text = f"{prompt}\n\nDocument content ({word_count} words):\n{content}"
+            content_text += f"\n\nFile path: {filename}"
+            
+            # Create messages array with system message if provided
+            messages = []
+            if system_msg:
+                messages.append({
+                    'role': 'system',
+                    'content': system_msg
+                })
+            
+            messages.append({
+                'role': 'user',
+                'content': content_text
+            })
+            
+            if not selected_model:
+                return jsonify({'error': 'No model selected'}), 400
+                
+            response = ollama.chat(
+                model=selected_model,
+                messages=messages,
+                options={
+                    "temperature": temperature,
+                    "num_ctx": context_size
+                }
+            )
+            return jsonify({'response': response['message']['content']})
         finally:
             # Clean up uploaded file
             if os.path.exists(file_path):
@@ -121,12 +151,21 @@ def ingest_rag_files():
                 file.save(file_path)
                 file_paths.append(file_path)
         
-        if rag:
-            rag.clear_db()  # Clear existing RAG data
-            rag.ingest_data(file_paths)
-            return jsonify({'message': 'Files ingested successfully'})
-        else:
+        if not rag:
             return jsonify({'error': 'RAG not initialized'}), 500
+            
+        # Process files with MarkItDown first
+        processed_contents = []
+        for path in file_paths:
+            content = extract_content(path)
+            if content:
+                processed_contents.append(content)
+            else:
+                return jsonify({'error': f'Could not extract content from file: {os.path.basename(path)}'}), 400
+        
+        rag.clear_db()  # Clear existing RAG data
+        rag.ingest_data(processed_contents)
+        return jsonify({'message': 'Files ingested successfully'})
     finally:
         # Clean up uploaded files
         for path in file_paths:
