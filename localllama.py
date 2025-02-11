@@ -444,6 +444,25 @@ class OllamaChatGUI:
         if files:
             threading.Thread(target=self.process_files, args=(files,)).start()
 
+    def get_model_stream(self, messages, temperature, context_size):
+        # Returns a response stream using ollama or Gemini based on developer selection.
+        if self.developer.get() == 'ollama':
+            return ollama.chat(
+                model=self.selected_model,
+                messages=messages,
+                stream=True,
+                options={
+                    "temperature": temperature,
+                    "num_ctx": context_size
+                }
+            )
+        else:  # google
+            return self.gemini_chat.get_response(
+                messages=messages,
+                temperature=temperature,
+                max_tokens=context_size
+            )
+
     def process_files(self, files):
         base_prompt = self.input_field.get("1.0", tk.END).strip()
         self.chat_display.insert(tk.END, f"\nStarting batch processing of {len(files)} files\nFile paths: {files}\n")
@@ -472,7 +491,7 @@ class OllamaChatGUI:
                     content += f"\n\nDocument content:\n{file_content}\n\nFile path: {file_path}"
                 message = {'role': 'user', 'content': content}
 
-            # Build messages with system instructions (if any)
+            # Fetch system instructions and include them with each file's prompt.
             system_msg = self.system_text.get("1.0", tk.END).strip()
             messages = []
             if system_msg:
@@ -481,25 +500,10 @@ class OllamaChatGUI:
 
             self.display_message(f"\nAssistant (for {os.path.basename(file_path)}): ", 'assistant')
 
-            # Get the response stream for the current file
-            if self.developer.get() == 'ollama':
-                stream = ollama.chat(
-                    model=self.selected_model,
-                    messages=messages,
-                    stream=True,
-                    options={
-                        "temperature": self.temperature.get(),
-                        "num_ctx": self.context_size.get()
-                    }
-                )
-            else:  # google
-                stream = self.gemini_chat.get_response(
-                    messages=messages,
-                    temperature=self.temperature.get(),
-                    max_tokens=self.context_size.get()
-                )
-
+            # Use the new helper method to get the response stream
+            stream = self.get_model_stream(messages, self.temperature.get(), self.context_size.get())
             self.active_stream = stream
+
             try:
                 for chunk in stream:
                     if self.stop_event.is_set():
