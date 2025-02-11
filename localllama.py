@@ -34,13 +34,23 @@ class OllamaChatGUI:
         self.developer = StringVar(value="ollama")  # Default to ollama
         self.gemini_chat = GeminiChat()  # Initialize Gemini chat
         self.stop_event = threading.Event()
+        self.rag_files = []  # Initialize rag_files to avoid AttributeError
         
         # Main chat frame
-        self.chat_frame = ttk.Frame(root)
-        self.chat_frame.pack(padx=10, pady=10, expand=True, fill='both')
-        
-        # Chat display
-        self.chat_display = tk.Text(self.chat_frame, wrap=tk.WORD, width=50, height=20, font=("Arial", 12), padx=5, pady=5)
+        self.chat_frame = tk.Frame(root, bg="#C0C0C0")  # silver background for early 90's feel
+        self.chat_frame.pack(side="top", fill='both', expand=True, padx=10, pady=10)
+        self.chat_display = tk.Text(
+            self.chat_frame,
+            wrap=tk.WORD,
+            width=50,
+            height=20,
+            font=("Courier New", 12),
+            padx=5,
+            pady=5,
+            bg="lightgrey",
+            relief="sunken",
+            bd=2
+        )
         self.chat_display.pack(side='left', expand=True, fill='both')
         scrollbar = ttk.Scrollbar(self.chat_frame, orient='vertical', command=self.chat_display.yview)
         scrollbar.pack(side='right', fill='y')
@@ -165,33 +175,42 @@ class OllamaChatGUI:
         self.include_file_checkbox.pack(side='left', padx=(10,0))
 
         # Create input area
-        input_frame = ttk.Frame(root, style='InputFrame.TFrame')
-        input_frame.pack(padx=10, pady=(0, 10), fill='x')
-        self.input_field = scrolledtext.ScrolledText(input_frame, wrap=tk.WORD, height=3, borderwidth=1, relief="solid", font=("Arial", 12))
-        self.input_field.pack(side='left', expand=True, fill='both', padx=5, pady=5)
-        self.input_field.config(borderwidth=1, relief="solid", highlightthickness=1, highlightbackground="#cccccc")
+        input_frame = tk.Frame(root, bg="#C0C0C0")
+        input_frame.pack(side='bottom', fill='x', padx=10, pady=(0, 10))
         
-        # Button frame
-        button_frame = ttk.Frame(input_frame)
-        button_frame.pack(side='right', padx=(5, 0))
-        clear_button = ttk.Button(button_frame, text="Clear Chat", command=self.clear_chat)
-        clear_button.pack(side='right', padx=(5, 0))
-        batch_button = ttk.Button(button_frame, text="Batch Process", command=self.start_batch_process)
-        batch_button.pack(side='right', padx=(5, 0))
-        send_button = ttk.Button(button_frame, text="Send", command=self.send_message)
-        send_button.pack(side='right')
+        self.input_field = scrolledtext.ScrolledText(
+            input_frame,
+            wrap=tk.WORD,
+            height=3,
+            borderwidth=1,
+            relief="solid",
+            font=("Courier New", 12)
+        )
+        self.input_field.grid(row=0, column=0, padx=5, pady=5, sticky="ew")
+        input_frame.grid_columnconfigure(0, weight=1)
         
-        stop_button = ttk.Button(button_frame, text="Stop", command=self.stop_processing)
-        stop_button.pack(side='right', padx=(5, 0))
+        # Create a new button_frame on the right of the input area using grid
+        button_frame = tk.Frame(input_frame, bg="#C0C0C0")
+        button_frame.grid(row=0, column=1, padx=5, pady=5, sticky="ns")
         
-        # Add "Clear File" button
-        clear_file_button = ttk.Button(button_frame, text="Clear File", command=self.clear_file)
-        clear_file_button.pack(side='right', padx=(5, 0))
-        
-        # Add "RAG" button
-        self.rag_button = ttk.Button(button_frame, text="RAG", command=self.select_rag_files)  # RAG button
-        self.rag_button.pack(side='right', padx=(5, 0))
-        self.rag_files = [] # list of selected files for RAG
+        clear_button = tk.Button(button_frame, text="Clear Chat", command=self.clear_chat, 
+                                 bg="#FF7F7F", fg="black", font=("Fixedsys", 10))
+        clear_button.grid(row=0, column=0, padx=2, pady=2, sticky="ew")
+        batch_button = tk.Button(button_frame, text="Batch Process", command=self.start_batch_process, 
+                                 bg="#90EE90", fg="black", font=("Fixedsys", 10))
+        batch_button.grid(row=0, column=1, padx=2, pady=2, sticky="ew")
+        send_button = tk.Button(button_frame, text="Send", command=self.send_message, 
+                                bg="#ADD8E6", fg="black", font=("Fixedsys", 10))
+        send_button.grid(row=0, column=2, padx=2, pady=2, sticky="ew")
+        stop_button = tk.Button(button_frame, text="Stop", command=self.stop_processing, 
+                                bg="#FFA500", fg="black", font=("Fixedsys", 10))
+        stop_button.grid(row=0, column=3, padx=2, pady=2, sticky="ew")
+        clear_file_button = tk.Button(button_frame, text="Clear File", command=self.clear_file, 
+                                bg="#DDA0DD", fg="black", font=("Fixedsys", 10))
+        clear_file_button.grid(row=0, column=4, padx=2, pady=2, sticky="ew")
+        self.rag_button = tk.Button(button_frame, text="RAG", command=self.select_rag_files, 
+                                bg="#B0C4DE", fg="black", font=("Fixedsys", 10))
+        self.rag_button.grid(row=0, column=5, padx=2, pady=2, sticky="ew")
         
         # Input processing
         self.is_processing = False
@@ -426,78 +445,74 @@ class OllamaChatGUI:
             threading.Thread(target=self.process_files, args=(files,)).start()
 
     def process_files(self, files):
-        prompt = self.input_field.get("1.0", tk.END).strip()
+        base_prompt = self.input_field.get("1.0", tk.END).strip()
         self.chat_display.insert(tk.END, f"\nStarting batch processing of {len(files)} files\nFile paths: {files}\n")
-
         for idx, file_path in enumerate(files, 1):
             if self.stop_event.is_set():
                 break
 
             self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)}\n")
             self.chat_display.see(tk.END)
-
             file_type = self.get_file_type(file_path)
-            message = {'role': 'user', 'content': prompt}
+            content = base_prompt  # base prompt for each file
 
             if file_type == 'image':
                 with open(file_path, 'rb') as img_file:
-                    message['images'] = [img_file.read()]
+                    file_data = img_file.read()
+                message = {
+                    'role': 'user',
+                    'content': content,
+                    'images': [file_data]
+                }
             else:
-                content = prompt
                 file_content = self.extract_content(file_path)
                 if file_content:
                     word_count = len(re.findall(r'\w+', file_content))
-                    self.chat_display.insert(tk.END, f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)} - {word_count} words\n")
-                    content += f"\n\nDocument content:\n{file_content}"
-                    content += f"\n\nFile path: {file_path}"
-                message['content'] = content
+                    self.chat_display.insert(tk.END, f"\nFile has {word_count} words\n")
+                    content += f"\n\nDocument content:\n{file_content}\n\nFile path: {file_path}"
+                message = {'role': 'user', 'content': content}
 
+            # Build messages with system instructions (if any)
+            system_msg = self.system_text.get("1.0", tk.END).strip()
+            messages = []
+            if system_msg:
+                messages.append({'role': 'system', 'content': system_msg})
+            messages.append(message)
+
+            self.display_message(f"\nAssistant (for {os.path.basename(file_path)}): ", 'assistant')
+
+            # Get the response stream for the current file
+            if self.developer.get() == 'ollama':
+                stream = ollama.chat(
+                    model=self.selected_model,
+                    messages=messages,
+                    stream=True,
+                    options={
+                        "temperature": self.temperature.get(),
+                        "num_ctx": self.context_size.get()
+                    }
+                )
+            else:  # google
+                stream = self.gemini_chat.get_response(
+                    messages=messages,
+                    temperature=self.temperature.get(),
+                    max_tokens=self.context_size.get()
+                )
+
+            self.active_stream = stream
             try:
-                self.display_message(f"Assistant (for {os.path.basename(file_path)}): ", 'assistant')
+                for chunk in stream:
+                    if self.stop_event.is_set():
+                        break
+                    if chunk and 'message' in chunk and 'content' in chunk['message']:
+                        self.display_message(chunk['message']['content'], 'assistant')
+            finally:
+                self.active_stream = None
 
-                system_msg = self.system_text.get('1.0', tk.END).strip()
-                messages = []
-                if system_msg:
-                    messages.append({
-                        'role': 'system',
-                        'content': system_msg
-                    })
-                messages.append(message)
-
-                if self.developer.get() == 'ollama':
-                    stream = ollama.chat(
-                        model=self.selected_model,
-                        messages=messages,
-                        stream=True,
-                        options={
-                            "temperature": self.temperature.get(),
-                            "num_ctx": self.context_size.get()
-                        }
-                    )
-                else:  # google
-                    stream = self.gemini_chat.get_response(
-                        messages=messages,
-                        temperature=self.temperature.get(),
-                        max_tokens=self.context_size.get()
-                    )
-
-                self.active_stream = stream
-
-                try:
-                    for chunk in stream:
-                        if self.stop_event.is_set():
-                            break
-                        if chunk and 'message' in chunk and 'content' in chunk['message']:
-                            self.display_message(chunk['message']['content'], 'assistant')
-                finally:
-                    self.active_stream = None
-            except Exception as e:
-                self.display_message(f"Error processing file: {str(e)}\n", 'error')
-
+            self.chat_display.insert(tk.END, f"\nCompleted processing file {idx}/{len(files)}\n")
             self.chat_display.see(tk.END)
 
         self.display_message("\nBatch processing completed.\n", 'status')
-        self.chat_display.see(tk.END)
         
     def update_model_list(self):
         """Update model list based on selected developer"""
