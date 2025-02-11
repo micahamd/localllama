@@ -12,10 +12,10 @@ class GeminiChat:
         
         # Model configuration based on current list
         self.model_name_mapping = {
+            'flash-mini': 'gemini-2.0-flash-lite-preview-02-05',
             'flash2':'gemini-flash-2.0-exp',
-            'flash': 'gemini-1.5-flash',  
-            'flash-mini':'gemini-1.5-flash-8b',
-            'pro': 'gemini-1.5-pro'
+            'flash-think': 'gemini-2.0-flash-thinking-exp-01-21',
+            'pro':'gemini-2.0-pro-exp-02-05'
         }
         self.embedding_model_name = 'models/text-embedding-004'
         

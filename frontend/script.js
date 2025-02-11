@@ -458,6 +458,71 @@ stopButton.addEventListener('click', async () => {
     }
 });
 
+// New helper function to format assistant messages
+const renderAssistantMessage = (rawMessage) => {
+    // Reformat rawMessage similar to the assistant section in appendMessage
+    let html = '';
+    const paragraphs = rawMessage.split('\n\n');
+    paragraphs.forEach(paragraph => {
+        if (paragraph.trim()) {
+            if (paragraph.startsWith('```')) {
+                const match = paragraph.match(/```(\w+)?\n([\s\S]*?)```/);
+                if (match) {
+                    const [, lang, code] = match;
+                    html += `<pre><code${lang ? ' class="language-' + lang + '"' : ''}>${code.trim()}</code></pre>`;
+                }
+            } else if (paragraph.startsWith('$') && paragraph.endsWith('$')) {
+                try {
+                    // Render math with KaTeX into a temporary container and get its HTML
+                    const tempDiv = document.createElement('div');
+                    katex.render(paragraph.slice(1, -1).trim(), tempDiv, {
+                        throwOnError: false,
+                        displayMode: true
+                    });
+                    html += tempDiv.innerHTML;
+                } catch (e) {
+                    html += `<div class="math">${paragraph.slice(1, -1).trim()}</div>`;
+                }
+            } else {
+                // Handle inline code and inline math
+                let text = paragraph.replace(/`([^`]+)`/g, (_, code) => {
+                    return `<code>${code}</code>`;
+                });
+                text = text.replace(/\$([^$]+)\$/g, (_, math) => {
+                    try {
+                        const span = document.createElement('span');
+                        katex.render(math, span, {
+                            throwOnError: false,
+                            displayMode: false
+                        });
+                        return span.outerHTML;
+                    } catch (e) {
+                        return math;
+                    }
+                });
+                html += `<p>${text}</p>`;
+            }
+        }
+    });
+    return html;
+};
+
+// Debounce helper
+const debounce = (func, delay) => {
+    let timer;
+    return (...args) => {
+        clearTimeout(timer);
+        timer = setTimeout(() => func(...args), delay);
+    };
+};
+
+// New helper function to update the assistant message with debounce
+const updateAssistantMessage = debounce((finalContent, messageDiv) => {
+    messageDiv.innerHTML = renderAssistantMessage(finalContent);
+    messageDiv.querySelectorAll('pre code').forEach((el) => hljs.highlightElement(el));
+    chatDisplay.scrollTop = chatDisplay.scrollHeight;
+}, 200);
+
 // Send message function
 const sendMessage = async () => {
     const message = inputField.value.trim();
@@ -526,6 +591,7 @@ const sendMessage = async () => {
             const reader = response.body.getReader();
             const decoder = new TextDecoder();
             let buffer = '';
+            let finalContent = '';
 
             while (true) {
                 const {value, done} = await reader.read();
@@ -541,10 +607,12 @@ const sendMessage = async () => {
                     if (line.startsWith('data: ')) {
                         const content = line.slice(6); // Remove 'data: ' prefix
                         if (content.startsWith('Error: ')) {
-                            messageDiv.innerHTML = content;
+                            finalContent = content;
+                            messageDiv.innerHTML = finalContent;
                             messageDiv.classList.add('error');
                         } else {
-                            messageDiv.innerHTML += content;
+                            finalContent += content;
+                            updateAssistantMessage(finalContent, messageDiv);
                         }
                         chatDisplay.scrollTop = chatDisplay.scrollHeight;
                     }
@@ -558,10 +626,12 @@ const sendMessage = async () => {
                     if (line.startsWith('data: ')) {
                         const content = line.slice(6);
                         if (content.startsWith('Error: ')) {
-                            messageDiv.innerHTML = content;
+                            finalContent = content;
+                            messageDiv.innerHTML = finalContent;
                             messageDiv.classList.add('error');
                         } else {
-                            messageDiv.innerHTML += content;
+                            finalContent += content;
+                            updateAssistantMessage(finalContent, messageDiv);
                         }
                     }
                 }
