@@ -1,6 +1,6 @@
 # Local(o)llama chatbot
 
-A feature-rich Python application for seamlessly interacting with local Ollama and Google's Gemini models. For Gemini functionality, ensure to include a GOOGLE_API_KEY in the .env file.
+A feature-rich Python application for interacting with local Ollama and Google's Gemini models. For Gemini functionality, ensure to include a GOOGLE_API_KEY in the .env file.
 
 ## Features
 
@@ -58,13 +58,10 @@ To get started with the application, follow these steps:
         GOOGLE_API_KEY=your_api_key_here
         ```
 
-4.  **Run the server:**
+4.  **Run the application:**
     ```bash
-    python server.py
+    python localllama.py
     ```
-
-5.  **Open the application in your browser:**
-    - Navigate to `frontend/index.html` in your browser.
 
 ## Usage Guide
 
