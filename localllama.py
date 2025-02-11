@@ -47,7 +47,7 @@ class OllamaChatGUI:
             font=("Courier New", 12),
             padx=5,
             pady=5,
-            bg="lightgrey",
+            bg="black",
             relief="sunken",
             bd=2
         )
@@ -99,7 +99,7 @@ class OllamaChatGUI:
         temp_frame.pack(side='left', padx=(10,0))
         
         ttk.Label(temp_frame, text="Creativity:").pack(side='left')
-        self.temperature = tk.DoubleVar(value=0.4)
+        self.temperature = tk.DoubleVar(value=0.7)
         self.temp_label = ttk.Label(temp_frame, text="0.70")
         self.temp_label.pack(side='right', padx=(5,0))
         
@@ -323,7 +323,7 @@ class OllamaChatGUI:
             return
                 
         # Display user message
-        self.display_message("\nYou: ", 'user')
+        self.display_message("\n", 'user')
         self.display_message(f"{user_input}\n", 'user')
         
         self.input_field.delete("1.0", tk.END)
@@ -366,7 +366,7 @@ class OllamaChatGUI:
     def get_response(self, message):
         self.stop_event.clear()
         try:
-            self.display_message("\nAssistant: ", 'assistant')
+            self.display_message("\n", 'assistant')
 
             # Get system instructions
             system_msg = self.system_text.get('1.0', tk.END).strip()
@@ -628,11 +628,11 @@ class OllamaChatGUI:
         self.chat_display.insert("1.0", "\n".join(filtered_lines))
 
     def configure_tags(self):
-        self.chat_display.tag_configure('user', foreground='#0077cc')
-        self.chat_display.tag_configure('assistant', foreground='#800080')
-        self.chat_display.tag_configure('error', foreground='red')
+        self.chat_display.tag_configure('user', foreground='yellow')
+        self.chat_display.tag_configure('assistant', foreground='green')
+        self.chat_display.tag_configure('error', foreground='blue')
         self.chat_display.tag_configure('status', foreground='gray')
-        self.chat_display.tag_configure('code', font=("Consolas", 12), background="#f0f0f0")
+        self.chat_display.tag_configure('code', font=("Consolas", 14), background="black")
         
     def on_show_image_toggle(self, *args):
         """Show or hide the image preview depending on the checkbox."""
