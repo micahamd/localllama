@@ -1,6 +1,6 @@
 import os
 import re
-from typing import List
+from typing import List, Dict, Tuple, Any
 import chromadb
 from chromadb.utils import embedding_functions
 from markitdown import MarkItDown
@@ -172,35 +172,53 @@ class RAG:
         if text:
             sentences = self._extract_sentences(text)
             chunks = self._semantic_chunk(sentences)
-            ids = [str(i) for i in range(len(chunks))]
+            ids = []
+            metadatas = []
+            
+            # Keep track of chunk index within the entire corpus
+            global_chunk_index = 0
+            
+            for file_path in file_paths:
+                file_text = self._extract_text_from_files([file_path])
+                if file_text:
+                    file_sentences = self._extract_sentences(file_text)
+                    file_chunks = self._semantic_chunk(file_sentences)
+                    for i, chunk in enumerate(file_chunks):
+                        ids.append(str(global_chunk_index))
+                        metadatas.append({'source': file_path, 'chunk_index': i})
+                        global_chunk_index += 1
+
             embeddings = self.embedding_function(chunks)
-            self.collection.add(documents=chunks, ids=ids, embeddings=embeddings)
-            print(f"Successfully ingested {len(chunks)} chunks")
+            self.collection.add(documents=chunks, ids=ids, embeddings=embeddings, metadatas=metadatas)
+            print(f"Successfully ingested {len(chunks)} chunks from {len(file_paths)} files")
         else:
             print("No content found to ingest")
 
-    def retrieve_context(self, query: str, n_results: int = 5) -> str:
-        """Retrieves context for the given query, preserving original order."""
-        results = self.collection.query(query_texts=[query], n_results=n_results, include=['documents', 'metadatas'])
-        if results and 'documents' in results and results['metadatas']:
-            # Create a list of (chunk, id) tuples
-            chunk_id_pairs = []
-            for doc_group, metadata_group in zip(results['documents'], results['metadatas']):
-                for doc, metadata in zip(doc_group, metadata_group):
-                    if metadata and 'id' in metadata:
-                        chunk_id_pairs.append((doc, int(metadata.get('id'))))
-                    else:
-                       chunk_id_pairs.append((doc, -1)) # if no id, append with -1 to maintain order
+    def retrieve_context(self, query: str, n_results: int = 5) -> Tuple[str, List[Dict[str, Any]]]:
+        """Retrieves context and metadata for the given query, preserving original order."""
+        results = self.collection.query(query_texts=[query], n_results=n_results, include=['documents', 'metadatas', 'distances'])
+        if results and 'documents' in results and results['metadatas'] and results['distances']:
+            chunk_data = []
+            for doc_group, metadata_group, distance_group in zip(results['documents'], results['metadatas'], results['distances']):
+                for doc, metadata, distance in zip(doc_group, metadata_group, distance_group):
+                    # Calculate relevance score from distance
+                    relevance_score = 1 / (1 + distance)
+                    chunk_data.append({
+                        'text': doc,
+                        'source': metadata.get('source', 'Unknown'),
+                        'chunk_index': metadata.get('chunk_index', -1),
+                        'relevance': relevance_score
+                    })
+
+            # Sort by source and then chunk index
+            sorted_chunks = sorted(chunk_data, key=lambda x: (x['source'], x['chunk_index']))
             
-            # Sort by the integer ID
-            sorted_pairs = sorted(chunk_id_pairs, key=lambda x: x[1])
-            
-            # Extract the ordered chunks
-            ordered_chunks = [chunk for chunk, _ in sorted_pairs]
-            
-            return "\n".join(ordered_chunks)
+            # Extract just the text for the combined context string
+            ordered_chunks_text = [chunk['text'] for chunk in sorted_chunks]
+
+            return "\n".join(ordered_chunks_text), sorted_chunks
         else:
-            return "No context retrieved"
+            return "No context retrieved", []
 
     def clear_db(self):
         """Clears the current database"""

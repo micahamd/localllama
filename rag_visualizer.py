@@ -131,51 +131,69 @@ class RAGVisualizerPanel:
             
             # Insert chunk details
             self.chunk_details.insert(tk.END, f"Chunk #{index+1}\n", "heading")
-            self.chunk_details.insert(tk.END, f"Relevance Score: {chunk_data.get('score', 'N/A')}\n", "metadata")
-            self.chunk_details.insert(tk.END, f"Source: {chunk_data.get('source', 'Unknown')}\n\n", "metadata")
+            self.chunk_details.insert(tk.END, f"Relevance Score: {chunk_data.get('relevance', 'N/A')}\n", "metadata")
+            self.chunk_details.insert(tk.END, f"Source: {chunk_data.get('source', 'Unknown')}\n", "metadata")
+            self.chunk_details.insert(tk.END, f"Chunk Index: {chunk_data.get('chunk_index', 'N/A')}\n\n", "metadata")
             self.chunk_details.insert(tk.END, chunk_data.get('text', 'No content'), "content")
-            
+
             # Configure tags
             self.chunk_details.tag_configure("heading", font=("Arial", 12, "bold"))
             self.chunk_details.tag_configure("metadata", font=("Arial", 10, "italic"))
             self.chunk_details.tag_configure("content", font=("Arial", 11))
-    
+
     def update_chunks(self, chunks_data: List[Dict[str, Any]]):
-        """Update the chunks tab with new data."""
+        """Update the chunks tab with new data and populate sources."""
         # Clear previous data
         self.chunks_listbox.delete(0, tk.END)
         self.chunk_details.delete(1.0, tk.END)
         self.chunks_data = chunks_data
-        
+
         # Add new chunks to listbox
         for i, chunk in enumerate(chunks_data):
             text_preview = chunk.get('text', 'No content')[:50] + "..." if len(chunk.get('text', '')) > 50 else chunk.get('text', 'No content')
             self.chunks_listbox.insert(tk.END, f"Chunk {i+1}: {text_preview}")
-            
+
         # Update stats
-        self.total_chunks_var.set(str(chunks_data[0].get('total_chunks', 0)) if chunks_data else "0")
+        total_chunks = chunks_data[0].get('total_chunks', 0) if chunks_data else 0
+        self.total_chunks_var.set(str(total_chunks))
         self.retrieved_chunks_var.set(str(len(chunks_data)))
-        
+
         # Calculate average relevance score
         if chunks_data:
-            scores = [chunk.get('score', 0) for chunk in chunks_data]
-            avg_score = sum(scores) / len(scores) if scores else 0
+            scores = [chunk.get('relevance', 0) for chunk in chunks_data]
+            avg_score = sum(scores) / len(scores)
             self.avg_relevance_var.set(f"{avg_score:.4f}")
         else:
             self.avg_relevance_var.set("0.0")
-            
+
+        # Update sources - Aggregate chunk counts by source
+        sources_data = {}
+        for chunk in chunks_data:
+            source = chunk.get('source', 'Unknown')
+            if source not in sources_data:
+                sources_data[source] = {'file': source, 'chunk_count': 0, 'relevance': 0}
+            sources_data[source]['chunk_count'] += 1
+            sources_data[source]['relevance'] += chunk.get('relevance', 0)  # Accumulate relevance
+
+        # Calculate average relevance per source
+        for source_data in sources_data.values():
+            source_data['relevance'] /= source_data['chunk_count']
+
+        self.update_sources(list(sources_data.values()))
+
+
     def update_sources(self, sources_data: List[Dict[str, Any]]):
         """Update the sources tab with new data."""
         # Clear previous data
         for item in self.sources_tree.get_children():
             self.sources_tree.delete(item)
-            
+
         # Add new source data
         for i, source in enumerate(sources_data):
             file_name = os.path.basename(source.get('file', 'Unknown'))
             chunks_count = source.get('chunk_count', 0)
             relevance = f"{source.get('relevance', 0.0):.4f}"
-            
+
             self.sources_tree.insert("", tk.END, text=str(i+1),
                                    values=(file_name, chunks_count, relevance))
             
@@ -205,22 +223,17 @@ class RAGVisualizerPanel:
         text_widget.tag_configure(tag_name, background="#FFFF00", foreground="#000000")
         self.highlight_tags.append(tag_name)
         
-        # For each RAG chunk, find and highlight matches in the text
+        # Highlight the entire chunk text
         for chunk in rag_results:
             chunk_text = chunk.get('text', '')
             if not chunk_text:
                 continue
-                
-            # Try to find the chunk in the text
+
             start_idx = "1.0"
             while True:
-                match_start = text_widget.search(chunk_text[:50], start_idx, stopindex=tk.END)
+                match_start = text_widget.search(chunk_text, start_idx, stopindex=tk.END, nocase=True)
                 if not match_start:
                     break
-                    
-                line, col = map(int, match_start.split('.'))
-                match_end = f"{line}.{col + len(chunk_text)}"
+                match_end = f"{match_start}+{len(chunk_text)}c"
                 text_widget.tag_add(tag_name, match_start, match_end)
-                
-                # Move start position for next search
                 start_idx = match_end
