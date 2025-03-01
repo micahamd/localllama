@@ -40,7 +40,7 @@ class GeminiEmbeddingFunction(embedding_functions.EmbeddingFunction):
         for text in texts:
             try:
                 # Call gemini_chat.get_embedding to get the embedding
-                embedding = self.gemini_chat.get_embedding(text)
+                embedding = self.gemini_chat.get_embedding(text, model=self.gemini_chat.api_config.get_default_embedding_model())
                 if embedding is not None:
                     embeddings.append(embedding)
                 else:
@@ -81,8 +81,8 @@ class RAG:
         if 'embed' in self.embedding_model_name:
             return OllamaEmbeddingFunction(model_name=self.embedding_model_name)
         else:
-            from gemini_module import GeminiChat
-            gemini_chat = GeminiChat()
+            from models_manager import GeminiManager
+            gemini_chat = GeminiManager()
             return GeminiEmbeddingFunction(gemini_chat=gemini_chat)
 
     def get_or_create_collection(self):
