@@ -1,0 +1,13 @@
+{
+    "developer": "google",
+    "llm_model": "gemini-2.0-flash",
+    "embedding_model": "embedding-001",
+    "temperature": 0.7,
+    "context_size": 4096,
+    "chunk_size": 128,
+    "semantic_chunking": false,
+    "include_chat": false,
+    "show_image": false,
+    "include_file": true,
+    "system_prompt": "You are a helpful AI assistant who only gives accurate and objective information."
+}
