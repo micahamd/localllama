@@ -3,7 +3,7 @@
     "llm_model": "huihui_ai/qwen2.5-1m-abliterated:7b-instruct-q8_0",
     "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.7684210526315789,
-    "context_size": 2693,
+    "context_size": 4933,
     "chunk_size": 128,
     "semantic_chunking": false,
     "include_chat": true,
