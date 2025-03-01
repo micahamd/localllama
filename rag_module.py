@@ -194,8 +194,8 @@ class RAG:
         else:
             print("No content found to ingest")
 
-    def retrieve_context(self, query: str, n_results: int = 5) -> Tuple[str, List[Dict[str, Any]]]:
-        """Retrieves context and metadata for the given query, preserving original order."""
+    def retrieve_context(self, query: str, n_results: int = 5) -> str:
+        """Retrieves context for the given query, preserving original order."""
         results = self.collection.query(query_texts=[query], n_results=n_results, include=['documents', 'metadatas', 'distances'])
         if results and 'documents' in results and results['metadatas'] and results['distances']:
             chunk_data = []
@@ -216,9 +216,9 @@ class RAG:
             # Extract just the text for the combined context string
             ordered_chunks_text = [chunk['text'] for chunk in sorted_chunks]
 
-            return "\n".join(ordered_chunks_text), sorted_chunks
+            return "\n".join(ordered_chunks_text)
         else:
-            return "No context retrieved", []
+            return "No context retrieved"
 
     def clear_db(self):
         """Clears the current database"""
