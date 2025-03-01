@@ -96,7 +96,7 @@ class OllamaChat:
         self.context_size = tk.IntVar(value=self.settings.get("context_size", 4096))
         self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size", 128))
         self.semantic_chunking_var = tk.BooleanVar(value=self.settings.get("semantic_chunking", False))
-        self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat", False))
+        self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat", True))
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image", True))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file", True))
         
@@ -317,7 +317,7 @@ class OllamaChat:
             font=("Arial", 11)
         )
         self.system_text.pack(fill=tk.X, padx=5, pady=5)
-        self.system_text.insert('1.0', self.settings.get("system_prompt", "You are a helpful AI assistant who only gives accurate and objective information."))
+        self.system_text.insert('1.0', self.settings.get("system_prompt", "Respond honestly, objectively and concisely."))
         
         # Main chat display
         self.chat_display = scrolledtext.ScrolledText(
