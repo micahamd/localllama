@@ -5,3 +5,4 @@
 .env
 error_log.txt
 gemini_api_config.json
+deepseek_api_config.json

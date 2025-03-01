@@ -147,7 +147,10 @@ class OllamaChat:
         self.menu_bar.add_cascade(label="API", menu=api_menu)
         api_menu.add_command(label="Configure Gemini API Key", command=self.prompt_for_api_key)
         api_menu.add_command(label="Reset Gemini API Key", command=self.reset_api_key)
-        
+        api_menu.add_separator()
+        api_menu.add_command(label="Configure DeepSeek API Key", command=self.prompt_for_deepseek_api_key)
+        api_menu.add_command(label="Reset DeepSeek API Key", command=self.reset_deepseek_api_key)
+
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
         help_menu.add_cascade(label="Help", menu=help_menu)
@@ -168,8 +171,8 @@ class OllamaChat:
         
         # Developer selector
         ttk.Label(model_frame, text="Developer:").pack(anchor="w", padx=5, pady=2)
-        developer_selector = ttk.Combobox(model_frame, textvariable=self.developer, 
-                                         values=['ollama', 'google'], state='readonly')
+        developer_selector = ttk.Combobox(model_frame, textvariable=self.developer,
+                                         values=['ollama', 'google', 'deepseek'], state='readonly')  # Added 'deepseek'
         developer_selector.pack(fill=tk.X, padx=5, pady=2)
         developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
         
@@ -467,20 +470,37 @@ class OllamaChat:
     def prompt_for_api_key(self):
         """Prompt the user to enter their Google Gemini API key if not configured."""
         from tkinter import simpledialog
-        
+
         api_key = simpledialog.askstring(
             "Google Gemini API Key",
             "Enter your Google Gemini API key (will be saved securely):",
             show='*'  # Show asterisks for security
         )
-        
+
         if api_key:
             success = self.model_manager.save_api_key(api_key)
             if success:
                 self.display_message("\nAPI key saved successfully.\n", "status")
             else:
                 self.display_message("\nFailed to save API key. Check permissions.\n", "error")
-    
+
+    def prompt_for_deepseek_api_key(self):
+        """Prompt the user to enter their DeepSeek API key if not configured."""
+        from tkinter import simpledialog
+
+        api_key = simpledialog.askstring(
+            "DeepSeek API Key",
+            "Enter your DeepSeek API key (will be saved securely):",
+            show='*'
+        )
+
+        if api_key:
+            success = self.model_manager.save_api_key(api_key)
+            if success:
+                self.display_message("\nAPI key saved successfully.\n", "status")
+            else:
+                self.display_message("\nFailed to save API key. Check permissions.\n", "error")
+
     @safe_execute("Applying settings")
     def apply_settings(self):
         """Apply saved settings to the UI components."""
@@ -1243,22 +1263,60 @@ class OllamaChat:
     
     def reset_api_key(self):
         """Reset the Gemini API key."""
+        self.reset_generic_api_key("gemini")
+    
+    def reset_deepseek_api_key(self):
+        """Reset the DeepSeek API key"""
+        self.reset_generic_api_key("deepseek")
+
+    def reset_generic_api_key(self, provider):
+        """Generic function to reset API key for a given provider"""
         if hasattr(self, 'model_manager') and hasattr(self.model_manager, 'api_config'):
             confirm = messagebox.askyesno(
-                "Reset API Key", 
-                "Are you sure you want to reset your Gemini API key? This cannot be undone."
+                "Reset API Key",
+                f"Are you sure you want to reset your {provider.capitalize()} API key? This cannot be undone."
             )
             if confirm:
                 try:
                     self.model_manager.api_config.clear_api_key()
-                    self.display_message("\nAPI key has been reset.\n", "status")
-                    # Prompt for a new key
-                    self.prompt_for_api_key()
+                    self.display_message(f"\n{provider.capitalize()} API key has been reset.\n", "status")
+                    if provider == "gemini":
+                        self.prompt_for_api_key()
+                    elif provider == "deepseek":
+                        self.prompt_for_deepseek_api_key()
                 except Exception as e:
-                    error_handler.handle_error(e, "Resetting API key")
-        else:
-            self.display_message("\nAPI configuration not available.\n", "error")
+                    error_handler.handle_error(e, f"Resetting {provider} API key")
 
+        else:
+            self.display_message(f"\nAPI configuration not available for {provider}.\n", "error")
+    
+    @safe_execute("Loading models")
+    def load_models(self):
+        """Load and initialize the AI models."""
+        self.model_manager = create_model_manager(self.developer.get())
+        self.update_model_list()
+        
+        # Check if using Google and show API key dialog if needed
+        if self.developer.get().lower() == "google" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_api_key()
+        # Check if using Deepseek
+        if self.developer.get().lower() == "deepseek" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_deepseek_api_key()
+
+    def on_developer_changed(self, event):
+        """Handle developer selection change."""
+        developer = self.developer.get()
+        self.model_manager = create_model_manager(developer)
+        self.update_model_list()
+        self.display_message(f"\nSwitched to {developer} models\n", "status")
+
+        # Check if API key is needed for Google
+        if developer.lower() == "google" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_api_key()
+        
+        # Check if API key is needed for Deepseek
+        if developer.lower() == "deepseek" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_deepseek_api_key()
 
 def main():
     """Main entry point for the application."""

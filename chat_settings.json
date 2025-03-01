@@ -1,12 +1,12 @@
 {
-    "developer": "ollama",
-    "llm_model": "huihui_ai/qwen2.5-1m-abliterated:7b-instruct-q8_0",
-    "embedding_model": "nomic-embed-text:latest",
+    "developer": "deepseek",
+    "llm_model": "deepseek-chat",
+    "embedding_model": null,
     "temperature": 0.7,
     "context_size": 4096,
     "chunk_size": 128,
     "semantic_chunking": false,
-    "include_chat": false,
+    "include_chat": true,
     "show_image": false,
     "include_file": true,
     "system_prompt": "You are a helpful AI assistant who only gives accurate and objective information."
