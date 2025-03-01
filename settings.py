@@ -13,7 +13,7 @@ class Settings:
         "context_size": 4096,
         "chunk_size": 128,
         "semantic_chunking": False,
-        "include_chat": False,
+        "include_chat": True,
         "show_image": True,
         "include_file": True,
         "system_prompt": "Respond honestly and factually at all times."
