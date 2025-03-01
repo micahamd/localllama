@@ -2,12 +2,12 @@
     "developer": "ollama",
     "llm_model": "huihui_ai/qwen2.5-1m-abliterated:7b-instruct-q8_0",
     "embedding_model": "nomic-embed-text:latest",
-    "temperature": 0.7684210526315789,
-    "context_size": 4933,
+    "temperature": 0.8,
+    "context_size": 4000,
     "chunk_size": 128,
     "semantic_chunking": false,
     "include_chat": true,
     "show_image": false,
     "include_file": false,
-    "system_prompt": "You are a helpful AI assistant who only gives accurate and objective information."
+    "system_prompt": "Respond honestly and factually at all times."
 }
