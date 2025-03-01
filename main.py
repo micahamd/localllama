@@ -91,15 +91,15 @@ class OllamaChat:
         self.word_count = 0
         self.selected_model = None
         self.selected_embedding_model = None
-        self.developer = StringVar(value=self.settings.get("developer", "ollama"))
-        self.temperature = tk.DoubleVar(value=self.settings.get("temperature", 0.7))
-        self.context_size = tk.IntVar(value=self.settings.get("context_size", 4096))
-        self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size", 128))
-        self.semantic_chunking_var = tk.BooleanVar(value=self.settings.get("semantic_chunking", False))
-        self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat", True))
-        self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image", True))
-        self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file", True))
-        
+        self.developer = StringVar(value=self.settings.get("developer"))
+        self.temperature = tk.DoubleVar(value=self.settings.get("temperature"))
+        self.context_size = tk.IntVar(value=self.settings.get("context_size"))
+        self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size"))
+        self.semantic_chunking_var = tk.BooleanVar(value=self.settings.get("semantic_chunking"))
+        self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat"))
+        self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
+        self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
+
         # Processing control
         self.is_processing = False
         self.active_stream = None
