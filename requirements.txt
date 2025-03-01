@@ -1,0 +1,48 @@
+# AI and Language Processing
+openai
+langchain
+langchain-text-splitters
+chromadb
+sentence-transformers
+transformers
+google-generativeai
+nltk
+
+# Data processing and analysis
+numpy
+pandas
+scipy
+scikit-learn
+
+# Web and API
+flask
+flask-cors
+fastapi
+uvicorn
+requests
+httpx
+
+# Document processing
+python-docx
+PyPDF2
+python-pptx
+markdown-it-py
+pdfminer.six
+
+# Utilities
+python-dotenv
+tqdm
+rich
+pillow
+pydantic
+
+# Audio and speech
+librosa
+pyttsx3
+SpeechRecognition
+
+# Visualization
+matplotlib
+
+# Database
+sqlalchemy
