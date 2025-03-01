@@ -26,18 +26,30 @@ class OllamaChat:
         self.root = root
         self.root.title("Enhanced LLM Chat")
         self.root.geometry("1000x800")  # Larger default window size
-        
+
+        # Set 90s style theme
+        self.root.tk_setPalette(
+            background="#d9d9d9",  # Light gray background
+            foreground="black",
+            activeBackground="#ececec",
+            activeForeground="black",
+            highlightColor="black",
+            highlightBackground="#d9d9d9"
+        )
+        self.root.option_add("*Font", "TkFixedFont") # Use system fixed font
+
+
         # Initialize components
         self.settings = Settings()
         self.conversation_manager = ConversationManager()
-        
+
         # Create minimal UI elements required for error display
         self.create_main_frame()
         self.create_chat_display()  # Create chat display FIRST for error handling
-        
+
         # Now setup error handler with display callback
         self.setup_error_handler()
-        
+
         # Continue with the rest of initialization
         self.init_variables()
         self.create_menu()
@@ -48,26 +60,19 @@ class OllamaChat:
         self.setup_rag()
         self.load_models()
         self.bind_events()
-        
+
         # Apply saved settings
         self.apply_settings()
-        
+
         # Show welcome message
         self.display_message("Welcome to Enhanced LLM Chat!\n", "status")
         self.display_message("Drop files here or type a message to begin.\n", "status")
-    
+
     def create_main_frame(self):
         """Create the main application frame."""
-        self.main_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
+        self.main_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)  # Use PanedWindow
         self.main_frame.pack(fill=tk.BOTH, expand=True)
-        
-        # Create panels
-        self.left_panel = ttk.Frame(self.main_frame, width=200)
-        self.right_panel = ttk.Frame(self.main_frame)
-        
-        self.main_frame.add(self.left_panel)
-        self.main_frame.add(self.right_panel)
-    
+
     def setup_error_handler(self):
         """Configure the error handler with a display callback."""
         error_handler.set_display_callback(self.display_error_message)
@@ -103,18 +108,6 @@ class OllamaChat:
         
         # RAG visualization
         self.rag_visualizer = None
-    
-    @safe_execute("Creating UI")
-    def create_ui(self):
-        """Create the application's user interface."""
-        self.create_main_frame()
-        self.create_chat_display()  # Create chat display before menu for error handling
-        self.create_menu()
-        self.create_sidebar()
-        self.create_input_area()
-        self.create_status_bar()
-        self.configure_tags()
-        self.bind_events()
     
     def create_menu(self):
         """Create the application menu."""
@@ -157,25 +150,20 @@ class OllamaChat:
         
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
-        self.menu_bar.add_cascade(label="Help", menu=help_menu)
-        
-        # Left panel for sidebar
-        self.left_panel = ttk.Frame(self.main_frame, width=200)
-        
-        # Right panel for chat interface
-        self.right_panel = ttk.Frame(self.main_frame)
-        
-        self.main_frame.add(self.left_panel)
-        self.main_frame.add(self.right_panel)
+        help_menu.add_cascade(label="Help", menu=help_menu)
     
     def create_sidebar(self):
         """Create the sidebar with settings and model selection."""
+        self.sidebar_frame = ttk.Frame(self.main_frame)  # Sidebar is now part of main_frame
+        # self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y) # Pack sidebar on the left, taking full vertical space
+        self.main_frame.add(self.sidebar_frame)  # Add to PanedWindow
+        
         # Sidebar title
-        sidebar_title = ttk.Label(self.left_panel, text="Settings", font=("Arial", 14, "bold"))
+        sidebar_title = ttk.Label(self.sidebar_frame, text="Settings", font=("Arial", 14, "bold"))
         sidebar_title.pack(pady=10)
         
-        # Model selection frame
-        model_frame = ttk.LabelFrame(self.left_panel, text="Models")
+        # Models settings frame
+        model_frame = ttk.LabelFrame(self.sidebar_frame, text="Models")
         model_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Developer selector
@@ -197,8 +185,8 @@ class OllamaChat:
         self.embedding_selector.pack(fill=tk.X, padx=5, pady=2)
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
         
-        # Parameter settings frame
-        params_frame = ttk.LabelFrame(self.left_panel, text="Parameters")
+        # Parameters settings frame
+        params_frame = ttk.LabelFrame(self.sidebar_frame, text="Parameters")
         params_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Temperature control
@@ -238,7 +226,7 @@ class OllamaChat:
         self.context_label.pack(side=tk.RIGHT, padx=5)
         
         # RAG settings frame
-        rag_frame = ttk.LabelFrame(self.left_panel, text="RAG Settings")
+        rag_frame = ttk.LabelFrame(self.sidebar_frame, text="RAG Settings")
         rag_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Chunk size
@@ -255,7 +243,7 @@ class OllamaChat:
         semantic_chunking_checkbox.pack(anchor="w", padx=5, pady=2)
         
         # Options frame
-        options_frame = ttk.LabelFrame(self.left_panel, text="Options")
+        options_frame = ttk.LabelFrame(self.sidebar_frame, text="Options")
         options_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Include chat history
@@ -284,7 +272,7 @@ class OllamaChat:
         self.include_file_checkbox.pack(anchor="w", padx=5, pady=2)
         
         # Conversations section
-        conversations_frame = ttk.LabelFrame(self.left_panel, text="Conversations")
+        conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
         conversations_frame.pack(fill=tk.X, padx=5, pady=5)
         
         # Conversation buttons
@@ -306,9 +294,13 @@ class OllamaChat:
     
     def create_chat_display(self):
         """Create the chat display area."""
-        # Chat area
-        chat_frame = ttk.Frame(self.right_panel)
-        chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5)
+        # Create a frame for the chat and input areas
+        self.chat_input_frame = ttk.Frame(self.main_frame)
+        self.main_frame.add(self.chat_input_frame)
+        
+        # Chat area - now directly in main_frame, below sidebar
+        chat_frame = ttk.Frame(self.chat_input_frame) 
+        chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5) # Pack below sidebar
         
         # System instructions area
         system_frame = ttk.LabelFrame(chat_frame, text="System Instructions")
@@ -343,8 +335,9 @@ class OllamaChat:
     
     def create_input_area(self):
         """Create the input area for user messages."""
-        input_frame = ttk.Frame(self.right_panel)
-        input_frame.pack(side=tk.BOTTOM, fill=tk.X, padx=5, pady=5)
+        # Input area - now directly in main_frame, below chat display
+        input_frame = ttk.Frame(self.chat_input_frame)
+        input_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5) # Pack below chat display
         
         # Input field with scrollbar
         self.input_field = scrolledtext.ScrolledText(
@@ -400,7 +393,7 @@ class OllamaChat:
         ttk.Button(
             button_frame, 
             text="Stop", 
-            command=self.stop_processing  # Corrected line
+            command=self.stop_processing
         ).pack(side=tk.LEFT, padx=2)
         
         ttk.Button(
