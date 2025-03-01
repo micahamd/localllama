@@ -65,7 +65,7 @@ class OllamaChat:
         self.apply_settings()
 
         # Show welcome message
-        self.display_message("Welcome to Enhanced LLM Chat!\n", "status")
+        self.display_message("Welcome to Loca(o)llama chat!\n", "status")
         self.display_message("Drop files here or type a message to begin.\n", "status")
 
     def create_main_frame(self):

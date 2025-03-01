@@ -1,7 +1,7 @@
 {
-    "developer": "deepseek",
-    "llm_model": "deepseek-chat",
-    "embedding_model": null,
+    "developer": "ollama",
+    "llm_model": "huihui_ai/qwen2.5-1m-abliterated:7b-instruct-q8_0",
+    "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.7,
     "context_size": 4096,
     "chunk_size": 128,
