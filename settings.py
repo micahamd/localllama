@@ -16,7 +16,7 @@ class Settings:
         "include_chat": False,
         "show_image": True,
         "include_file": True,
-        "system_prompt": "You are a helpful AI assistant who only gives accurate and objective information."
+        "system_prompt": "Respond honestly and factually at all times."
     }
     
     def __init__(self, settings_file: str = "chat_settings.json"):

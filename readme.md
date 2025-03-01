@@ -1,6 +1,6 @@
 # Enhanced LLM Chat
 
-A modular, feature-rich chat interface for interacting with various large language models. This application provides a seamless experience with local models via Ollama and cloud models like Google's Gemini.
+A modular, feature-rich chat interface for interacting with various large language models. This application provides a seamless experience with local models via Ollama and cloud models like Google's Gemini and Deepseek.
 
 ## Features
 
