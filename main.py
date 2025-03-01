@@ -122,12 +122,13 @@ class OllamaChat:
         file_menu.add_command(label="Load Conversation", command=self.load_conversation)
         file_menu.add_separator()
         file_menu.add_command(label="Select RAG Files", command=self.select_rag_files)
-        file_menu.add_command(label="Clear RAG Files", command=self.clear_rag_files)
+        file_menu.add_command(label="Clear all RAG Files", command=self.clear_rag_files)
+        file_menu.add_command(label="Clear individual RAG File", command=self.clear_rag_file)
         file_menu.add_separator()
         file_menu.add_command(label="Save Settings", command=self.save_settings)
         file_menu.add_separator()
         file_menu.add_command(label="Exit", command=self.root.quit)
-        
+
         # Edit menu
         edit_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="Edit", menu=edit_menu)
@@ -1085,16 +1086,41 @@ class OllamaChat:
             error_msg = error_handler.handle_error(e, "Processing RAG files")
             # Update the UI from the main thread
             self.root.after(0, lambda: self.display_message(f"\nError processing RAG files: {error_msg}\n", "error"))
-    
+
     def clear_rag_files(self):
         """Clear the RAG database and selected files."""
         if hasattr(self, 'rag'):
             self.rag.clear_db()
-            
+
         self.rag_files = []
         self.rag_indicator.config(text="RAG: Not Active", foreground="grey")
         self.display_message("\nRAG database cleared.\n", "status")
-    
+
+    def clear_rag_file(self):
+        """Clear a specific file from RAG."""
+        filepath = filedialog.askopenfilename(title="Select RAG File to Clear")
+        if filepath:
+            if filepath in self.rag_files:
+                try:
+                    # Clear the file content
+                    with open(filepath, 'w') as f:
+                        f.write("")  # Clear the file
+
+                    # Remove the file from the RAG database
+                    self.rag.clear_db()
+                    self.rag_files.remove(filepath)
+
+                    # Re-ingest the remaining files
+                    self._process_rag_files()
+
+                    self.display_message(f"\nCleared RAG file: {os.path.basename(filepath)}\n", "status")
+                    self.rag_indicator.config(text=f"RAG: Active ({len(self.rag_files)} files)", foreground="green")
+                except Exception as e:
+                    error_handler.handle_error(e, "Clearing RAG file")
+                    self.display_message(f"\nError clearing RAG file: {e}\n", "error")
+            else:
+                self.display_message("\nFile is not in the RAG file list.\n", "error")
+
     def start_batch_process(self):
         """Start batch processing on multiple files."""
         if not self.input_field.get("1.0", tk.END).strip():
