@@ -1,6 +1,7 @@
 \chroma_db
 \_pycache_
 \chroma_db
+\conversations
 .env
 error_log.txt
 gemini_api_config.json
