@@ -5,9 +5,11 @@
     "temperature": 0.8,
     "context_size": 4000,
     "chunk_size": 128,
-    "semantic_chunking": false,
+    "semantic_chunking": true,
+    "semantic_min_chunk_size": 2,
+    "semantic_max_chunk_size": 5,
     "include_chat": true,
     "show_image": false,
-    "include_file": false,
-    "system_prompt": "Respond honestly and factually at all times."
+    "include_file": true,
+    "system_prompt": "Be honest"
 }
