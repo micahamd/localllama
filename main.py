@@ -96,6 +96,8 @@ class OllamaChat:
         self.context_size = tk.IntVar(value=self.settings.get("context_size"))
         self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size"))
         self.semantic_chunking_var = tk.BooleanVar(value=self.settings.get("semantic_chunking"))
+        self.semantic_min_chunk_size = tk.IntVar(value=self.settings.get("semantic_min_chunk_size", 2))
+        self.semantic_max_chunk_size = tk.IntVar(value=self.settings.get("semantic_max_chunk_size", 5))
         self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat"))
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
@@ -237,7 +239,7 @@ class OllamaChat:
         ttk.Label(rag_frame, text="Chunk Size:").pack(anchor="w", padx=5, pady=2)
         self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5)
         self.chunk_entry.pack(anchor="w", padx=5, pady=2)
-        
+
         # Semantic chunking checkbox
         semantic_chunking_checkbox = ttk.Checkbutton(
             rag_frame,
@@ -245,6 +247,15 @@ class OllamaChat:
             variable=self.semantic_chunking_var
         )
         semantic_chunking_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Semantic chunking min/max sizes
+        ttk.Label(rag_frame, text="Min Chunk Size:").pack(anchor="w", padx=5, pady=2)
+        self.semantic_min_chunk_entry = ttk.Entry(rag_frame, textvariable=self.semantic_min_chunk_size, width=5)
+        self.semantic_min_chunk_entry.pack(anchor="w", padx=5, pady=2)
+
+        ttk.Label(rag_frame, text="Max Chunk Size:").pack(anchor="w", padx=5, pady=2)
+        self.semantic_max_chunk_entry = ttk.Entry(rag_frame, textvariable=self.semantic_max_chunk_size, width=5)
+        self.semantic_max_chunk_entry.pack(anchor="w", padx=5, pady=2)
         
         # Options frame
         options_frame = ttk.LabelFrame(self.sidebar_frame, text="Options")
@@ -529,11 +540,23 @@ class OllamaChat:
         
         # Update semantic chunking trace
         self.semantic_chunking_var.trace_add("write", self.update_rag_semantic_chunking)
-    
+        self.semantic_min_chunk_size.trace_add("write", self.update_rag_min_chunk_size)
+        self.semantic_max_chunk_size.trace_add("write", self.update_rag_max_chunk_size)
+
     def update_rag_chunk_size(self, *args):
         """Update RAG chunk size when the setting changes."""
         if hasattr(self, 'rag'):
             self.rag.chunk_size = self.chunk_size.get()
+
+    def update_rag_min_chunk_size(self, *args):
+        """Update RAG min chunk size when the setting changes."""
+        if hasattr(self, 'rag'):
+            self.rag.min_chunk_size = self.semantic_min_chunk_size.get()
+
+    def update_rag_max_chunk_size(self, *args):
+        """Update RAG max chunk size when the setting changes."""
+        if hasattr(self, 'rag'):
+            self.rag.max_chunk_size = self.semantic_max_chunk_size.get()
     
     def update_rag_semantic_chunking(self, *args):
         """Update RAG semantic chunking setting when the checkbox changes."""
@@ -895,7 +918,9 @@ class OllamaChat:
             "include_chat": self.include_chat_var.get(),
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
-            "system_prompt": self.system_text.get('1.0', tk.END).strip()
+            "system_prompt": self.system_text.get('1.0', tk.END).strip(),
+            "semantic_min_chunk_size": self.semantic_min_chunk_size.get(),
+            "semantic_max_chunk_size": self.semantic_max_chunk_size.get()
         }
         
         self.settings.update(settings_data)
