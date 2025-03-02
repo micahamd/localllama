@@ -5,7 +5,7 @@
     "temperature": 0.8,
     "context_size": 4000,
     "chunk_size": 128,
-    "semantic_chunking": true,
+    "semantic_chunking": false,
     "semantic_min_chunk_size": 2,
     "semantic_max_chunk_size": 5,
     "include_chat": true,
