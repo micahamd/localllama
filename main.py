@@ -546,17 +546,35 @@ class OllamaChat:
     def update_rag_chunk_size(self, *args):
         """Update RAG chunk size when the setting changes."""
         if hasattr(self, 'rag'):
-            self.rag.chunk_size = self.chunk_size.get()
+            try:
+                value = self.chunk_size.get()
+                self.rag.chunk_size = value
+            except (tk.TclError, ValueError):
+                # Handle empty or invalid input
+                self.chunk_size.set(128)  # Reset to default
+                self.rag.chunk_size = 128
 
     def update_rag_min_chunk_size(self, *args):
         """Update RAG min chunk size when the setting changes."""
         if hasattr(self, 'rag'):
-            self.rag.min_chunk_size = self.semantic_min_chunk_size.get()
+            try:
+                value = self.semantic_min_chunk_size.get()
+                self.rag.min_chunk_size = value
+            except (tk.TclError, ValueError):
+                # Handle empty or invalid input
+                self.semantic_min_chunk_size.set(2)  # Reset to default
+                self.rag.min_chunk_size = 2
 
     def update_rag_max_chunk_size(self, *args):
         """Update RAG max chunk size when the setting changes."""
         if hasattr(self, 'rag'):
-            self.rag.max_chunk_size = self.semantic_max_chunk_size.get()
+            try:
+                value = self.semantic_max_chunk_size.get()
+                self.rag.max_chunk_size = value
+            except (tk.TclError, ValueError):
+                # Handle empty or invalid input
+                self.semantic_max_chunk_size.set(5)  # Reset to default
+                self.rag.max_chunk_size = 5
     
     def update_rag_semantic_chunking(self, *args):
         """Update RAG semantic chunking setting when the checkbox changes."""
