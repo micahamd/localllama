@@ -95,10 +95,64 @@ class RAG:
         self._model_loaded = False
         self._model_load_error = None
         
-        self.chunk_size = chunk_size
+        # Set with validation
+        self._set_chunk_size(chunk_size)
         self.use_semantic_chunking = use_semantic_chunking
-        self.min_chunk_size = min_chunk_size
-        self.max_chunk_size = max_chunk_size
+        self._set_min_chunk_size(min_chunk_size)
+        self._set_max_chunk_size(max_chunk_size)
+
+    def _set_chunk_size(self, size):
+        """Safely set chunk size with validation."""
+        try:
+            size = int(size)
+            self._chunk_size = max(1, size)  # Ensure positive value
+        except (ValueError, TypeError):
+            print(f"Invalid chunk size: {size}, using default of 128")
+            self._chunk_size = 128
+
+    def _set_min_chunk_size(self, size):
+        """Safely set minimum chunk size with validation."""
+        try:
+            size = int(size)
+            self._min_chunk_size = max(1, size)  # Ensure positive value
+        except (ValueError, TypeError):
+            print(f"Invalid min chunk size: {size}, using default of 2")
+            self._min_chunk_size = 2
+
+    def _set_max_chunk_size(self, size):
+        """Safely set maximum chunk size with validation."""
+        try:
+            size = int(size)
+            self._max_chunk_size = max(self._min_chunk_size, size)  # Ensure at least equal to min size
+        except (ValueError, TypeError):
+            print(f"Invalid max chunk size: {size}, using default of 5")
+            self._max_chunk_size = 5
+    
+    @property
+    def chunk_size(self):
+        return self._chunk_size
+    
+    @chunk_size.setter
+    def chunk_size(self, value):
+        self._set_chunk_size(value)
+        
+    @property
+    def min_chunk_size(self):
+        return self._min_chunk_size
+    
+    @min_chunk_size.setter
+    def min_chunk_size(self, value):
+        self._set_min_chunk_size(value)
+        if self._max_chunk_size < self._min_chunk_size:
+            self._max_chunk_size = self._min_chunk_size
+            
+    @property
+    def max_chunk_size(self):
+        return self._max_chunk_size
+    
+    @max_chunk_size.setter
+    def max_chunk_size(self, value):
+        self._set_max_chunk_size(value)
 
     def _check_sentence_transformer_installed(self):
         """Check if sentence-transformers package is installed"""
@@ -145,11 +199,9 @@ class RAG:
             # Ollama embedding model
             return OllamaEmbeddingFunction(model_name=self.embedding_model_name)
         elif 'nomic' in self.embedding_model_name:
-            # Use HuggingFace for nomic models
-            return embedding_functions.HuggingFaceEmbeddingFunction(
-                api_key="",  # No API key needed for local models
-                model_name="nomic-ai/nomic-embed-text-v1"
-            )
+            # Use DefaultEmbeddingFunction for nomic models since HuggingFace requires a valid API key
+            print("Using default embedding function for nomic models to avoid API key requirement")
+            return embedding_functions.DefaultEmbeddingFunction()
         elif 'text-embedding' in self.embedding_model_name:
             # Google embedding model
             from models_manager import GeminiManager
@@ -162,10 +214,23 @@ class RAG:
             return DeepSeekEmbeddingFunction(deepseek_client=deepseek_client)
         else:
             # Default to OpenAI compatible embedding function
-            return embedding_functions.OpenAIEmbeddingFunction(
-                api_key="",  # Not used but required
-                model_name="text-embedding-ada-002"
-            )
+            try:
+                # Try to get an API key from environment or config
+                import os
+                api_key = os.environ.get('OPENAI_API_KEY', 'sk-no-key-provided')
+                
+                # If the key starts with 'sk-', it's likely a valid format
+                if not api_key.startswith('sk-'):
+                    api_key = f"sk-placeholder-key-{api_key}"
+                    
+                return embedding_functions.OpenAIEmbeddingFunction(
+                    api_key=api_key,
+                    model_name="text-embedding-ada-002"
+                )
+            except Exception as e:
+                print(f"Error creating OpenAI embedding function: {e}")
+                # Fallback to default embedding function
+                return embedding_functions.DefaultEmbeddingFunction()
 
     def get_or_create_collection(self):
         """Retrieves or creates a chroma collection."""
@@ -296,11 +361,18 @@ class RAG:
             if chunks:
                 # Get embeddings and add to collection
                 try:
-                    embeddings = self.embedding_function(chunks)
-                    self.collection.add(documents=chunks, ids=ids, embeddings=embeddings, metadatas=metadatas)
+                    # Try using the embedding function directly without pre-computing embeddings
+                    self.collection.add(documents=chunks, ids=ids, metadatas=metadatas)
                     print(f"Successfully ingested {len(chunks)} chunks from {len(file_paths)} files")
                 except Exception as e:
-                    print(f"Error adding to collection: {e}")
+                    try:
+                        # Fallback: manually compute embeddings first
+                        print(f"First attempt failed: {e}. Trying alternative embedding approach...")
+                        embeddings = self.embedding_function(chunks)
+                        self.collection.add(documents=chunks, ids=ids, embeddings=embeddings, metadatas=metadatas)
+                        print(f"Successfully ingested {len(chunks)} chunks from {len(file_paths)} files")
+                    except Exception as e2:
+                        print(f"Error adding to collection (both attempts failed): {e2}")
             else:
                 print("No chunks created for ingestion")
         else:

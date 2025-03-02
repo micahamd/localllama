@@ -4,85 +4,67 @@ import tkinter as tk
 import sys
 from typing import Callable, Optional, Any
 from datetime import datetime
+import functools
+import os
 
 class ErrorHandler:
-    """Handles errors and provides user-friendly error messages."""
+    """Centralized error handling for the application."""
     
-    def __init__(self, log_file: str = "error_log.txt"):
-        """Initialize the error handler with a log file."""
-        self.log_file = log_file
+    def __init__(self, log_file=None):
+        """Initialize the error handler with optional log file."""
+        self.display_callback = None
+        self.log_file = log_file or os.path.join(os.getcwd(), "error_log.txt")
         self.setup_logging()
-        self.display_callback: Optional[Callable[[str, str], None]] = None
         
     def setup_logging(self):
-        """Set up logging to file and console."""
+        """Configure logging to file."""
         logging.basicConfig(
+            filename=self.log_file,
             level=logging.ERROR,
-            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-            handlers=[
-                logging.FileHandler(self.log_file),
-                logging.StreamHandler(sys.stdout)
-            ]
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
         )
-        self.logger = logging.getLogger(__name__)
-        
-    def set_display_callback(self, callback: Callable[[str, str], None]):
-        """Set a callback function to display errors in the UI."""
+    
+    def set_display_callback(self, callback):
+        """Set the callback function for displaying errors in the UI."""
         self.display_callback = callback
+    
+    def handle_error(self, error, context=""):
+        """Handle an error by logging it and optionally displaying it."""
+        error_msg = f"{context} error: {str(error)}"
         
-    def handle_error(self, error: Exception, context: str = "", user_msg: Optional[str] = None) -> str:
-        """Handle an exception by logging it and returning a user-friendly message."""
-        # Get detailed error info
-        error_type = type(error).__name__
-        error_msg = str(error)
-        stack_trace = traceback.format_exc()
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
-        # Create a detailed log message
-        log_message = (
-            f"[{timestamp}] {error_type} in {context}: {error_msg}\n"
-            f"Stack trace:\n{stack_trace}"
-        )
+        # Get the full traceback
+        tb = traceback.format_exc()
         
         # Log the error
-        self.logger.error(log_message)
+        logging.error(f"{error_msg}\n{tb}")
         
-        # Create a user-friendly message
-        if not user_msg:
-            user_messages = {
-                'ConnectionError': "Connection failed. Please check your internet connection and ensure the model server is running.",
-                'ValueError': "Invalid value provided. Please check your inputs.",
-                'FileNotFoundError': "File not found. Please check the file path.",
-                'PermissionError': "Permission denied. Please check file permissions.",
-                'KeyError': "A required value is missing. Please try again.",
-                'IndexError': "Data index out of range. This might be a data format issue.",
-                'TypeError': "Incompatible data types. Please check your inputs.",
-                'ModuleNotFoundError': "A required module is missing. Please check your installation.",
-                'ImportError': "Failed to import a module. Please check your installation.",
-            }
-            user_msg = user_messages.get(error_type, f"An error occurred: {error_msg}")
+        # Print to console
+        print(f"ERROR: {error_msg}")
         
-        # If there's a display callback, call it
+        # Display in UI if callback is set
         if self.display_callback:
-            self.display_callback(user_msg, "error")
-            
-        return user_msg
+            self.display_callback(error_msg, "error")
         
-    def display_error(self, text_widget: tk.Text, error_msg: str):
-        """Display an error message in the provided text widget."""
-        text_widget["state"] = "normal"
-        text_widget.insert(tk.END, f"\nError: {error_msg}\n", "error")
-        text_widget.see(tk.END)
-        text_widget["state"] = "disabled"
+        return error_msg
+    
+    def log_info(self, message, context=""):
+        """Log an informational message."""
+        info_msg = f"{context}: {message}"
+        logging.info(info_msg)
+        
+    def log_warning(self, message, context=""):
+        """Log a warning message."""
+        warning_msg = f"{context}: {message}"
+        logging.warning(warning_msg)
+        print(f"WARNING: {warning_msg}")
 
-
-# Global error handler instance
+# Create a singleton instance
 error_handler = ErrorHandler()
 
-
-def safe_execute(context: str):
-    """Decorator that wraps a function in a try-except block."""
+def safe_execute(context=""):
+    """Decorator to safely execute a function and handle any exceptions."""
     def decorator(func):
+        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             try:
                 return func(*args, **kwargs)
