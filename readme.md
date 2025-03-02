@@ -1,7 +1,6 @@
-# Enhanced LLM Chat
+# Local(o)llama chatbot
 
-A modular, feature-rich chat interface for interacting with various large language models. This application provides a seamless experience with local models via Ollama and cloud models like Google's Gemini and Deepseek.
-
+A modular, feature-rich Python-based chat interface for interacting with local (Ollama) and proprietary (Google, Deepseek) large language models. 
 ## Features
 
 ### Core Features
@@ -48,7 +47,7 @@ python main.py
 ## Usage Guide
 
 ### Basic Chat
-1. Select a model provider (Ollama or Google)
+1. Select a model provider
 2. Choose an LLM model from the dropdown
 3. Type your message in the input field
 4. Click "Send" or press Ctrl+Enter
@@ -61,9 +60,35 @@ python main.py
 ### Using RAG
 1. Select an embedding model from the dropdown
 2. Click "Select RAG Files" to choose reference documents
-3. Adjust chunk size and semantic chunking options if needed
+3. Adjust chunk size and semantic chunking options:
+   - **Regular Chunking**: Uses a fixed window (default: 128 sentences) regardless of content relationships
+   - **Semantic Chunking**: Groups related sentences together based on their semantic similarity
 4. Ask questions related to your documents
 5. Click "Show RAG Visualization" to see which chunks were used
+
+#### Semantic Chunking Recommendations
+
+For optimal results with semantic chunking, adjust the min/max parameters based on content type:
+
+- **General Knowledge Content**:
+  - Min: 3-5 sentences
+  - Max: 8-10 sentences
+  - _Benefits_: Keeps related concepts together, provides more comprehensive context
+
+- **Technical Documentation**:
+  - Min: 2-3 sentences
+  - Max: 5-7 sentences
+  - _Benefits_: Balances precision with sufficient technical context
+
+- **QA/Factual Retrieval**:
+  - Min: 1-2 sentences
+  - Max: 3-5 sentences
+  - _Benefits_: Provides precise, focused answers with minimal irrelevant information
+
+#### Performance Considerations
+- Semantic chunking pre-loads an ML model (all-mpnet-base-v2)
+- First use may experience a brief delay while the model loads
+- For very large documents, regular chunking may be more efficient
 
 ### Managing Conversations
 - **New Conversation**: Start a fresh chat session
