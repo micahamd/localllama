@@ -3,8 +3,8 @@ openai
 langchain
 langchain-text-splitters
 chromadb
-sentence-transformers
-transformers
+sentence-transformers>=2.2.0
+transformers>=4.0.0
 google-generativeai
 nltk
 
@@ -46,3 +46,12 @@ matplotlib
 
 # Database
 sqlalchemy
+
+# GUI
+tkinter
+tkinterdnd2
+
+# Additional
+ollama
+markitdown
+markdown

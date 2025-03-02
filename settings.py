@@ -13,6 +13,8 @@ class Settings:
         "context_size": 4096,
         "chunk_size": 128,
         "semantic_chunking": False,
+        "semantic_min_chunk_size": 2,
+        "semantic_max_chunk_size": 5,
         "include_chat": True,
         "show_image": True,
         "include_file": True,

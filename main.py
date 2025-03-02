@@ -448,11 +448,15 @@ class OllamaChat:
         embedding_model = self.settings.get("embedding_model", "")
         chunk_size = self.settings.get("chunk_size", 128)
         semantic_chunking = self.settings.get("semantic_chunking", False)
+        min_chunk_size = self.settings.get("semantic_min_chunk_size", 2)
+        max_chunk_size = self.settings.get("semantic_max_chunk_size", 5)
         
         self.rag = RAG(
             embedding_model_name=embedding_model,
             chunk_size=chunk_size,
-            use_semantic_chunking=semantic_chunking
+            use_semantic_chunking=semantic_chunking,
+            min_chunk_size=min_chunk_size,
+            max_chunk_size=max_chunk_size
         )
         
         # Create RAG visualizer
