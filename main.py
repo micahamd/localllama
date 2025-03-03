@@ -24,8 +24,8 @@ class OllamaChat:
     def __init__(self, root):
         """Initialize the application and all its components."""
         self.root = root
-        self.root.title("Enhanced LLM Chat")
-        self.root.geometry("1000x800")  # Larger default window size
+        self.root.title("Local(o)llama Chat")
+        self.root.geometry("1200x1000")  # Larger default window size
 
         # Set 90s style theme
         self.root.tk_setPalette(
@@ -153,6 +153,9 @@ class OllamaChat:
         api_menu.add_separator()
         api_menu.add_command(label="Configure DeepSeek API Key", command=self.prompt_for_deepseek_api_key)
         api_menu.add_command(label="Reset DeepSeek API Key", command=self.reset_deepseek_api_key)
+        api_menu.add_separator()
+        api_menu.add_command(label="Configure Anthropic API Key", command=self.prompt_for_anthropic_api_key)
+        api_menu.add_command(label="Reset Anthropic API Key", command=self.reset_anthropic_api_key)
 
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
@@ -175,7 +178,7 @@ class OllamaChat:
         # Developer selector
         ttk.Label(model_frame, text="Developer:").pack(anchor="w", padx=5, pady=2)
         developer_selector = ttk.Combobox(model_frame, textvariable=self.developer,
-                                         values=['ollama', 'google', 'deepseek'], state='readonly')  # Added 'deepseek'
+                                         values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly')  # Added 'deepseek'
         developer_selector.pack(fill=tk.X, padx=5, pady=2)
         developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
         
@@ -482,7 +485,13 @@ class OllamaChat:
         # Check if using Google and show API key dialog if needed
         if self.developer.get().lower() == "google" and not self.model_manager.api_config.is_configured():
             self.prompt_for_api_key()
-    
+        # Check if using Deepseek
+        if self.developer.get().lower() == "deepseek" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_deepseek_api_key()
+        # Check if using Anthropic
+        if self.developer.get().lower() == "anthropic" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_anthropic_api_key()
+
     def prompt_for_api_key(self):
         """Prompt the user to enter their Google Gemini API key if not configured."""
         from tkinter import simpledialog
@@ -517,6 +526,23 @@ class OllamaChat:
             else:
                 self.display_message("\nFailed to save API key. Check permissions.\n", "error")
 
+    def prompt_for_anthropic_api_key(self):
+        """Prompt the user to enter their Anthropic API key if not configured."""
+        from tkinter import simpledialog
+
+        api_key = simpledialog.askstring(
+            "Anthropic API Key",
+            "Enter your Anthropic API key (will be saved securely):",
+            show='*'  # Show asterisks for security
+        )
+
+        if api_key:
+            success = self.model_manager.save_api_key(api_key)
+            if success:
+                self.display_message("\nAPI key saved successfully.\n", "status")
+            else:
+                self.display_message("\nFailed to save API key. Check permissions.\n", "error")
+    
     @safe_execute("Applying settings")
     def apply_settings(self):
         """Apply saved settings to the UI components."""
@@ -602,6 +628,13 @@ class OllamaChat:
         # Check if API key is needed for Google
         if developer.lower() == "google" and not self.model_manager.api_config.is_configured():
             self.prompt_for_api_key()
+        
+        # Check if API key is needed for Deepseek
+        if developer.lower() == "deepseek" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_deepseek_api_key()
+            
+        elif developer.lower() == "anthropic" and not self.model_manager.api_config.is_configured():
+            self.prompt_for_anthropic_api_key()
     
     def on_model_selected(self, event):
         """Handle model selection change."""
@@ -1342,6 +1375,10 @@ class OllamaChat:
         """Reset the DeepSeek API key"""
         self.reset_generic_api_key("deepseek")
 
+    def reset_anthropic_api_key(self):
+        """Reset the Anthropic API key"""
+        self.reset_generic_api_key("anthropic")
+
     def reset_generic_api_key(self, provider):
         """Generic function to reset API key for a given provider"""
         if hasattr(self, 'model_manager') and hasattr(self.model_manager, 'api_config'):
@@ -1357,40 +1394,14 @@ class OllamaChat:
                         self.prompt_for_api_key()
                     elif provider == "deepseek":
                         self.prompt_for_deepseek_api_key()
+                    elif provider == "anthropic":
+                        self.prompt_for_anthropic_api_key()
                 except Exception as e:
                     error_handler.handle_error(e, f"Resetting {provider} API key")
 
         else:
             self.display_message(f"\nAPI configuration not available for {provider}.\n", "error")
     
-    @safe_execute("Loading models")
-    def load_models(self):
-        """Load and initialize the AI models."""
-        self.model_manager = create_model_manager(self.developer.get())
-        self.update_model_list()
-        
-        # Check if using Google and show API key dialog if needed
-        if self.developer.get().lower() == "google" and not self.model_manager.api_config.is_configured():
-            self.prompt_for_api_key()
-        # Check if using Deepseek
-        if self.developer.get().lower() == "deepseek" and not self.model_manager.api_config.is_configured():
-            self.prompt_for_deepseek_api_key()
-
-    def on_developer_changed(self, event):
-        """Handle developer selection change."""
-        developer = self.developer.get()
-        self.model_manager = create_model_manager(developer)
-        self.update_model_list()
-        self.display_message(f"\nSwitched to {developer} models\n", "status")
-
-        # Check if API key is needed for Google
-        if developer.lower() == "google" and not self.model_manager.api_config.is_configured():
-            self.prompt_for_api_key()
-        
-        # Check if API key is needed for Deepseek
-        if developer.lower() == "deepseek" and not self.model_manager.api_config.is_configured():
-            self.prompt_for_deepseek_api_key()
-
 def main():
     """Main entry point for the application."""
     # Create TkinterDnD root window
