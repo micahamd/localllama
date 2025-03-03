@@ -1,6 +1,6 @@
 {
-    "developer": "google",
-    "llm_model": "gemini-2.0-pro-exp-02-05",
+    "developer": "anthropic",
+    "llm_model": "claude-3-5-sonnet-20240620",
     "embedding_model": "text-embedding-004",
     "temperature": 0.8914285714285715,
     "context_size": 5354,
