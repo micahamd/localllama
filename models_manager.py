@@ -5,6 +5,7 @@ from error_handler import safe_execute, error_handler
 import time
 from gemini_api_config import GeminiAPIConfig
 from deepseek_api_config import DeepSeekAPIConfig, get_deepseek_response
+from anthropic_api_config import AnthropicAPIConfig, get_anthropic_response
 
 
 class ModelManager:
@@ -92,7 +93,7 @@ class GeminiManager(ModelManager):
         self.api_config = GeminiAPIConfig()
 
         # If API key is provided during initialization, set it
-        if api_key:
+        if (api_key):
             self.api_config.set_api_key(api_key)
 
         self._configure_api()
@@ -232,6 +233,7 @@ class GeminiManager(ModelManager):
             return result[0].values
         return []
 
+
 class DeepSeekManager(ModelManager):
     """Manager for DeepSeek models."""
 
@@ -280,6 +282,56 @@ class DeepSeekManager(ModelManager):
         return []  # No embedding for now
 
 
+class AnthropicManager(ModelManager):
+    """Manager for Anthropic Claude models."""
+
+    def __init__(self):
+        super().__init__()
+        self.api_config = AnthropicAPIConfig()
+        self.llm_models = self.api_config.get_text_models()  # Claude models
+        self.embedding_models = self.api_config.get_embedding_models()  # Empty list as Claude doesn't offer embeddings
+
+    def get_llm_models(self) -> List[str]:
+        """Get list of available Anthropic models."""
+        return self.llm_models
+
+    def get_embedding_models(self) -> List[str]:
+        """Get list of embedding models (none for Claude)."""
+        return self.embedding_models
+    
+    def save_api_key(self, api_key):
+        """Save a new API key."""
+        return self.api_config.set_api_key(api_key)
+
+    @safe_execute("Getting Claude response")
+    def get_response(self, messages: List[Dict[str, Any]], **kwargs) -> Iterator[Dict[str, Any]]:
+        """Get a streaming response from a Claude model."""
+        model_name = kwargs.get("model", "claude-3-sonnet-20240229")
+        temperature = kwargs.get("temperature", 0.7)
+        max_tokens = kwargs.get("max_tokens", 2048)
+
+        # Check if API key is configured
+        if not self.api_config.is_configured():
+            raise ValueError("Anthropic API key is not configured. Please set it in the settings.")
+
+        # Get streaming response using the helper function
+        response_stream = get_anthropic_response(
+            messages=messages,
+            model=model_name,
+            stream=True,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+        
+        for chunk in response_stream:
+            yield {"message": {"role": "assistant", "content": chunk}}
+
+    @safe_execute("Getting Claude embedding")
+    def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
+        """Get an embedding (not supported for Claude)."""
+        return []  # No embedding for Claude models
+
+
 def create_model_manager(provider: str, api_key: Optional[str] = None) -> ModelManager:
     """Factory function to create the appropriate model manager."""
     if provider.lower() == "ollama":
@@ -288,5 +340,7 @@ def create_model_manager(provider: str, api_key: Optional[str] = None) -> ModelM
         return GeminiManager(api_key)
     elif provider.lower() == "deepseek":
         return DeepSeekManager()
+    elif provider.lower() == "anthropic":
+        return AnthropicManager()
     else:
         raise ValueError(f"Unsupported model provider: {provider}")
