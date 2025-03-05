@@ -1336,8 +1336,8 @@ class OllamaChat:
     def show_about(self):
         """Show about dialog."""
         messagebox.showinfo(
-            "About Enhanced LLM Chat",
-            "Enhanced LLM Chat\n\n"
+            "About Local(o)llama Chat",
+            "Python-based LLM Chat\n\n"
             "A modular chat interface for interacting with various LLMs.\n"
             "Supports RAG, conversation management, and multiple model providers."
         )

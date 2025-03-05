@@ -1,15 +1,15 @@
 {
-    "developer": "google",
-    "llm_model": "gemini-2.0-flash",
-    "embedding_model": "text-embedding-004",
+    "developer": "anthropic",
+    "llm_model": "claude-3-5-haiku-20241022",
+    "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.8514285714285714,
-    "context_size": 7531,
-    "chunk_size": 30,
-    "semantic_chunking": true,
-    "semantic_min_chunk_size": 100,
+    "context_size": 3177,
+    "chunk_size": 50,
+    "semantic_chunking": false,
+    "semantic_min_chunk_size": 10,
     "semantic_max_chunk_size": 2000,
     "include_chat": true,
-    "show_image": true,
+    "show_image": false,
     "include_file": true,
     "system_prompt": "Be concise"
 }
