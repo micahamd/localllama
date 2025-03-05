@@ -346,10 +346,30 @@ class OllamaChat:
         
         # Make chat display read-only but allow selection
         self.chat_display.config(state=tk.DISABLED)
-        
-        # Image preview
-        self.image_preview = ttk.Label(chat_frame)
-        self.image_preview.pack(padx=5, pady=5)
+        # Removed dedicated image preview label
+    
+    # New helper: display the uploaded image in the chat area
+    def display_uploaded_image(self):
+        """Display the uploaded image inline in the chat display.
+        If image preview is disabled, display the file path instead."""
+        if self.file_type != 'image' or not self.file_img:
+            return
+        self.chat_display.config(state=tk.NORMAL)
+        self.chat_display.insert(tk.END, "\n")
+        if self.show_image_var.get():
+            try:
+                from PIL import Image, ImageTk
+                pil_img = Image.open(self.file_img)
+                pil_img.thumbnail((300, 300))
+                self.preview_image = ImageTk.PhotoImage(pil_img)
+                self.chat_display.image_create(tk.END, image=self.preview_image)
+                self.chat_display.insert(tk.END, "\n")
+            except Exception as e:
+                self.display_message(f"\nError displaying image: {e}\n", 'error')
+        else:
+            self.chat_display.insert(tk.END, f"Image file: {self.file_img}\n", 'assistant')
+        self.chat_display.config(state=tk.DISABLED)
+        self.chat_display.see(tk.END)
     
     def create_input_area(self):
         """Create the input area for user messages."""
@@ -659,14 +679,9 @@ class OllamaChat:
         self.context_label.config(text=f"{int(float(value))}")
     
     def on_show_image_toggle(self):
-        """Show or hide the image preview depending on the checkbox."""
-        if self.show_image_var.get() and self.file_type == 'image' and self.file_img:
-            pil_img = Image.open(self.file_img)
-            pil_img.thumbnail((300, 300))
-            self.preview_image = ImageTk.PhotoImage(pil_img)
-            self.image_preview.config(image=self.preview_image)
-        else:
-            self.image_preview.config(image="")
+        """Update inline image display based on the checkbox."""
+        if self.file_type == 'image' and self.file_img:
+            self.display_uploaded_image()
     
     def handle_drop(self, event):
         """Handle file drop event."""
@@ -680,11 +695,8 @@ class OllamaChat:
         if self.file_type == 'image':
             self.file_img = file_path
             self.file_content = None
-            if self.show_image_var.get():
-                pil_img = Image.open(file_path)
-                pil_img.thumbnail((300, 300))
-                self.preview_image = ImageTk.PhotoImage(pil_img)
-                self.image_preview.config(image=self.preview_image)
+            # Display the image inline instead of a separate preview label
+            self.display_uploaded_image()
         else:
             self.file_img = None
             self.file_content = self.extract_content(file_path)
@@ -1300,8 +1312,7 @@ class OllamaChat:
         self.file_type = None
         self.word_count = 0
         
-        # Clear image preview
-        self.image_preview.config(image="")
+        # No need to clear a separate image preview label now
         self.preview_image = None  # Clear reference to prevent memory leaks
         
         # Disable file checkbox
