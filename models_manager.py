@@ -249,7 +249,9 @@ class DeepSeekManager(ModelManager):
 
     def get_embedding_models(self) -> List[str]:
         """Get list of embedding models (none for DeepSeek)."""
-        return self.embedding_models
+        # Fallback to available Ollama embedding models
+        fallback = OllamaManager()
+        return fallback.get_embedding_models()
     
     def save_api_key(self, api_key):
         """Save a new API key."""
@@ -278,8 +280,13 @@ class DeepSeekManager(ModelManager):
 
     @safe_execute("Getting DeepSeek embedding")
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
-        """Get an embedding (not supported for DeepSeek)."""
-        return []  # No embedding for now
+        """Get an embedding for the given text using fallback Ollama models."""
+        fallback = OllamaManager()
+        available = fallback.get_embedding_models()
+        if not model or model not in available:
+            model = available[0] if available else "nomic-embed-text"
+        response = ollama.embeddings(model=model, prompt=text)
+        return response.get("embedding", [])
 
 
 class AnthropicManager(ModelManager):
@@ -297,7 +304,9 @@ class AnthropicManager(ModelManager):
 
     def get_embedding_models(self) -> List[str]:
         """Get list of embedding models (none for Claude)."""
-        return self.embedding_models
+        # Fallback to available Ollama embedding models
+        fallback = OllamaManager()
+        return fallback.get_embedding_models()
     
     def save_api_key(self, api_key):
         """Save a new API key."""
@@ -328,8 +337,13 @@ class AnthropicManager(ModelManager):
 
     @safe_execute("Getting Claude embedding")
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
-        """Get an embedding (not supported for Claude)."""
-        return []  # No embedding for Claude models
+        """Get an embedding for the given text using fallback Ollama models."""
+        fallback = OllamaManager()
+        available = fallback.get_embedding_models()
+        if not model or model not in available:
+            model = available[0] if available else "nomic-embed-text"
+        response = ollama.embeddings(model=model, prompt=text)
+        return response.get("embedding", [])
 
 
 def create_model_manager(provider: str, api_key: Optional[str] = None) -> ModelManager:
