@@ -1,15 +1,15 @@
 {
-    "developer": "anthropic",
-    "llm_model": "claude-3-5-sonnet-20240620",
+    "developer": "google",
+    "llm_model": "gemini-2.0-flash",
     "embedding_model": "text-embedding-004",
-    "temperature": 0.8914285714285715,
-    "context_size": 5354,
+    "temperature": 0.8514285714285714,
+    "context_size": 7531,
     "chunk_size": 30,
     "semantic_chunking": true,
     "semantic_min_chunk_size": 100,
     "semantic_max_chunk_size": 2000,
     "include_chat": true,
-    "show_image": false,
+    "show_image": true,
     "include_file": true,
-    "system_prompt": "You will assist the user complete various sections in a Record Suspension application. The user will provide you the exact question, and the outline of his response. Your task is to organize and structure the content in a meaningful and seamless way. Please ensure your response highlights the remorse the user feels for his actions nearly two decades ago. Please do your best to ensure the response is convincing and endearing."
+    "system_prompt": "Be concise"
 }
