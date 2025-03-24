@@ -1,6 +1,6 @@
 {
     "developer": "google",
-    "llm_model": "gemini-2.0-flash-thinking-exp-01-21",
+    "llm_model": "gemini-2.0-flash",
     "embedding_model": "text-embedding-004",
     "temperature": 0.8514285714285714,
     "context_size": 7760,
@@ -9,7 +9,7 @@
     "semantic_min_chunk_size": 10,
     "semantic_max_chunk_size": 2000,
     "include_chat": true,
-    "show_image": false,
+    "show_image": true,
     "include_file": true,
     "system_prompt": ""
 }

@@ -819,11 +819,11 @@ class OllamaChat:
         self.stop_event.clear()
         self.is_processing = True
         self.status_bar["text"] = "Generating image..."
-    
+
         try:
             self.display_message("\n", 'assistant')
             self.display_message("Generating image based on your prompt...\n", 'assistant')
-    
+
             # Get streaming response from model manager
             stream = self.model_manager.generate_image(
                 prompt=prompt,
@@ -831,16 +831,16 @@ class OllamaChat:
                 temperature=self.temperature.get(),
                 max_tokens=self.context_size.get()
             )
-    
+
             self.active_stream = stream
             full_response = ""
             has_image = False
-    
+
             try:
                 for chunk in stream:
                     if self.stop_event.is_set():
                         break
-                    
+
                     if chunk and 'message' in chunk:
                         message = chunk['message']
                         if 'content' in message and message['content']:
@@ -868,7 +868,7 @@ class OllamaChat:
                             self.display_message(f"\nError: {message.get('content', 'Unknown error')}\n", 'error')
             finally:
                 self.active_stream = None
-                
+
                 # Add the completed response to conversation history
                 if full_response or has_image:
                     image_note = " (with generated image)" if has_image else ""
@@ -876,10 +876,10 @@ class OllamaChat:
                         "assistant", 
                         f"{full_response}{image_note}"
                     )
-                
+
                 self.is_processing = False
                 self.status_bar["text"] = "Ready"
-    
+
         except Exception as e:
             error_msg = error_handler.handle_error(e, "Getting image generation response")
             self.display_message(f"\nError: {error_msg}\n", 'error')
@@ -1208,6 +1208,14 @@ class OllamaChat:
         try:
             # Get LLM models
             llm_models = self.model_manager.get_llm_models()
+            
+            # If using Google, add image generation models
+            if self.developer.get().lower() == "google" and hasattr(self.model_manager, 'api_config'):
+                image_gen_models = self.model_manager.api_config.get_image_generation_models()
+                # Make sure we don't add duplicates
+                for model in image_gen_models:
+                    if model not in llm_models:
+                        llm_models.append(model)
             
             # Update the LLM combobox
             self.model_selector['values'] = llm_models or []
