@@ -6,9 +6,12 @@ import os
 import threading
 import time
 from PIL import Image, ImageTk
+from PIL import Image as PILImage
+from io import BytesIO
 import re
 import markdown
 from markitdown import MarkItDown
+from typing import Optional, List, Dict, Any
 
 # Import our custom modules
 from settings import Settings
@@ -271,10 +274,19 @@ class OllamaChat:
             variable=self.include_chat_var
         )
         include_chat_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Generate image checkbox
+        self.generate_image_var = tk.BooleanVar(value=False)
+        generate_image_checkbox = ttk.Checkbutton(
+            options_frame,
+            text="Generate Image",
+            variable=self.generate_image_var
+        )
+        generate_image_checkbox.pack(anchor="w", padx=5, pady=2)
         
         # Show image preview
         show_image_checkbox = ttk.Checkbutton(
-            options_frame, 
+            options_frame,
             text="Show image preview",
             variable=self.show_image_var,
             command=self.on_show_image_toggle
@@ -792,10 +804,88 @@ class OllamaChat:
         if self.include_file_var.get() and self.file_img and self.file_type == 'image':
             with open(self.file_img, 'rb') as img_file:
                 message['images'] = [img_file.read()]
-        
-        # Send message in separate thread
-        threading.Thread(target=self.get_response, args=(message, rag_results)).start()
+
+        # Determine whether to generate an image or get a text response
+        if self.generate_image_var.get():
+            # Call the generate_image method in GeminiManager
+            threading.Thread(target=self.generate_image_response, args=(content, message.get('images', None))).start()
+        else:
+            # Send message in separate thread
+            threading.Thread(target=self.get_response, args=(message, rag_results)).start()
+
+    @safe_execute("Getting Gemini image generation response")
+    def generate_image_response(self, prompt: str, image_data: Optional[bytes] = None):
+        """Generate an image using Gemini and display the response."""
+        self.stop_event.clear()
+        self.is_processing = True
+        self.status_bar["text"] = "Generating image..."
     
+        try:
+            self.display_message("\n", 'assistant')
+            self.display_message("Generating image based on your prompt...\n", 'assistant')
+    
+            # Get streaming response from model manager
+            stream = self.model_manager.generate_image(
+                prompt=prompt,
+                image_data=image_data,
+                temperature=self.temperature.get(),
+                max_tokens=self.context_size.get()
+            )
+    
+            self.active_stream = stream
+            full_response = ""
+            has_image = False
+    
+            try:
+                for chunk in stream:
+                    if self.stop_event.is_set():
+                        break
+                    
+                    if chunk and 'message' in chunk:
+                        message = chunk['message']
+                        if 'content' in message and message['content']:
+                            content = message['content']
+                            full_response += content
+                            self.chat_display["state"] = "normal"
+                            self.chat_display.insert(tk.END, content, 'assistant')
+                            self.chat_display["state"] = "disabled"
+                            self.chat_display.see(tk.END)
+                        elif 'image' in message and message['image']:
+                            has_image = True
+                            image_bytes = message['image']
+                            try:
+                                pil_img = Image.open(BytesIO(image_bytes))
+                                pil_img.thumbnail((300, 300))
+                                self.preview_image = ImageTk.PhotoImage(pil_img)
+                                self.chat_display["state"] = "normal"
+                                self.chat_display.image_create(tk.END, image=self.preview_image)
+                                self.chat_display.insert(tk.END, "\n", 'assistant')
+                                self.chat_display["state"] = "disabled"
+                                self.chat_display.see(tk.END)
+                            except Exception as e:
+                                self.display_message(f"\nError displaying image: {e}\n", 'error')
+                        elif 'role' in message and message['role'] == 'error':
+                            self.display_message(f"\nError: {message.get('content', 'Unknown error')}\n", 'error')
+            finally:
+                self.active_stream = None
+                
+                # Add the completed response to conversation history
+                if full_response or has_image:
+                    image_note = " (with generated image)" if has_image else ""
+                    self.conversation_manager.add_message_to_active(
+                        "assistant", 
+                        f"{full_response}{image_note}"
+                    )
+                
+                self.is_processing = False
+                self.status_bar["text"] = "Ready"
+    
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Getting image generation response")
+            self.display_message(f"\nError: {error_msg}\n", 'error')
+            self.is_processing = False
+            self.status_bar["text"] = "Error"
+
     def get_chat_history(self):
         """Get formatted chat history for context."""
         history = []

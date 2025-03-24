@@ -25,9 +25,19 @@ class GeminiAPIConfig:
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite",
             "gemini-2.0-flash-thinking-exp-01-21",
-            "gemini-2.0-pro-exp-02-05"
+            "gemini-2.0-pro-exp-02-05",
+            "gemini-2.0-flash-exp-image-generation"
         ]
+        
+        self._image_generation_models = [
+            "gemini-2.0-flash-exp-image-generation"
+        ]
+        
         self._embedding_models = ["text-embedding-004", "embedding-latest"]
+
+    def get_default_image_generation_model(self):
+        """Get the default image generation model."""
+        return "gemini-2.0-flash-exp-image-generation"
     
     def _load_config(self):
         """Load configuration from file."""
@@ -121,3 +131,17 @@ class GeminiAPIConfig:
         if self._embedding_models:
             return self._embedding_models[0]
         return "embedding-001"  # Fallback to a known model
+    
+    def get_image_generation_models(self) -> List[str]:
+        """Return the list of available image generation models."""
+        return self._image_generation_models
+    
+    def is_image_generation_model(self, model_name: str) -> bool:
+        """Check if the model is an image generation model."""
+        return model_name in self._image_generation_models
+    
+    def get_default_image_generation_model(self) -> str:
+        """Get the default image generation model to use."""
+        if self._image_generation_models:
+            return self._image_generation_models[0]
+        return "gemini-2.0-flash-exp-image-generation"  # Fallback to a known model

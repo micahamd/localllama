@@ -1,9 +1,9 @@
 {
-    "developer": "anthropic",
-    "llm_model": "claude-3-5-haiku-20241022",
-    "embedding_model": "nomic-embed-text:latest",
+    "developer": "google",
+    "llm_model": "gemini-2.0-flash-thinking-exp-01-21",
+    "embedding_model": "text-embedding-004",
     "temperature": 0.8514285714285714,
-    "context_size": 3177,
+    "context_size": 7760,
     "chunk_size": 50,
     "semantic_chunking": false,
     "semantic_min_chunk_size": 10,
@@ -11,5 +11,5 @@
     "include_chat": true,
     "show_image": false,
     "include_file": true,
-    "system_prompt": "Be concise"
+    "system_prompt": ""
 }
