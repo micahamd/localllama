@@ -6,6 +6,9 @@ import time
 from gemini_api_config import GeminiAPIConfig
 from deepseek_api_config import DeepSeekAPIConfig, get_deepseek_response
 from anthropic_api_config import AnthropicAPIConfig, get_anthropic_response
+import PIL.Image
+from io import BytesIO
+from PIL import Image
 
 
 class ModelManager:
@@ -232,6 +235,53 @@ class GeminiManager(ModelManager):
         if result and result[0] and hasattr(result[0], "values"):
             return result[0].values
         return []
+
+    @safe_execute("Getting Gemini image generation response")
+    def generate_image(self, prompt: str, image_data: Optional[bytes] = None, **kwargs) -> Iterator[Dict[str, Any]]:
+        """Generate an image using Gemini's image generation capabilities."""
+        model_name = kwargs.get("model", self.api_config.get_default_image_generation_model())
+    
+        # Check if API key is configured
+        if not self.api_config.is_configured():
+            raise ValueError("Gemini API key is not configured. Please set it in the settings.")
+    
+        # Create the model instance
+        model = genai.GenerativeModel(model_name=model_name)
+    
+        # Prepare content parts
+        content_parts = [prompt]
+        if image_data:
+            image = PIL.Image.open(BytesIO(image_data))
+            content_parts.append(image)
+    
+        # Generate content
+        try:
+            response = model.generate_content(
+                contents=content_parts,
+                stream=True,
+                generation_config={
+                    "temperature": kwargs.get("temperature", 0.7),
+                    "max_output_tokens": kwargs.get("max_tokens", 2048),
+                    "top_p": 0.95,
+                    "top_k": 0,
+                    "response_modalities": ["Text", "Image"]
+                }
+            )
+    
+            for chunk in response:
+                if hasattr(chunk, 'text') and chunk.text:
+                    yield {"message": {"role": "assistant", "content": chunk.text}}
+                elif hasattr(chunk, 'parts'):
+                    for part in chunk.parts:
+                        if hasattr(part, 'text') and part.text is not None:
+                            yield {"message": {"role": "assistant", "content": part.text}}
+                        elif hasattr(part, 'inline_data') and part.inline_data is not None:
+                            image_bytes = part.inline_data.data
+                            # Convert image to bytes for UI display
+                            yield {"message": {"role": "assistant", "image": image_bytes}}
+    
+        except Exception as e:
+            yield {"message": {"role": "error", "content": f"Image generation error: {str(e)}"}}
 
 
 class DeepSeekManager(ModelManager):
