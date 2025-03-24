@@ -120,7 +120,7 @@ class GeminiManager(ModelManager):
         """Refresh the list of available Gemini models."""
         # Use models from the API config
         self.models = self.api_config.get_all_models()
-        self.llm_models = self.api_config.get_text_models()
+        self.llm_models = self.api_config.get_text_models() + self.api_config.get_image_generation_models()  # Include image generation models
         self.embedding_models = self.api_config.get_embedding_models()
 
     def get_llm_models(self) -> List[str]:
@@ -246,28 +246,35 @@ class GeminiManager(ModelManager):
             raise ValueError("Gemini API key is not configured. Please set it in the settings.")
     
         # Create the model instance
-        model = genai.GenerativeModel(model_name=model_name)
-    
-        # Prepare content parts
-        content_parts = [prompt]
-        if image_data:
-            image = PIL.Image.open(BytesIO(image_data))
-            content_parts.append(image)
-    
-        # Generate content
         try:
-            response = model.generate_content(
-                contents=content_parts,
-                stream=True,
-                generation_config={
-                    "temperature": kwargs.get("temperature", 0.7),
-                    "max_output_tokens": kwargs.get("max_tokens", 2048),
-                    "top_p": 0.95,
-                    "top_k": 0,
-                    "response_modalities": ["Text", "Image"]
-                }
-            )
+            model = genai.GenerativeModel(model_name=model_name)
+            
+            # Prepare content parts
+            if image_data:
+                # If image data is provided, include it in the request
+                image = PIL.Image.open(BytesIO(image_data))
+                response = model.generate_content(
+                    [prompt, image],
+                    stream=True,
+                    generation_config={
+                        "temperature": kwargs.get("temperature", 0.7),
+                        "max_output_tokens": kwargs.get("max_tokens", 2048),
+                        "response_mime_type": "image/png",
+                    }
+                )
+            else:
+                # Text-only prompt for image generation
+                response = model.generate_content(
+                    prompt,
+                    stream=True,
+                    generation_config={
+                        "temperature": kwargs.get("temperature", 0.7),
+                        "max_output_tokens": kwargs.get("max_tokens", 2048),
+                        "response_mime_type": "image/png",
+                    }
+                )
     
+            # Process the response
             for chunk in response:
                 if hasattr(chunk, 'text') and chunk.text:
                     yield {"message": {"role": "assistant", "content": chunk.text}}
@@ -277,11 +284,12 @@ class GeminiManager(ModelManager):
                             yield {"message": {"role": "assistant", "content": part.text}}
                         elif hasattr(part, 'inline_data') and part.inline_data is not None:
                             image_bytes = part.inline_data.data
-                            # Convert image to bytes for UI display
                             yield {"message": {"role": "assistant", "image": image_bytes}}
     
         except Exception as e:
-            yield {"message": {"role": "error", "content": f"Image generation error: {str(e)}"}}
+            error_message = f"Image generation error: {str(e)}"
+            print(f"Error in generate_image: {error_message}")  # Debug output
+            yield {"message": {"role": "error", "content": error_message}}
 
 
 class DeepSeekManager(ModelManager):
