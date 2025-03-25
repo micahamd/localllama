@@ -18,22 +18,22 @@ class GeminiAPIConfig:
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite",
             "gemini-2.0-flash-thinking-exp-01-21",
-            "gemini-2.0-pro-exp-02-05"
+            "gemini-2.5-pro-exp-03-25"
         ]
         
         self._vision_models = [
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite",
             "gemini-2.0-flash-thinking-exp-01-21",
-            "gemini-2.0-pro-exp-02-05",
-            "gemini-2.0-flash-exp-image-generation"
+            "gemini-2.5-pro-exp-03-25"
         ]
         
         self._image_generation_models = [
-            "gemini-2.0-flash-exp-image-generation"
+            "gemini-2.0-flash",
+            "imagen-3.0-generate-002"
         ]
         
-        self._embedding_models = ["text-embedding-004", "embedding-latest"]
+        self._embedding_models = ["gemini-embedding-exp","text-embedding-004"]
 
     def get_default_image_generation_model(self):
         """Get the default image generation model."""
