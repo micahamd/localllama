@@ -259,7 +259,7 @@ class GeminiManager(ModelManager):
                     generation_config={
                         "temperature": kwargs.get("temperature", 0.7),
                         "max_output_tokens": kwargs.get("max_tokens", 2048),
-                        "response_mime_type": "image/png",
+                        "response_modalities": ["Text", "Image"]  # Added this line
                     }
                 )
             else:
@@ -270,7 +270,7 @@ class GeminiManager(ModelManager):
                     generation_config={
                         "temperature": kwargs.get("temperature", 0.7),
                         "max_output_tokens": kwargs.get("max_tokens", 2048),
-                        "response_mime_type": "image/png",
+                        "response_modalities": ["Text", "Image"]  # Added this line
                     }
                 )
     
