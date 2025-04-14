@@ -63,6 +63,7 @@ markdown
 # Web search
 requests
 beautifulsoup4
+crawl4ai  # Advanced web search and crawling
 
 # Optional specific dependencies (included in markitdown[all])
 # markitdown[pdf,docx,pptx,xlsx,xls]  # Document processing

@@ -19,6 +19,7 @@ class Settings:
         "show_image": True,
         "include_file": True,
         "web_access": False,
+        "advanced_web_access": False,
         "system_prompt": "Respond honestly and factually at all times."
     }
 
