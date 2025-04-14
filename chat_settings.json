@@ -2,7 +2,7 @@
     "developer": "ollama",
     "llm_model": "gemma3:12b",
     "embedding_model": "nomic-embed-text:latest",
-    "temperature": 0.5657142857142857,
+    "temperature": 0.5276595744680851,
     "context_size": 16670,
     "chunk_size": 50,
     "include_chat": false,
