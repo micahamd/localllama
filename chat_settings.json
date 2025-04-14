@@ -12,5 +12,6 @@
     "show_image": true,
     "include_file": false,
     "web_access": false,
+    "advanced_web_access": true,
     "system_prompt": ""
 }

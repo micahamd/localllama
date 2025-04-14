@@ -195,13 +195,15 @@ class OllamaChat:
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
         self.web_access_var = tk.BooleanVar(value=self.settings.get("web_access", False))
+        self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
 
         # Processing control
         self.is_processing = False
         self.active_stream = None
         self.stop_event = threading.Event()
         self.rag_files = []
-        self._web_search_failures = 0  # Counter for web search failures
+        self._web_search_failures = 0  # Counter for basic web search failures
+        self._advanced_web_search_failures = 0  # Counter for advanced web search failures
 
         # RAG visualization
         self.rag_visualizer = None
@@ -397,15 +399,25 @@ class OllamaChat:
         tools_frame = ttk.LabelFrame(self.sidebar_frame, text="Tools")
         tools_frame.pack(fill=tk.X, padx=5, pady=5)
 
-        # Web Access checkbox
+        # Web Search (Basic) checkbox
         self.web_access_var = tk.BooleanVar(value=self.settings.get("web_access", False))
         web_access_checkbox = ttk.Checkbutton(
             tools_frame,
-            text="Web Access",
+            text="Web Search (Basic)",
             variable=self.web_access_var,
             command=self.on_web_access_toggle
         )
         web_access_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Web Search (Advanced) checkbox
+        self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
+        advanced_web_access_checkbox = ttk.Checkbutton(
+            tools_frame,
+            text="Web Search (Advanced)",
+            variable=self.advanced_web_access_var,
+            command=self.on_advanced_web_access_toggle
+        )
+        advanced_web_access_checkbox.pack(anchor="w", padx=5, pady=2)
 
         # Conversations section
         conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
@@ -631,11 +643,13 @@ class OllamaChat:
         self.chat_display.tag_configure('assistant', foreground='#6A9955')  # Soft green for assistant
         self.chat_display.tag_configure('system', foreground='#CE9178')  # Soft orange for system
         self.chat_display.tag_configure('error', foreground=self.error_color)  # Red for errors
+        self.chat_display.tag_configure('warning', foreground='#FFCC00')  # Yellow for warnings
         self.chat_display.tag_configure('status', foreground='#999999')  # Gray for status
 
         # Configure additional tags for rich text formatting
         self.chat_display.tag_configure('user_label', foreground='#9CDCFE', font=("Segoe UI", 12, "bold"))
         self.chat_display.tag_configure('assistant_label', foreground='#6A9955', font=("Segoe UI", 12, "bold"))
+        self.chat_display.tag_configure('warning_label', foreground='#FFCC00', font=("Segoe UI", 12, "bold"))
         self.chat_display.tag_configure('system_label', foreground='#CE9178', font=("Segoe UI", 12, "bold"))
         self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 12, "bold"))
         self.chat_display.tag_configure('status_label', foreground='#999999', font=("Segoe UI", 12, "bold"))
@@ -878,14 +892,84 @@ class OllamaChat:
             self.display_uploaded_image()
 
     def on_web_access_toggle(self):
-        """Handle web access toggle."""
+        """Handle basic web access toggle."""
         web_access = self.web_access_var.get()
         self.settings.set("web_access", web_access)
 
+        # If enabling basic web search, disable advanced web search
+        if web_access and self.advanced_web_access_var.get():
+            self.advanced_web_access_var.set(False)
+            self.settings.set("advanced_web_access", False)
+
         if web_access:
-            self.display_message("\nWeb access enabled. The chatbot can now search the web for information.\n", "status")
+            self.display_message("\nBasic web search enabled. The chatbot can now search the web for information.\n", "status")
         else:
-            self.display_message("\nWeb access disabled.\n", "status")
+            self.display_message("\nBasic web search disabled.\n", "status")
+
+    def on_advanced_web_access_toggle(self):
+        """Handle advanced web access toggle."""
+        advanced_web_access = self.advanced_web_access_var.get()
+        self.settings.set("advanced_web_access", advanced_web_access)
+
+        # If enabling advanced web search, disable basic web search
+        if advanced_web_access and self.web_access_var.get():
+            self.web_access_var.set(False)
+            self.settings.set("web_access", False)
+
+        if advanced_web_access:
+            # Check if crawl4ai is installed
+            try:
+                import crawl4ai
+                self.display_message("\nAdvanced web search enabled. The chatbot can now crawl websites for detailed information.\n", "status")
+
+                # Check if Playwright needs to be installed
+                self.display_message("\nChecking Playwright installation...\n", 'status')
+                try:
+                    import subprocess
+                    import sys
+
+                    # Get the Python executable path
+                    python_exe = sys.executable
+
+                    # Run playwright install command with the full Python path
+                    self.display_message("\nInstalling Playwright browsers (this may take a few minutes)...\n", 'status')
+                    subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
+                    self.display_message("\nPlaywright browsers installed successfully.\n", "status")
+                except Exception as e:
+                    error_msg = error_handler.handle_error(e, "Installing Playwright browsers")
+                    self.display_message(f"\nWarning: Playwright browsers installation failed: {error_msg}\n", 'warning')
+                    self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
+                    self.display_message("python -m playwright install --with-deps\n\n", 'warning')
+                    # Continue anyway as the main package is installed
+
+            except ImportError:
+                self.display_message("\nInstalling crawl4ai for advanced web search...\n", 'status')
+                try:
+                    import subprocess
+                    subprocess.check_call(["pip", "install", "crawl4ai"])
+                    self.display_message("\nAdvanced web search enabled. The chatbot can now crawl websites for detailed information.\n", "status")
+
+                    # Also install Playwright browsers
+                    self.display_message("\nInstalling Playwright browsers (this may take a few minutes)...\n", 'status')
+                    try:
+                        import sys
+                        python_exe = sys.executable
+                        subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
+                        self.display_message("\nPlaywright browsers installed successfully.\n", "status")
+                    except Exception as e:
+                        error_msg = error_handler.handle_error(e, "Installing Playwright browsers")
+                        self.display_message(f"\nWarning: Playwright browsers installation failed: {error_msg}\n", 'warning')
+                        self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
+                        self.display_message("python -m playwright install --with-deps\n\n", 'warning')
+                        # Continue anyway as the main package is installed
+
+                except Exception as e:
+                    error_msg = error_handler.handle_error(e, "Installing crawl4ai")
+                    self.display_message(f"\nError installing crawl4ai: {error_msg}\n", 'error')
+                    self.advanced_web_access_var.set(False)
+                    self.settings.set("advanced_web_access", False)
+        else:
+            self.display_message("\nAdvanced web search disabled.\n", "status")
 
     def perform_web_search(self, query):
         """Perform a web search using requests and BeautifulSoup as a fallback.
@@ -1362,13 +1446,13 @@ class OllamaChat:
 
         # Add web search results if web access is enabled
         if self.web_access_var.get():
-            self.display_message("\nSearching the web for information...\n", 'status')
+            self.display_message("\nSearching the web for information (basic)...\n", 'status')
             try:
-                # Perform web search with a timeout to prevent hanging
+                # Perform basic web search with a timeout to prevent hanging
                 search_results = self.perform_web_search(user_input)
                 if search_results:
                     content += f"\n\nWeb search results:\n{search_results}"
-                    self.display_message("\nWeb search completed.\n", 'status')
+                    self.display_message("\nBasic web search completed.\n", 'status')
                 else:
                     # If search failed but didn't raise an exception, show a message
                     self.display_message("\nNo relevant web results found.\n", 'status')
@@ -1376,18 +1460,47 @@ class OllamaChat:
                     if hasattr(self, '_web_search_failures'):
                         self._web_search_failures += 1
                         if self._web_search_failures >= 3:
-                            self.display_message("\nWeb search is being disabled due to repeated failures.\n", 'error')
+                            self.display_message("\nBasic web search is being disabled due to repeated failures.\n", 'error')
                             self.web_access_var.set(False)
                             self.settings.set("web_access", False)
                             self._web_search_failures = 0
                     else:
                         self._web_search_failures = 1
             except Exception as e:
-                error_msg = error_handler.handle_error(e, "Web search")
-                self.display_message(f"\nError during web search: {error_msg}\n", 'error')
+                error_msg = error_handler.handle_error(e, "Basic web search")
+                self.display_message(f"\nError during basic web search: {error_msg}\n", 'error')
                 # Disable web access if it's causing errors
                 self.web_access_var.set(False)
                 self.settings.set("web_access", False)
+
+        # Add advanced web search results if enabled
+        elif self.advanced_web_access_var.get():
+            self.display_message("\nSearching the web for information (advanced)...\n", 'status')
+            try:
+                # Perform advanced web search using crawl4ai
+                search_results = self.perform_advanced_web_search(user_input)
+                if search_results:
+                    content += f"\n\nAdvanced web search results:\n{search_results}"
+                    self.display_message("\nAdvanced web search completed.\n", 'status')
+                else:
+                    # If search failed but didn't raise an exception, show a message
+                    self.display_message("\nNo relevant advanced web results found.\n", 'status')
+                    # Disable advanced web access if it's causing problems
+                    if hasattr(self, '_advanced_web_search_failures'):
+                        self._advanced_web_search_failures += 1
+                        if self._advanced_web_search_failures >= 3:
+                            self.display_message("\nAdvanced web search is being disabled due to repeated failures.\n", 'error')
+                            self.advanced_web_access_var.set(False)
+                            self.settings.set("advanced_web_access", False)
+                            self._advanced_web_search_failures = 0
+                    else:
+                        self._advanced_web_search_failures = 1
+            except Exception as e:
+                error_msg = error_handler.handle_error(e, "Advanced web search")
+                self.display_message(f"\nError during advanced web search: {error_msg}\n", 'error')
+                # Disable advanced web access if it's causing errors
+                self.advanced_web_access_var.set(False)
+                self.settings.set("advanced_web_access", False)
 
         # Include file content based on the checkbox - MODIFIED
         if self.include_file_var.get():
@@ -1745,7 +1858,7 @@ class OllamaChat:
         self.chat_display["state"] = "normal"
 
         # Add role label if it's a new message
-        if message.startswith('\n') and tag in ['user', 'assistant', 'system']:
+        if message.startswith('\n') and tag in ['user', 'assistant', 'system', 'error', 'status', 'warning']:
             label_tag = f"{tag}_label"
             if tag == 'user':
                 self.chat_display.insert(tk.END, "\n🧑 You: ", label_tag)
@@ -1755,6 +1868,8 @@ class OllamaChat:
                 self.chat_display.insert(tk.END, "\n⚙️ System: ", label_tag)
             elif tag == 'error':
                 self.chat_display.insert(tk.END, "\n⚠️ Error: ", 'error_label')
+            elif tag == 'warning':
+                self.chat_display.insert(tk.END, "\n⚡ Warning: ", 'warning_label')
             elif tag == 'status':
                 self.chat_display.insert(tk.END, "\n💬 Status: ", 'status_label')
 
@@ -1811,6 +1926,132 @@ class OllamaChat:
         except Exception as e:
             self.display_message(f"\nError opening URL: {e}\n", 'error')
 
+    def perform_advanced_web_search(self, query):
+        """Perform an advanced web search using crawl4ai.
+
+        Args:
+            query: The search query
+
+        Returns:
+            str: Extracted content in markdown format or None if search failed
+        """
+        try:
+            import asyncio
+            import crawl4ai
+            from crawl4ai import AsyncWebCrawler, BrowserConfig, CrawlerRunConfig
+
+            self.display_message("\nPerforming advanced web search with crawl4ai...\n", 'status')
+
+            # Define an async function to run the crawler
+            async def run_crawler():
+                # Configure the browser
+                browser_config = BrowserConfig(
+                    headless=True,  # Run in headless mode
+                    verbose=False    # Don't show verbose logs
+                )
+
+                # Configure the crawler
+                run_config = CrawlerRunConfig(
+                    cache_mode="ENABLED"  # Enable caching for better performance
+                )
+
+                # Create search URL from query
+                search_url = f"https://www.google.com/search?q={query.replace(' ', '+')}"
+
+                # Initialize the crawler
+                async with AsyncWebCrawler(config=browser_config) as crawler:
+                    # First, get search results
+                    search_result = await crawler.arun(
+                        url=search_url,
+                        config=run_config
+                    )
+
+                    # Extract top result URLs from the search results
+                    import re
+                    urls = re.findall(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[^\s"\'\\\/]*', search_result.markdown.fit_markdown)
+
+                    # Filter out Google URLs and duplicates
+                    filtered_urls = []
+                    for url in urls:
+                        if not any(domain in url for domain in ['google.com', 'gstatic.com', 'youtube.com/watch']) and url not in filtered_urls:
+                            filtered_urls.append(url)
+
+                    # Limit to top 3 results
+                    top_urls = filtered_urls[:3]
+
+                    if not top_urls:
+                        return f"Search results for '{query}' did not yield any useful links."
+
+                    # Crawl each top result
+                    results = []
+                    for i, url in enumerate(top_urls, 1):
+                        try:
+                            # Crawl the URL
+                            result = await crawler.arun(
+                                url=url,
+                                config=run_config
+                            )
+
+                            # Extract a summary (first 1000 characters)
+                            content = result.markdown.fit_markdown
+                            summary = content[:1000] + "..." if len(content) > 1000 else content
+
+                            # Add to results
+                            results.append(f"Source {i}: {url}\n\n{summary}\n\n")
+                        except Exception as e:
+                            results.append(f"Source {i}: {url}\n\nError crawling this URL: {str(e)}\n\n")
+
+                    # Combine results
+                    return f"Advanced search results for '{query}':\n\n" + "\n".join(results)
+
+            # Run the async crawler
+            return asyncio.run(run_crawler())
+
+        except ImportError:
+            # If crawl4ai is not available, try to install it
+            self.display_message("\nInstalling crawl4ai for advanced web search...\n", 'status')
+            try:
+                import subprocess
+                subprocess.check_call(["pip", "install", "crawl4ai"])
+                # Try again after installation
+                return self.perform_advanced_web_search(query)
+            except Exception as e:
+                error_msg = error_handler.handle_error(e, "Installing crawl4ai")
+                self.display_message(f"\nError installing crawl4ai: {error_msg}\n", 'error')
+                # Disable advanced web access
+                self.advanced_web_access_var.set(False)
+                self.settings.set("advanced_web_access", False)
+                return None
+
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Advanced web search")
+
+            # Check if the error is related to missing Playwright browsers
+            if "Executable doesn't exist" in str(e) and "chrome-win" in str(e):
+                self.display_message("\nPlaywright browsers are not installed properly.\n", 'error')
+                self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
+                self.display_message("python -m playwright install --with-deps\n\n", 'warning')
+
+                # Try to install Playwright browsers automatically
+                try:
+                    import sys
+                    import subprocess
+                    python_exe = sys.executable
+                    self.display_message("\nAttempting to install Playwright browsers automatically...\n", 'status')
+                    subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
+                    self.display_message("\nPlaywright browsers installed successfully. Please try your search again.\n", 'status')
+                    return None
+                except Exception as install_error:
+                    install_error_msg = error_handler.handle_error(install_error, "Installing Playwright browsers")
+                    self.display_message(f"\nAutomatic installation failed: {install_error_msg}\n", 'error')
+                    # Disable advanced web access to prevent further errors
+                    self.advanced_web_access_var.set(False)
+                    self.settings.set("advanced_web_access", False)
+                    return None
+            else:
+                self.display_message(f"\nError during advanced web search: {error_msg}\n", 'error')
+                return None
+
     def save_settings(self):
         """Save current settings to the settings file."""
         settings_data = {
@@ -1825,6 +2066,7 @@ class OllamaChat:
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
             "web_access": self.web_access_var.get(),
+            "advanced_web_access": self.advanced_web_access_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip(),
             "semantic_min_chunk_size": self.semantic_min_chunk_size.get(),
             "semantic_max_chunk_size": self.semantic_max_chunk_size.get()
