@@ -871,12 +871,43 @@ class OllamaChat:
         self.include_file_checkbox.state(['!disabled'])
         self.include_file_var.set(True)
 
+        # Handle based on file type
         if self.file_type == 'image':
             self.file_img = file_path
             self.file_content = None
-            # Display the image inline instead of a separate preview label
+            # Display the image inline
             self.display_uploaded_image()
-        else:
+        elif self.file_type == 'audio':
+            self.file_img = None
+            # Extract audio content with transcription
+            self.file_content = self.extract_content(file_path)
+            self.preserved_file_content = self.file_content
+            if self.file_content:
+                self.word_count = len(re.findall(r'\w+', self.file_content))
+                # Display audio preview in chat
+                self.display_audio_preview(file_path, self.file_content)
+        elif self.file_type == 'youtube' or self.file_type == 'url':
+            self.file_img = None
+            # Extract content from URL
+            self.file_content = self.extract_content(file_path)
+            self.preserved_file_content = self.file_content
+            if self.file_content:
+                self.word_count = len(re.findall(r'\w+', self.file_content))
+                # Display YouTube preview in chat
+                if self.file_type == 'youtube':
+                    self.display_youtube_preview(file_path, self.file_content)
+                else:
+                    self.display_file_preview(file_path, self.file_content)
+        elif self.file_type == 'zip':
+            self.file_img = None
+            # Extract content from ZIP
+            self.file_content = self.extract_content(file_path)
+            self.preserved_file_content = self.file_content
+            if self.file_content:
+                self.word_count = len(re.findall(r'\w+', self.file_content))
+                # Display ZIP preview in chat
+                self.display_file_preview(file_path, self.file_content)
+        else:  # document or unknown
             self.file_img = None
             self.file_content = self.extract_content(file_path)
             # Add this line to preserve file content
@@ -889,28 +920,276 @@ class OllamaChat:
         self.update_status()
 
     def get_file_type(self, file_path):
-        """Determine the file type from its extension."""
+        """Determine the file type from its extension or URL pattern."""
+        # Check if it's a URL
+        if file_path.startswith(('http://', 'https://')):
+            if any(pattern in file_path.lower() for pattern in ['youtube.com/watch', 'youtu.be/']):
+                return 'youtube'
+            return 'url'
+
+        # Check file extension
         ext = os.path.splitext(file_path)[1].lower()
         if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
             return 'image'
-        return 'document'
+        elif ext in ['.mp3', '.wav', '.ogg', '.flac', '.m4a', '.aac']:
+            return 'audio'
+        elif ext == '.zip':
+            return 'zip'
+        elif ext in ['.pdf', '.docx', '.doc', '.pptx', '.ppt', '.xlsx', '.xls', '.txt', '.md', '.json', '.csv', '.html', '.epub']:
+            return 'document'
+        return 'unknown'
 
     def extract_content(self, file_path):
-        """Extract text content from a file."""
+        """Extract text content from a file or URL."""
         try:
-            if self.get_file_type(file_path) == 'document':
-                md = MarkItDown()
+            file_type = self.get_file_type(file_path)
+            md = MarkItDown()
+
+            # Install optional dependencies if needed
+            if file_type == 'audio' and not self._check_audio_dependencies():
+                self.display_message("\nInstalling audio transcription dependencies...\n", 'status')
+                self._install_dependencies(['markitdown[audio-transcription]'])
+
+            if file_type == 'youtube' and not self._check_youtube_dependencies():
+                self.display_message("\nInstalling YouTube transcription dependencies...\n", 'status')
+                self._install_dependencies(['markitdown[youtube-transcription]'])
+
+            # Process based on file type
+            if file_type in ['document', 'audio', 'youtube', 'url', 'zip']:
+                # Show status message for potentially longer operations
+                if file_type == 'audio':
+                    self.display_message("\nTranscribing audio file...\n", 'status')
+                elif file_type == 'youtube':
+                    self.display_message("\nFetching YouTube content...\n", 'status')
+                elif file_type == 'zip':
+                    self.display_message("\nProcessing ZIP archive...\n", 'status')
+
+                # Convert the file
                 result = md.convert(file_path)
+
+                # For ZIP files, add a header
+                if file_type == 'zip':
+                    zip_summary = f"# ZIP Archive: {os.path.basename(file_path)}\n\n"
+                    zip_summary += result.text_content
+                    return zip_summary
+
                 return result.text_content
             return None
         except Exception as e:
-            error_handler.handle_error(e, "Extracting file content")
+            error_msg = error_handler.handle_error(e, "Extracting file content")
+            self.display_message(f"\nError extracting content: {error_msg}\n", 'error')
             return None
+
+    def _check_audio_dependencies(self):
+        """Check if audio transcription dependencies are installed."""
+        try:
+            import whisper
+            return True
+        except ImportError:
+            return False
+
+    def _check_youtube_dependencies(self):
+        """Check if YouTube transcription dependencies are installed."""
+        try:
+            import youtube_transcript_api
+            return True
+        except ImportError:
+            return False
+
+    def _install_dependencies(self, packages):
+        """Install required dependencies."""
+        try:
+            import subprocess
+            for package in packages:
+                subprocess.check_call(["pip", "install", package])
+            return True
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Installing dependencies")
+            self.display_message(f"\nError installing dependencies: {error_msg}\n", 'error')
+            return False
+
+    def display_audio_preview(self, file_path, file_content):
+        """Display an audio file preview in the chat with an icon and transcription."""
+        if not file_path or not file_content:
+            return
+
+        # Get file name
+        file_name = os.path.basename(file_path)
+
+        # Display the audio preview in the chat
+        self.chat_display["state"] = "normal"
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add audio icon and name
+        icon = "🔊"  # Audio file icon
+        self.chat_display.insert(tk.END, f"{icon} Audio: {file_name}\n", 'file_label')
+
+        # Add transcription preview
+        self.chat_display.insert(tk.END, "Transcription:\n", 'file_info')
+
+        # Show first few lines of transcription
+        lines = file_content.split('\n')
+        preview_lines = lines[:5]
+        preview_text = '\n'.join(preview_lines)
+
+        # Add ellipsis if there are more lines
+        if len(lines) > 5:
+            preview_text += '\n...'
+
+        self.chat_display.insert(tk.END, preview_text, 'code')
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add word count
+        word_count = len(re.findall(r'\w+', file_content))
+        self.chat_display.insert(tk.END, f"Word count: {word_count}\n", 'file_info')
+
+        # Add duration if available
+        if "Duration:" in file_content:
+            duration_match = re.search(r"Duration: ([0-9:.]+)", file_content)
+            if duration_match:
+                duration = duration_match.group(1)
+                self.chat_display.insert(tk.END, f"Duration: {duration}\n", 'file_info')
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        self.chat_display["state"] = "disabled"
+        self.chat_display.see(tk.END)
+
+    def display_youtube_preview(self, url, content):
+        """Display a YouTube video preview in the chat with thumbnail and transcription."""
+        if not url or not content:
+            return
+
+        # Extract video ID from URL
+        video_id = None
+        if "youtube.com/watch?v=" in url:
+            video_id = url.split("youtube.com/watch?v=")[1].split("&")[0]
+        elif "youtu.be/" in url:
+            video_id = url.split("youtu.be/")[1].split("?")[0]
+
+        self.chat_display["state"] = "normal"
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add YouTube icon and title
+        icon = "▶️"  # YouTube icon
+
+        # Extract title if available
+        title = url
+        title_match = re.search(r"Title: (.+)", content)
+        if title_match:
+            title = title_match.group(1)
+
+        self.chat_display.insert(tk.END, f"{icon} YouTube: {title}\n", 'file_label')
+
+        # Add URL as clickable link
+        self.chat_display.insert(tk.END, "URL: ", 'file_info')
+        link_start = self.chat_display.index(tk.END)
+        self.chat_display.insert(tk.END, url)
+        link_end = self.chat_display.index(tk.END)
+        self.chat_display.tag_add('link', link_start, link_end)
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add transcription preview
+        self.chat_display.insert(tk.END, "Transcription:\n", 'file_info')
+
+        # Show first few lines of transcription
+        lines = content.split('\n')
+        # Skip metadata lines
+        content_lines = [line for line in lines if not line.startswith("Title:") and not line.startswith("Duration:")]
+        preview_lines = content_lines[:5]
+        preview_text = '\n'.join(preview_lines)
+
+        # Add ellipsis if there are more lines
+        if len(content_lines) > 5:
+            preview_text += '\n...'
+
+        self.chat_display.insert(tk.END, preview_text, 'code')
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add word count
+        word_count = len(re.findall(r'\w+', content))
+        self.chat_display.insert(tk.END, f"Word count: {word_count}\n", 'file_info')
+
+        # Add duration if available
+        if "Duration:" in content:
+            duration_match = re.search(r"Duration: ([0-9:.]+)", content)
+            if duration_match:
+                duration = duration_match.group(1)
+                self.chat_display.insert(tk.END, f"Duration: {duration}\n", 'file_info')
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        self.chat_display["state"] = "disabled"
+        self.chat_display.see(tk.END)
+
+    def handle_url_input(self, url):
+        """Handle URL input, particularly YouTube URLs.
+
+        Args:
+            url: The URL to process
+
+        Returns:
+            bool: True if URL was handled successfully, False otherwise
+        """
+        # Determine URL type
+        if "youtube.com" in url or "youtu.be" in url:
+            self.file_type = "youtube"
+        else:
+            self.file_type = "url"
+
+        try:
+            # Show loading indicator
+            self.status_bar["text"] = f"Fetching content from {self.file_type}..."
+
+            # Store the URL as the current file path
+            self.current_file_path = url
+
+            # Use MarkItDown to extract content
+            self.file_content = self.extract_content(url)
+            self.preserved_file_content = self.file_content
+
+            if self.file_content:
+                self.word_count = len(re.findall(r'\w+', self.file_content))
+
+                # Display appropriate preview in chat
+                if self.file_type == "youtube":
+                    self.display_youtube_preview(url, self.file_content)
+                else:
+                    self.display_file_preview(url, self.file_content)
+
+                # Enable the include file checkbox
+                self.include_file_checkbox.state(['!disabled'])
+                self.include_file_var.set(True)
+
+                self.update_status()
+                return True
+            else:
+                self.display_message(f"\nCould not extract content from {url}\n", 'error')
+                return False
+
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, f"Fetching content from {url}")
+            self.display_message(f"\nError: {error_msg}\n", 'error')
+            return False
 
     def update_status(self):
         """Update status bar with current file information."""
         if self.file_img and self.file_type == 'image':
             self.status_bar["text"] = f"Image loaded: {os.path.basename(self.file_img)}"
+        elif self.file_type == 'audio':
+            self.status_bar["text"] = f"Audio loaded: {os.path.basename(self.current_file_path)} - {self.word_count} words"
+        elif self.file_type == 'youtube':
+            self.status_bar["text"] = f"YouTube content loaded: {self.word_count} words"
+        elif self.file_type == 'url':
+            self.status_bar["text"] = f"URL content loaded: {self.word_count} words"
+        elif self.file_type == 'zip':
+            self.status_bar["text"] = f"ZIP archive loaded: {os.path.basename(self.current_file_path)} - {self.word_count} words"
         elif self.file_content:
             self.status_bar["text"] = f"Document loaded: {self.word_count} words"
         else:
@@ -935,6 +1214,17 @@ class OllamaChat:
         user_input = self.input_field.get("1.0", tk.END).strip()
         if not user_input or user_input == "Type your message here...":
             return
+
+        # Check if input is a URL
+        url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
+        urls = re.findall(url_pattern, user_input)
+
+        if urls and len(urls) == 1 and urls[0] == user_input.strip():
+            # If the entire input is just a URL, try to handle it
+            if self.handle_url_input(user_input):
+                # Clear input field if URL was handled
+                self.input_field.delete("1.0", tk.END)
+                return
 
         # Debug statement to check file content
         print(f"File content exists: {self.file_content is not None}")
