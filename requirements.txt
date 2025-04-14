@@ -60,6 +60,10 @@ anthropic
 markitdown[all]  # Includes all optional dependencies
 markdown
 
+# Web search
+requests
+beautifulsoup4
+
 # Optional specific dependencies (included in markitdown[all])
 # markitdown[pdf,docx,pptx,xlsx,xls]  # Document processing
 # markitdown[audio-transcription]  # Audio transcription

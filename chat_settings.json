@@ -11,5 +11,6 @@
     "include_chat": false,
     "show_image": true,
     "include_file": false,
+    "web_access": false,
     "system_prompt": ""
 }
