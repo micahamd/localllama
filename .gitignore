@@ -2,9 +2,7 @@
 \_pycache_
 \chroma_db
 \conversations
+\generated_images
 .env
 error_log.txt
-gemini_api_config.json
-deepseek_api_config.json
-requirements-original.txt
-requirements_helper.py
+gemini_template.py
