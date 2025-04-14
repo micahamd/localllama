@@ -5,6 +5,10 @@ from error_handler import safe_execute, error_handler
 import time
 from gemini_api_config import GeminiAPIConfig
 from deepseek_api_config import DeepSeekAPIConfig, get_deepseek_response
+from anthropic_api_config import AnthropicAPIConfig, get_anthropic_response
+import PIL.Image
+from io import BytesIO
+from PIL import Image
 
 
 class ModelManager:
@@ -92,7 +96,7 @@ class GeminiManager(ModelManager):
         self.api_config = GeminiAPIConfig()
 
         # If API key is provided during initialization, set it
-        if api_key:
+        if (api_key):
             self.api_config.set_api_key(api_key)
 
         self._configure_api()
@@ -116,7 +120,7 @@ class GeminiManager(ModelManager):
         """Refresh the list of available Gemini models."""
         # Use models from the API config
         self.models = self.api_config.get_all_models()
-        self.llm_models = self.api_config.get_text_models()
+        self.llm_models = self.api_config.get_text_models() + self.api_config.get_image_generation_models()  # Include image generation models
         self.embedding_models = self.api_config.get_embedding_models()
 
     def get_llm_models(self) -> List[str]:
@@ -232,6 +236,94 @@ class GeminiManager(ModelManager):
             return result[0].values
         return []
 
+    @safe_execute("Getting image generation response")
+    def generate_image(self, prompt: str, image_data: Optional[bytes] = None, **kwargs) -> Iterator[Dict[str, Any]]:
+        """Generate an image using Gemini's image generation capabilities.
+
+        This method uses the Imagen model to generate high-quality images from text prompts.
+        Implementation based on the working example in gemini_template.py.
+
+        Args:
+            prompt: The text prompt for image generation
+            image_data: Optional image data (not used for Imagen, but kept for API compatibility)
+            **kwargs: Additional parameters including temperature
+
+        Returns:
+            Iterator of message chunks containing text or image data
+        """
+        # Check if API key is configured
+        if not self.api_config.is_configured():
+            raise ValueError("Gemini API key is not configured. Please set it in the settings.")
+
+        try:
+            # Log the process
+            print(f"Generating image with prompt: {prompt}")
+            yield {"message": {"role": "assistant", "content": "Generating image based on your prompt..."}}
+
+            # Import required libraries
+            import google.generativeai as genai
+            import PIL.Image
+            import base64
+            from io import BytesIO
+
+            # Configure the API key
+            genai.configure(api_key=self.api_config.get_api_key())
+
+            # Generate the image using the Gemini API
+            try:
+                # Create a generation config
+                generation_config = {
+                    "temperature": kwargs.get("temperature", 0.4),
+                    "top_p": 1,
+                    "top_k": 32,
+                }
+
+                # Create the model
+                model = genai.GenerativeModel('gemini-1.5-flash')
+
+                # Generate the image
+                response = model.generate_content(
+                    f"Generate an image of {prompt}",
+                    generation_config=generation_config,
+                    stream=False
+                )
+
+                # Process the response
+                has_content = False
+
+                # Check if we have a response
+                if response and hasattr(response, 'candidates') and response.candidates:
+                    for candidate in response.candidates:
+                        if hasattr(candidate, 'content') and candidate.content:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text and 'data:image' in part.text:
+                                    has_content = True
+
+                                    # Extract the base64 image data
+                                    img_data = part.text.split(',')[1]
+                                    image_bytes = base64.b64decode(img_data)
+
+                                    # Yield the image
+                                    yield {"message": {"role": "assistant", "image": image_bytes}}
+
+                                    # Add a success message
+                                    yield {"message": {"role": "assistant", "content": "Image generated successfully."}}
+
+                # If no content was found, provide a fallback message
+                if not has_content:
+                    yield {"message": {"role": "assistant", "content": "I wasn't able to generate an image. Please try a different prompt or check your API key permissions."}}
+
+            except Exception as img_error:
+                error_message = f"Error generating image: {str(img_error)}"
+                print(error_message)
+                yield {"message": {"role": "error", "content": error_message}}
+
+        except Exception as e:
+            error_message = f"Image generation error: {str(e)}"
+            print(f"Error in generate_image: {error_message}")  # Debug output
+            yield {"message": {"role": "error", "content": error_message}}
+
+
 class DeepSeekManager(ModelManager):
     """Manager for DeepSeek models."""
 
@@ -247,8 +339,10 @@ class DeepSeekManager(ModelManager):
 
     def get_embedding_models(self) -> List[str]:
         """Get list of embedding models (none for DeepSeek)."""
-        return self.embedding_models
-    
+        # Fallback to available Ollama embedding models
+        fallback = OllamaManager()
+        return fallback.get_embedding_models()
+
     def save_api_key(self, api_key):
         """Save a new API key."""
         return self.api_config.set_api_key(api_key)
@@ -270,14 +364,76 @@ class DeepSeekManager(ModelManager):
             model=model_name,
             stream=True
         )
-        
+
         for chunk in response_stream:
             yield {"message": {"role": "assistant", "content": chunk}}
 
     @safe_execute("Getting DeepSeek embedding")
     def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
-        """Get an embedding (not supported for DeepSeek)."""
-        return []  # No embedding for now
+        """Get an embedding for the given text using fallback Ollama models."""
+        fallback = OllamaManager()
+        available = fallback.get_embedding_models()
+        if not model or model not in available:
+            model = available[0] if available else "nomic-embed-text"
+        response = ollama.embeddings(model=model, prompt=text)
+        return response.get("embedding", [])
+
+
+class AnthropicManager(ModelManager):
+    """Manager for Anthropic Claude models."""
+
+    def __init__(self):
+        super().__init__()
+        self.api_config = AnthropicAPIConfig()
+        self.llm_models = self.api_config.get_text_models()  # Claude models
+        self.embedding_models = self.api_config.get_embedding_models()  # Empty list as Claude doesn't offer embeddings
+
+    def get_llm_models(self) -> List[str]:
+        """Get list of available Anthropic models."""
+        return self.llm_models
+
+    def get_embedding_models(self) -> List[str]:
+        """Get list of embedding models (none for Claude)."""
+        # Fallback to available Ollama embedding models
+        fallback = OllamaManager()
+        return fallback.get_embedding_models()
+
+    def save_api_key(self, api_key):
+        """Save a new API key."""
+        return self.api_config.set_api_key(api_key)
+
+    @safe_execute("Getting Claude response")
+    def get_response(self, messages: List[Dict[str, Any]], **kwargs) -> Iterator[Dict[str, Any]]:
+        """Get a streaming response from a Claude model."""
+        model_name = kwargs.get("model", "claude-3-sonnet-20240229")
+        temperature = kwargs.get("temperature", 0.7)
+        max_tokens = kwargs.get("max_tokens", 2048)
+
+        # Check if API key is configured
+        if not self.api_config.is_configured():
+            raise ValueError("Anthropic API key is not configured. Please set it in the settings.")
+
+        # Get streaming response using the helper function
+        response_stream = get_anthropic_response(
+            messages=messages,
+            model=model_name,
+            stream=True,
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
+
+        for chunk in response_stream:
+            yield {"message": {"role": "assistant", "content": chunk}}
+
+    @safe_execute("Getting Claude embedding")
+    def get_embedding(self, text: str, model: Optional[str] = None) -> List[float]:
+        """Get an embedding for the given text using fallback Ollama models."""
+        fallback = OllamaManager()
+        available = fallback.get_embedding_models()
+        if not model or model not in available:
+            model = available[0] if available else "nomic-embed-text"
+        response = ollama.embeddings(model=model, prompt=text)
+        return response.get("embedding", [])
 
 
 def create_model_manager(provider: str, api_key: Optional[str] = None) -> ModelManager:
@@ -288,5 +444,7 @@ def create_model_manager(provider: str, api_key: Optional[str] = None) -> ModelM
         return GeminiManager(api_key)
     elif provider.lower() == "deepseek":
         return DeepSeekManager()
+    elif provider.lower() == "anthropic":
+        return AnthropicManager()
     else:
         raise ValueError(f"Unsupported model provider: {provider}")

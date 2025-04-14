@@ -48,10 +48,25 @@ matplotlib
 sqlalchemy
 
 # GUI
-tkinter
+# tkinter is part of the Python standard library
 tkinterdnd2
 
-# Additional
+# Model providers
 ollama
-markitdown
+anthropic
+# No official deepseek package yet - implemented via API calls
+
+# File processing
+markitdown[all]  # Includes all optional dependencies
 markdown
+
+# Web search
+requests
+beautifulsoup4
+crawl4ai  # Advanced web search and crawling
+
+# Optional specific dependencies (included in markitdown[all])
+# markitdown[pdf,docx,pptx,xlsx,xls]  # Document processing
+# markitdown[audio-transcription]  # Audio transcription
+# markitdown[youtube-transcription]  # YouTube content extraction
+# markitdown[az-doc-intel]  # Azure Document Intelligence
