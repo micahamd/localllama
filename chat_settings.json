@@ -10,6 +10,6 @@
     "semantic_max_chunk_size": 2000,
     "include_chat": false,
     "show_image": true,
-    "include_file": true,
+    "include_file": false,
     "system_prompt": ""
 }

@@ -15,7 +15,7 @@ from typing import Optional, List, Dict, Any
 import webbrowser
 
 # Import custom HTML/Markdown renderer
-from html_text import HTMLText
+from html_text import HTMLText, HTMLTextParser
 
 # Import our custom modules
 from settings import Settings
@@ -181,6 +181,7 @@ class OllamaChat:
         self.file_content = None
         self.file_type = None
         self.word_count = 0
+        self.current_file_path = None  # Store the current file path
         self.selected_model = None
         self.selected_embedding_model = None
         self.developer = StringVar(value=self.settings.get("developer"))
@@ -623,6 +624,10 @@ class OllamaChat:
         self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 12, "bold"))
         self.chat_display.tag_configure('status_label', foreground='#999999', font=("Segoe UI", 12, "bold"))
 
+        # Configure file preview tags
+        self.chat_display.tag_configure('file_label', foreground='#DCDCAA', font=("Segoe UI", 12, "bold"))  # Gold for file name
+        self.chat_display.tag_configure('file_info', foreground='#4EC9B0', font=("Segoe UI", 11))  # Teal for file info
+
         # Configure link tag for clickable links
         self.chat_display.tag_configure('link', foreground=self.subtle_accent, underline=1)
         self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
@@ -860,6 +865,7 @@ class OllamaChat:
         """Handle file drop event."""
         file_path = event.data.strip('{}')
         self.file_type = self.get_file_type(file_path)
+        self.current_file_path = file_path  # Store the file path for reference
 
         # Enable the include file checkbox
         self.include_file_checkbox.state(['!disabled'])
@@ -877,6 +883,8 @@ class OllamaChat:
             self.preserved_file_content = self.file_content
             if self.file_content:
                 self.word_count = len(re.findall(r'\w+', self.file_content))
+                # Display file preview in chat
+                self.display_file_preview(file_path, self.file_content)
 
         self.update_status()
 
@@ -1309,16 +1317,34 @@ class OllamaChat:
                 self.chat_display.insert(tk.END, "\n🤖 Assistant: ", label_tag)
             elif tag == 'system':
                 self.chat_display.insert(tk.END, "\n⚙️ System: ", label_tag)
+            elif tag == 'error':
+                self.chat_display.insert(tk.END, "\n⚠️ Error: ", 'error_label')
+            elif tag == 'status':
+                self.chat_display.insert(tk.END, "\n💬 Status: ", 'status_label')
 
             # Remove the leading newline from the message
             message = message[1:]
 
+        # Process the message based on the tag
         if tag == 'assistant':
             # Use markdown rendering for assistant messages
             try:
+                # Save the current position to insert markdown content
+                current_pos = self.chat_display.index(tk.END)
+
                 # Process potential code blocks and render markdown
-                self.chat_display.display_markdown(message)
+                # We don't call clear() on chat_display because we want to append, not replace
+                html = markdown.markdown(
+                    message,
+                    extensions=['extra', 'codehilite', 'nl2br', 'sane_lists']
+                )
+
+                # Create a parser and feed the HTML
+                parser = HTMLTextParser(self.chat_display)
+                parser.feed(html)
+
             except Exception as e:
+                print(f"Error rendering markdown: {e}")
                 # Fallback to original method if markdown rendering fails
                 parts = message.split('```')
                 for i, part in enumerate(parts):
@@ -1707,6 +1733,59 @@ class OllamaChat:
         self.chat_display["state"] = "disabled"
         self.status_bar["text"] = "Ready"
 
+    def display_file_preview(self, file_path, file_content):
+        """Display a file preview in the chat with an icon and the first 5 lines."""
+        if not file_path or not file_content:
+            return
+
+        # Get file name and extension
+        file_name = os.path.basename(file_path)
+        file_ext = os.path.splitext(file_name)[1].lower()
+
+        # Create a preview of the first 5 lines
+        lines = file_content.split('\n')
+        preview_lines = lines[:5]
+        preview_text = '\n'.join(preview_lines)
+
+        # Add ellipsis if there are more lines
+        if len(lines) > 5:
+            preview_text += '\n...'  # Add ellipsis to indicate more content
+
+        # Display the file preview in the chat
+        self.chat_display["state"] = "normal"
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add file icon and name
+        icon = "📄"  # Default file icon
+        if file_ext in ['.py', '.js', '.html', '.css', '.java', '.cpp', '.c']:
+            icon = "📜"  # Code file
+        elif file_ext in ['.txt', '.md', '.rst', '.tex']:
+            icon = "📝"  # Text file
+        elif file_ext in ['.pdf', '.doc', '.docx', '.odt']:
+            icon = "📑"  # Document file
+        elif file_ext in ['.csv', '.xlsx', '.xls']:
+            icon = "📊"  # Data file
+
+        # Create a file info frame with icon and name
+        self.chat_display.insert(tk.END, f"{icon} File: {file_name}\n", 'file_label')
+
+        # Add file preview with code formatting
+        self.chat_display.insert(tk.END, "Preview:\n", 'file_info')
+        self.chat_display.insert(tk.END, preview_text, 'code')
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        # Add word count
+        word_count = len(re.findall(r'\w+', file_content))
+        self.chat_display.insert(tk.END, f"Word count: {word_count}\n", 'file_info')
+
+        # Add a separator
+        self.chat_display.insert(tk.END, "\n", 'status')
+
+        self.chat_display["state"] = "disabled"
+        self.chat_display.see(tk.END)
+
     def clear_file(self):
         """Clear the current file."""
         print("clear_file method called")
@@ -1716,6 +1795,7 @@ class OllamaChat:
         # self.preserved_file_content = None  # Don't clear this
         self.file_type = None
         self.word_count = 0
+        self.current_file_path = None  # Clear the file path
         self.update_status()
 
         # No need to clear a separate image preview label now
