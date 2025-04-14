@@ -1,16 +1,12 @@
 import os
-import re
-from typing import List, Dict, Tuple, Any
+from typing import List
 import chromadb
 from chromadb.utils import embedding_functions
 from markitdown import MarkItDown
 import ollama
-import numpy as np
 import nltk
 from nltk.tokenize import sent_tokenize
-import threading
-import importlib.util
-import google.generativeai as genai
+# Removed unused imports for better performance
 
 class OllamaEmbeddingFunction(embedding_functions.EmbeddingFunction):
     def __init__(self, model_name: str):
@@ -73,8 +69,7 @@ class DeepSeekEmbeddingFunction(embedding_functions.EmbeddingFunction):
         return embeddings
 
 class RAG:
-    def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128,
-                 use_semantic_chunking=False, min_chunk_size=2, max_chunk_size=5):
+    def __init__(self, embedding_model_name, persist_directory="chroma_db", chunk_size=128):
         self.embedding_model_name = embedding_model_name
         self.persist_directory = persist_directory
         self.client = chromadb.PersistentClient(path=self.persist_directory)
@@ -96,17 +91,8 @@ class RAG:
         except LookupError:
             nltk.download("punkt_tab")
 
-        # Initialize semantic chunking settings but don't load model yet
-        self.sentence_transformer = None
-        self._is_loading_model = False
-        self._model_loaded = False
-        self._model_load_error = None
-
         # Set with validation
         self._set_chunk_size(chunk_size)
-        self.use_semantic_chunking = use_semantic_chunking
-        self._set_min_chunk_size(min_chunk_size)
-        self._set_max_chunk_size(max_chunk_size)
 
     def _set_chunk_size(self, size):
         """Safely set chunk size with validation."""
@@ -117,23 +103,7 @@ class RAG:
             print(f"Invalid chunk size: {size}, using default of 128")
             self._chunk_size = 128
 
-    def _set_min_chunk_size(self, size):
-        """Safely set minimum chunk size with validation."""
-        try:
-            size = int(size)
-            self._min_chunk_size = max(1, size)  # Ensure positive value
-        except (ValueError, TypeError):
-            print(f"Invalid min chunk size: {size}, using default of 2")
-            self._min_chunk_size = 2
-
-    def _set_max_chunk_size(self, size):
-        """Safely set maximum chunk size with validation."""
-        try:
-            size = int(size)
-            self._max_chunk_size = max(self._min_chunk_size, size)  # Ensure at least equal to min size
-        except (ValueError, TypeError):
-            print(f"Invalid max chunk size: {size}, using default of 5")
-            self._max_chunk_size = 5
+    # Semantic chunking methods removed for better performance
 
     @property
     def chunk_size(self):
@@ -143,58 +113,9 @@ class RAG:
     def chunk_size(self, value):
         self._set_chunk_size(value)
 
-    @property
-    def min_chunk_size(self):
-        return self._min_chunk_size
+    # Semantic chunking property methods removed for better performance
 
-    @min_chunk_size.setter
-    def min_chunk_size(self, value):
-        self._set_min_chunk_size(value)
-        if self._max_chunk_size < self._min_chunk_size:
-            self._max_chunk_size = self._min_chunk_size
-
-    @property
-    def max_chunk_size(self):
-        return self._max_chunk_size
-
-    @max_chunk_size.setter
-    def max_chunk_size(self, value):
-        self._set_max_chunk_size(value)
-
-    def _check_sentence_transformer_installed(self):
-        """Check if sentence-transformers package is installed"""
-        return importlib.util.find_spec("sentence_transformers") is not None
-
-    def _load_sentence_transformer(self):
-        """Load the sentence transformer model in a separate thread to avoid UI freezing"""
-        if self._is_loading_model:
-            return  # Already loading
-
-        if self._model_loaded:
-            return  # Already loaded
-
-        if not self._check_sentence_transformer_installed():
-            self._model_load_error = "sentence-transformers package is not installed. Please install it with 'pip install sentence-transformers'."
-            print(self._model_load_error)
-            return
-
-        # Start loading in a separate thread
-        self._is_loading_model = True
-        threading.Thread(target=self._load_model_thread, daemon=True).start()
-
-    def _load_model_thread(self):
-        """Thread function to load the model"""
-        try:
-            from sentence_transformers import SentenceTransformer
-            self.sentence_transformer = SentenceTransformer('all-mpnet-base-v2')
-            self._model_loaded = True
-            print("Sentence transformer model loaded successfully")
-        except Exception as e:
-            self._model_load_error = f"Error loading sentence transformer model: {e}"
-            print(self._model_load_error)
-            self.sentence_transformer = None
-        finally:
-            self._is_loading_model = False
+    # Sentence transformer methods removed for better performance
 
     def get_embedding_function(self):
         """Retrieves the correct embedding function based on the selected model."""
@@ -260,114 +181,9 @@ class RAG:
         return sent_tokenize(text)
 
     def _semantic_chunk(self, sentences):
-        """Group sentences semantically with performance optimizations."""
-        # If semantic chunking is disabled, use basic chunking
-        if not self.use_semantic_chunking:
-            print("Using basic chunking")
-            return self._chunk_sentences(sentences, self.chunk_size, 1)
-
-        # If using semantic chunking but model isn't loaded yet, try loading it
-        if self.use_semantic_chunking and not self._model_loaded and not self._is_loading_model:
-            self._load_sentence_transformer()
-
-        # If model is still loading or failed to load, fall back to basic chunking
-        if self._is_loading_model or not self._model_loaded:
-            print("Sentence transformer not available, falling back to basic chunking")
-            return self._chunk_sentences(sentences, self.chunk_size, 1)
-
-        print(f"Using semantic chunking (min: {self.min_chunk_size}, max: {self.max_chunk_size})")
-        chunks = []
-        current_chunk = []
-
-        # Process sentences in batches for better performance
-        batch_size = 10  # Process 10 sentences at a time
-
-        for i in range(0, len(sentences), batch_size):
-            batch = sentences[i:i+batch_size]
-
-            # If this is the first batch and current_chunk is empty
-            if not current_chunk and batch:
-                current_chunk = [batch[0]]
-                batch = batch[1:]
-
-            if not batch:  # Skip empty batches
-                continue
-
-            # Compute embeddings for all sentences in the batch at once
-            if current_chunk:
-                current_chunk_text = ' '.join(current_chunk)
-                batch_texts = [current_chunk_text] + batch
-
-                # Use cached embeddings when available
-                all_embeddings = []
-                texts_to_encode = []
-                text_indices = []
-
-                # Check cache for each text
-                for idx, text in enumerate(batch_texts):
-                    text_hash = hash(text)
-                    if text_hash in self._embedding_cache:
-                        all_embeddings.append(self._embedding_cache[text_hash])
-                        self._cache_hits += 1
-                    else:
-                        texts_to_encode.append(text)
-                        text_indices.append(idx)
-                        self._cache_misses += 1
-
-                # Encode only texts not in cache
-                if texts_to_encode:
-                    new_embeddings = self.sentence_transformer.encode(texts_to_encode)
-
-                    # Add new embeddings to cache and results
-                    for i, text_idx in enumerate(text_indices):
-                        text_hash = hash(batch_texts[text_idx])
-                        self._embedding_cache[text_hash] = new_embeddings[i]
-
-                        # Manage cache size
-                        if len(self._embedding_cache) > self._max_cache_size:
-                            # Remove a random item if cache is full
-                            self._embedding_cache.pop(next(iter(self._embedding_cache)))
-
-                # Reorder embeddings to match original batch order
-                ordered_embeddings = [None] * len(batch_texts)
-                for idx, text in enumerate(batch_texts):
-                    text_hash = hash(text)
-                    ordered_embeddings[idx] = self._embedding_cache[text_hash]
-
-                all_embeddings = ordered_embeddings
-
-                # First embedding is for the current chunk
-                current_chunk_embedding = all_embeddings[0]
-                sentence_embeddings = all_embeddings[1:]
-
-                # Process each sentence in the batch
-                for j, sentence in enumerate(batch):
-                    sentence_embedding = sentence_embeddings[j]
-
-                    # Compute cosine similarity
-                    similarity = np.dot(current_chunk_embedding, sentence_embedding) / \
-                                (np.linalg.norm(current_chunk_embedding) * np.linalg.norm(sentence_embedding))
-
-                    # If similarity is low or max size reached, start a new chunk
-                    if similarity < 0.7 or len(current_chunk) >= self.max_chunk_size:
-                        chunks.append(" ".join(current_chunk))
-                        current_chunk = [sentence]
-                        # Update current_chunk_embedding for the next iteration
-                        current_chunk_embedding = sentence_embedding
-                    else:
-                        current_chunk.append(sentence)
-                        # Recompute the embedding for the updated chunk
-                        if j < len(batch) - 1:  # Only if not the last sentence in batch
-                            current_chunk_text = ' '.join(current_chunk)
-                            current_chunk_embedding = self.sentence_transformer.encode(current_chunk_text)
-
-        # Add the last chunk if it has enough sentences
-        if current_chunk and len(current_chunk) >= self.min_chunk_size:
-            chunks.append(" ".join(current_chunk))
-        elif current_chunk:  # If chunk is too small but not empty, add it anyway
-            chunks.append(" ".join(current_chunk))
-
-        return chunks
+        """Basic chunking method - semantic chunking removed for better performance."""
+        print("Using basic chunking")
+        return self._chunk_sentences(sentences, self.chunk_size, 1)
 
     def _chunk_sentences(self, sentences: List[str], chunk_size: int = 4, chunk_overlap: int = 1) -> List[str]:
         """Chunks a list of sentences into chunks with overlap."""
@@ -586,17 +402,6 @@ class RAG:
         except Exception as e:
             print(f"Error clearing Chroma DB: {e}")
 
-    def get_semantic_chunking_status(self):
-        """Return current status of semantic chunking"""
-        if not self.use_semantic_chunking:
-            return "disabled"
-        elif self._is_loading_model:
-            return "loading"
-        elif self._model_loaded:
-            return "ready"
-        else:
-            return "error"
+    # Semantic chunking status method removed for better performance
 
-    def get_model_load_error(self):
-        """Return error message if model failed to load"""
-        return self._model_load_error
+    # Model load error method removed for better performance

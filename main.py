@@ -28,16 +28,17 @@ from error_handler import error_handler, safe_execute
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
-    # Define color scheme as class variables
-    bg_color = "#2D2D30"  # Softer dark background
-    fg_color = "#E8E8E8"  # Slightly off-white text for less eye strain
-    accent_color = "#569CD6"  # Softer blue accent
-    secondary_bg = "#3E3E42"  # Medium contrast for secondary elements
-    tertiary_bg = "#252526"  # Darker background for some elements
-    subtle_accent = "#007ACC"  # Deeper blue for highlights
-    success_color = "#6A9955"  # Soft green for success messages
-    error_color = "#F14C4C"  # Softer red for errors
-    warning_color = "#CCA700"  # Amber for warnings
+    # Define color scheme as class variables - improved for better aesthetics
+    bg_color = "#1E1E2E"  # Darker, more pleasant background
+    fg_color = "#F5F5F5"  # Brighter text for better contrast
+    accent_color = "#89B4FA"  # Softer blue accent
+    secondary_bg = "#313244"  # Medium contrast for secondary elements
+    tertiary_bg = "#181825"  # Darker background for some elements
+    subtle_accent = "#74C7EC"  # Lighter blue for highlights
+    success_color = "#A6E3A1"  # Soft green for success messages
+    error_color = "#F38BA8"  # Softer red for errors
+    warning_color = "#FAB387"  # Peach for warnings
+    border_color = "#45475A"  # Border color for elements
 
     def __init__(self, root):
         """Initialize the application and all its components."""
@@ -61,8 +62,14 @@ class OllamaChat:
             pass  # Use default theme if clam is not available
 
         # Configure ttk styles with improved aesthetics
-        style.configure("TFrame", background=self.bg_color)
+        style.configure("TFrame", background=self.bg_color, borderwidth=1, relief="solid", bordercolor=self.border_color)
         style.configure("TLabel", background=self.bg_color, foreground=self.fg_color, font=("Segoe UI", 10))
+
+        # Create a frame style with no border
+        style.configure("NoBorder.TFrame", background=self.bg_color, borderwidth=0, relief="flat")
+
+        # Create a frame style with subtle border
+        style.configure("SubtleBorder.TFrame", background=self.bg_color, borderwidth=1, relief="solid", bordercolor=self.border_color)
 
         # Button styling with rounded corners effect
         style.configure("TButton",
@@ -112,13 +119,14 @@ class OllamaChat:
         style.configure("TPanedwindow", background=self.bg_color, sashrelief="flat")
         style.configure("TSizegrip", background=self.bg_color)
 
-        # LabelFrame styling
+        # LabelFrame styling - improved with better borders and padding
         style.configure("TLabelframe",
                       background=self.bg_color,
                       foreground=self.fg_color,
                       borderwidth=1,
-                      relief="groove",
-                      font=("Segoe UI", 10, "bold"))
+                      relief="solid",
+                      bordercolor=self.border_color,
+                      padding=5)
         style.configure("TLabelframe.Label",
                       background=self.bg_color,
                       foreground=self.accent_color,
@@ -188,9 +196,6 @@ class OllamaChat:
         self.temperature = tk.DoubleVar(value=self.settings.get("temperature"))
         self.context_size = tk.IntVar(value=self.settings.get("context_size"))
         self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size"))
-        self.semantic_chunking_var = tk.BooleanVar(value=self.settings.get("semantic_chunking"))
-        self.semantic_min_chunk_size = tk.IntVar(value=self.settings.get("semantic_min_chunk_size", 2))
-        self.semantic_max_chunk_size = tk.IntVar(value=self.settings.get("semantic_max_chunk_size", 5))
         self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat"))
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
@@ -340,22 +345,7 @@ class OllamaChat:
         self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5)
         self.chunk_entry.pack(anchor="w", padx=5, pady=2)
 
-        # Semantic chunking checkbox
-        semantic_chunking_checkbox = ttk.Checkbutton(
-            rag_frame,
-            text="Use Semantic Chunking (Slow)",
-            variable=self.semantic_chunking_var
-        )
-        semantic_chunking_checkbox.pack(anchor="w", padx=5, pady=2)
-
-        # Semantic chunking min/max sizes
-        ttk.Label(rag_frame, text="Min Chunk Size:").pack(anchor="w", padx=5, pady=2)
-        self.semantic_min_chunk_entry = ttk.Entry(rag_frame, textvariable=self.semantic_min_chunk_size, width=5)
-        self.semantic_min_chunk_entry.pack(anchor="w", padx=5, pady=2)
-
-        ttk.Label(rag_frame, text="Max Chunk Size:").pack(anchor="w", padx=5, pady=2)
-        self.semantic_max_chunk_entry = ttk.Entry(rag_frame, textvariable=self.semantic_max_chunk_size, width=5)
-        self.semantic_max_chunk_entry.pack(anchor="w", padx=5, pady=2)
+        # No semantic chunking options - removed for better performance
 
         # Options frame
         options_frame = ttk.LabelFrame(self.sidebar_frame, text="Options")
@@ -369,14 +359,7 @@ class OllamaChat:
         )
         include_chat_checkbox.pack(anchor="w", padx=5, pady=2)
 
-        # Generate image checkbox
-        self.generate_image_var = tk.BooleanVar(value=False)
-        generate_image_checkbox = ttk.Checkbutton(
-            options_frame,
-            text="Generate Image",
-            variable=self.generate_image_var
-        )
-        generate_image_checkbox.pack(anchor="w", padx=5, pady=2)
+        # Generate image checkbox removed - functionality not working
 
         # Show image preview
         show_image_checkbox = ttk.Checkbutton(
@@ -450,25 +433,25 @@ class OllamaChat:
         chat_frame = ttk.Frame(self.chat_input_frame)
         chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5) # Pack below sidebar
 
-        # System instructions area with modern styling
-        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions", padding=(8, 8, 8, 8))
-        system_frame.pack(fill=tk.X, padx=8, pady=8)
+        # System instructions area with improved styling
+        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions", padding=(10, 10, 10, 10))
+        system_frame.pack(fill=tk.X, padx=10, pady=10)
 
         self.system_text = scrolledtext.ScrolledText(
             system_frame,
             height=2,
             wrap=tk.WORD,
-            font=("Segoe UI", 11),
+            font=("Segoe UI", 11),  # Slightly larger font
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.fg_color,
-            padx=12,
-            pady=12,
-            borderwidth=0,
+            padx=15,  # Increased horizontal padding
+            pady=15,  # Increased vertical padding
+            borderwidth=1,  # Subtle border
             highlightthickness=1,
             highlightcolor=self.subtle_accent,
-            highlightbackground="#333333",
-            relief="flat"
+            highlightbackground=self.border_color,
+            relief="solid"  # Solid border for better definition
         )
         self.system_text.pack(fill=tk.X, padx=5, pady=5)
         self.system_text.insert('1.0', self.settings.get("system_prompt", "Respond honestly, objectively and concisely."))
@@ -481,14 +464,14 @@ class OllamaChat:
             bg=self.tertiary_bg,  # Darker background for better contrast
             fg=self.fg_color,
             insertbackground=self.fg_color,
-            padx=15,
-            pady=15,
-            borderwidth=0,
+            padx=20,  # Increased padding for better readability
+            pady=20,  # Increased padding for better readability
+            borderwidth=1,  # Subtle border
             highlightthickness=1,
             highlightcolor=self.subtle_accent,
-            highlightbackground="#333333",
+            highlightbackground=self.border_color,
             cursor="arrow",  # Use arrow cursor for better UX
-            relief="flat"  # Flat appearance for modern look
+            relief="solid"  # Solid border for better definition
         )
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -550,17 +533,17 @@ class OllamaChat:
             wrap=tk.WORD,
             height=4,
             font=("Segoe UI", 12),
-            padx=15,
-            pady=15,
+            padx=20,  # Increased padding for better readability
+            pady=20,  # Increased padding for better readability
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.accent_color,  # Colored cursor for better visibility
-            borderwidth=0,
+            borderwidth=1,  # Subtle border
             highlightthickness=1,
             highlightcolor=self.subtle_accent,
-            highlightbackground="#333333",
+            highlightbackground=self.border_color,
             insertwidth=2,  # Wider cursor for better visibility
-            relief="flat"
+            relief="solid"  # Solid border for better definition
         )
 
         # Add placeholder text that disappears on focus
@@ -685,10 +668,7 @@ class OllamaChat:
         # Store RAG parameters but don't initialize yet
         self._rag_params = {
             "embedding_model_name": self.settings.get("embedding_model", ""),
-            "chunk_size": self.settings.get("chunk_size", 128),
-            "use_semantic_chunking": self.settings.get("semantic_chunking", False),
-            "min_chunk_size": self.settings.get("semantic_min_chunk_size", 2),
-            "max_chunk_size": self.settings.get("semantic_max_chunk_size", 5)
+            "chunk_size": self.settings.get("chunk_size", 128)
         }
 
         # Set rag to None - will be initialized on first use
@@ -792,11 +772,6 @@ class OllamaChat:
         # Update chunk size trace
         self.chunk_size.trace_add("write", self.update_rag_chunk_size)
 
-        # Update semantic chunking trace
-        self.semantic_chunking_var.trace_add("write", self.update_rag_semantic_chunking)
-        self.semantic_min_chunk_size.trace_add("write", self.update_rag_min_chunk_size)
-        self.semantic_max_chunk_size.trace_add("write", self.update_rag_max_chunk_size)
-
     def update_rag_chunk_size(self, *args):
         """Update RAG chunk size when the setting changes."""
         if hasattr(self, 'rag'):
@@ -808,43 +783,7 @@ class OllamaChat:
                 self.chunk_size.set(128)  # Reset to default
                 self.rag.chunk_size = 128
 
-    def update_rag_min_chunk_size(self, *args):
-        """Update RAG min chunk size when the setting changes."""
-        if hasattr(self, 'rag'):
-            try:
-                value = self.semantic_min_chunk_size.get()
-                self.rag.min_chunk_size = value
-            except (tk.TclError, ValueError):
-                # Handle empty or invalid input
-                self.semantic_min_chunk_size.set(2)  # Reset to default
-                self.rag.min_chunk_size = 2
-
-    def update_rag_max_chunk_size(self, *args):
-        """Update RAG max chunk size when the setting changes."""
-        if hasattr(self, 'rag'):
-            try:
-                value = self.semantic_max_chunk_size.get()
-                self.rag.max_chunk_size = value
-            except (tk.TclError, ValueError):
-                # Handle empty or invalid input
-                self.semantic_max_chunk_size.set(5)  # Reset to default
-                self.rag.max_chunk_size = 5
-
-    def update_rag_semantic_chunking(self, *args):
-        """Update RAG semantic chunking setting when the checkbox changes."""
-        if hasattr(self, 'rag'):
-            self.rag.use_semantic_chunking = self.semantic_chunking_var.get()
-
-            # Re-initialize the sentence transformer if semantic chunking is enabled
-            if self.rag.use_semantic_chunking:
-                try:
-                    from sentence_transformers import SentenceTransformer
-                    self.rag.sentence_transformer = SentenceTransformer('all-mpnet-base-v2')
-                except Exception as e:
-                    error_handler.handle_error(e, "Loading sentence transformer")
-                    self.rag.sentence_transformer = None
-            else:
-                self.rag.sentence_transformer = None
+    # Semantic chunking methods removed for better performance
 
     def on_developer_changed(self, event):
         """Handle developer selection change."""
@@ -1553,142 +1492,11 @@ class OllamaChat:
             with open(self.file_img, 'rb') as img_file:
                 message['images'] = [img_file.read()]
 
-        # Determine whether to generate an image or get a text response
-        if self.generate_image_var.get():
-            # Call the generate_image method in GeminiManager
-            threading.Thread(target=self.generate_image_response, args=(content, message.get('images', None))).start()
-        else:
-            # Send message in separate thread
-            threading.Thread(target=self.get_response, args=(message, rag_results)).start()
+        # Image generation functionality removed
+        # Send message in separate thread
+        threading.Thread(target=self.get_response, args=(message, rag_results)).start()
 
-    @safe_execute("Getting Gemini image generation response")
-    def generate_image_response(self, prompt: str, image_data: Optional[bytes] = None):
-        """Generate an image using Gemini and display the response.
-
-        This method handles both text-to-image generation and image editing modes.
-
-        Args:
-            prompt: The text prompt for image generation or editing
-            image_data: Optional image data for image editing
-        """
-        self.stop_event.clear()
-        self.is_processing = True
-
-        # Update status based on mode
-        if image_data:
-            self.status_bar["text"] = "Editing image..."
-        else:
-            self.status_bar["text"] = "Generating image..."
-
-        try:
-            self.display_message("\n", 'assistant')
-
-            # Don't display this message since the model will send its own status message
-            # and we don't want duplicate messages
-            # self.display_message("Generating image based on your prompt...\n", 'assistant')
-
-            # Get response from model manager
-            stream = self.model_manager.generate_image(
-                prompt=prompt,
-                image_data=image_data,
-                temperature=self.temperature.get(),
-                max_tokens=self.context_size.get()
-            )
-
-            self.active_stream = stream
-            full_response = ""
-            has_image = False
-
-            try:
-                for chunk in stream:
-                    if self.stop_event.is_set():
-                        break
-
-                    if chunk and 'message' in chunk:
-                        message = chunk['message']
-
-                        # Handle text content
-                        if 'content' in message and message['content']:
-                            content = message['content']
-                            full_response += content
-                            self.chat_display["state"] = "normal"
-                            self.chat_display.insert(tk.END, content, 'assistant')
-                            self.chat_display["state"] = "disabled"
-                            self.chat_display.see(tk.END)
-
-                        # Handle image content
-                        elif 'image' in message and message['image']:
-                            has_image = True
-                            image_bytes = message['image']
-                            try:
-                                # Process image with memory optimization
-                                pil_img = Image.open(BytesIO(image_bytes))
-
-                                # Calculate aspect ratio for resizing
-                                width, height = pil_img.size
-                                max_size = 400  # Increased size for better visibility
-                                scale = min(max_size/width, max_size/height)
-                                new_width = int(width * scale)
-                                new_height = int(height * scale)
-
-                                # Use LANCZOS resampling for better quality
-                                pil_img = pil_img.resize((new_width, new_height), Image.LANCZOS)
-
-                                # Convert to RGB if it's RGBA to reduce memory usage
-                                if pil_img.mode == 'RGBA':
-                                    pil_img = pil_img.convert('RGB')
-
-                                # Create and display the image
-                                self.preview_image = ImageTk.PhotoImage(pil_img)
-                                self.chat_display["state"] = "normal"
-
-                                # Add some spacing before the image
-                                self.chat_display.insert(tk.END, "\n", 'assistant')
-
-                                # Insert the image
-                                self.chat_display.image_create(tk.END, image=self.preview_image)
-
-                                # Add spacing after the image
-                                self.chat_display.insert(tk.END, "\n\n", 'assistant')
-                                self.chat_display["state"] = "disabled"
-                                self.chat_display.see(tk.END)
-
-                                # Clear the original image bytes to free memory
-                                image_bytes = None
-
-                                # Add a message indicating successful image generation
-                                if not full_response:
-                                    self.chat_display["state"] = "normal"
-                                    self.chat_display.insert(tk.END, "Image generated successfully.\n", 'assistant')
-                                    self.chat_display["state"] = "disabled"
-                                    self.chat_display.see(tk.END)
-                                    full_response = "Image generated successfully."
-
-                            except Exception as e:
-                                self.display_message(f"\nError displaying image: {e}\n", 'error')
-
-                        # Handle error messages
-                        elif 'role' in message and message['role'] == 'error':
-                            self.display_message(f"\nError: {message.get('content', 'Unknown error')}\n", 'error')
-            finally:
-                self.active_stream = None
-
-                # Add the completed response to conversation history
-                if full_response or has_image:
-                    image_note = " (with generated image)" if has_image else ""
-                    self.conversation_manager.add_message_to_active(
-                        "assistant",
-                        f"{full_response}{image_note}"
-                    )
-
-                self.is_processing = False
-                self.status_bar["text"] = "Ready"
-
-        except Exception as e:
-            error_msg = error_handler.handle_error(e, "Getting image generation response")
-            self.display_message(f"\nError: {error_msg}\n", 'error')
-            self.is_processing = False
-            self.status_bar["text"] = "Error"
+    # Image generation functionality removed - not working
 
     def get_chat_history(self):
         """Get formatted chat history for context."""
@@ -2061,15 +1869,13 @@ class OllamaChat:
             "temperature": self.temperature.get(),
             "context_size": self.context_size.get(),
             "chunk_size": self.chunk_size.get(),
-            "semantic_chunking": self.semantic_chunking_var.get(),
             "include_chat": self.include_chat_var.get(),
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
             "web_access": self.web_access_var.get(),
             "advanced_web_access": self.advanced_web_access_var.get(),
-            "system_prompt": self.system_text.get('1.0', tk.END).strip(),
-            "semantic_min_chunk_size": self.semantic_min_chunk_size.get(),
-            "semantic_max_chunk_size": self.semantic_max_chunk_size.get()
+            "system_prompt": self.system_text.get('1.0', tk.END).strip()
+            # generate_image_var removed - functionality not working
         }
 
         self.settings.update(settings_data)
