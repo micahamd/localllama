@@ -12,6 +12,10 @@ import re
 import markdown
 from markitdown import MarkItDown
 from typing import Optional, List, Dict, Any
+import webbrowser
+
+# Import custom HTML/Markdown renderer
+from html_text import HTMLText
 
 # Import our custom modules
 from settings import Settings
@@ -24,22 +28,107 @@ from error_handler import error_handler, safe_execute
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
+    # Define color scheme as class variables
+    bg_color = "#2D2D30"  # Softer dark background
+    fg_color = "#E8E8E8"  # Slightly off-white text for less eye strain
+    accent_color = "#569CD6"  # Softer blue accent
+    secondary_bg = "#3E3E42"  # Medium contrast for secondary elements
+    tertiary_bg = "#252526"  # Darker background for some elements
+    subtle_accent = "#007ACC"  # Deeper blue for highlights
+    success_color = "#6A9955"  # Soft green for success messages
+    error_color = "#F14C4C"  # Softer red for errors
+    warning_color = "#CCA700"  # Amber for warnings
+
     def __init__(self, root):
         """Initialize the application and all its components."""
         self.root = root
         self.root.title("Local(o)llama Chat")
-        self.root.geometry("1200x1000")  # Larger default window size
+        self.root.geometry("1200x800")
+        self.root.minsize(800, 600)
 
-        # Set 90s style theme
-        self.root.tk_setPalette(
-            background="#d9d9d9",  # Light gray background
-            foreground="black",
-            activeBackground="#ececec",
-            activeForeground="black",
-            highlightColor="black",
-            highlightBackground="#d9d9d9"
-        )
-        self.root.option_add("*Font", "TkFixedFont") # Use system fixed font
+        # Set up a modern theme
+        self.setup_theme()
+
+    def setup_theme(self):
+        """Set up a modern theme for the application."""
+        # Configure ttk styles
+        style = ttk.Style()
+
+        # Try to use a modern theme if available
+        try:
+            style.theme_use("clam")  # More modern than default
+        except tk.TclError:
+            pass  # Use default theme if clam is not available
+
+        # Configure ttk styles with improved aesthetics
+        style.configure("TFrame", background=self.bg_color)
+        style.configure("TLabel", background=self.bg_color, foreground=self.fg_color, font=("Segoe UI", 10))
+
+        # Button styling with rounded corners effect
+        style.configure("TButton",
+                      background=self.secondary_bg,
+                      foreground=self.fg_color,
+                      borderwidth=1,
+                      relief="flat",
+                      font=("Segoe UI", 10))
+        style.map("TButton",
+                 background=[("active", self.subtle_accent), ("pressed", self.accent_color)],
+                 foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
+                 relief=[("pressed", "sunken")])
+
+        # Checkbox styling
+        style.configure("TCheckbutton",
+                      background=self.bg_color,
+                      foreground=self.fg_color,
+                      font=("Segoe UI", 10))
+        style.map("TCheckbutton",
+                 background=[("active", self.bg_color)],
+                 foreground=[("active", self.accent_color)])
+
+        # Radio button styling
+        style.configure("TRadiobutton",
+                      background=self.bg_color,
+                      foreground=self.fg_color,
+                      font=("Segoe UI", 10))
+        style.map("TRadiobutton",
+                 background=[("active", self.bg_color)],
+                 foreground=[("active", self.accent_color)])
+
+        # Dropdown styling
+        style.configure("TCombobox",
+                      fieldbackground=self.secondary_bg,
+                      background=self.secondary_bg,
+                      foreground=self.fg_color,
+                      arrowcolor=self.accent_color,
+                      font=("Segoe UI", 10))
+        style.map("TCombobox",
+                 fieldbackground=[("readonly", self.secondary_bg)],
+                 background=[("readonly", self.secondary_bg)],
+                 foreground=[("readonly", self.fg_color)],
+                 selectbackground=[("readonly", self.subtle_accent)],
+                 selectforeground=[("readonly", "#FFFFFF")])
+
+        # Other widget styling
+        style.configure("TPanedwindow", background=self.bg_color, sashrelief="flat")
+        style.configure("TSizegrip", background=self.bg_color)
+
+        # LabelFrame styling
+        style.configure("TLabelframe",
+                      background=self.bg_color,
+                      foreground=self.fg_color,
+                      borderwidth=1,
+                      relief="groove",
+                      font=("Segoe UI", 10, "bold"))
+        style.configure("TLabelframe.Label",
+                      background=self.bg_color,
+                      foreground=self.accent_color,
+                      font=("Segoe UI", 10, "bold"))
+
+        # Configure root window
+        self.root.configure(background=self.bg_color)
+
+        # Set default font to a modern font
+        self.root.option_add("*Font", ("Segoe UI", 10))
 
 
         # Initialize components
@@ -324,35 +413,53 @@ class OllamaChat:
 
     def create_chat_display(self):
         """Create the chat display area."""
-        # Create a frame for the chat and input areas
-        self.chat_input_frame = ttk.Frame(self.main_frame)
+        # Create a frame for the chat and input areas with padding
+        self.chat_input_frame = ttk.Frame(self.main_frame, padding=(10, 10, 10, 10))
         self.main_frame.add(self.chat_input_frame)
 
         # Chat area - now directly in main_frame, below sidebar
         chat_frame = ttk.Frame(self.chat_input_frame)
         chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5) # Pack below sidebar
 
-        # System instructions area
-        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions")
-        system_frame.pack(fill=tk.X, padx=5, pady=5)
+        # System instructions area with modern styling
+        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions", padding=(8, 8, 8, 8))
+        system_frame.pack(fill=tk.X, padx=8, pady=8)
 
         self.system_text = scrolledtext.ScrolledText(
             system_frame,
             height=2,
             wrap=tk.WORD,
-            font=("Arial", 11)
+            font=("Segoe UI", 11),
+            bg=self.secondary_bg,
+            fg=self.fg_color,
+            insertbackground=self.fg_color,
+            padx=12,
+            pady=12,
+            borderwidth=0,
+            highlightthickness=1,
+            highlightcolor=self.subtle_accent,
+            highlightbackground="#333333",
+            relief="flat"
         )
         self.system_text.pack(fill=tk.X, padx=5, pady=5)
         self.system_text.insert('1.0', self.settings.get("system_prompt", "Respond honestly, objectively and concisely."))
 
-        # Main chat display
-        self.chat_display = scrolledtext.ScrolledText(
+        # Main chat display - using custom HTMLText widget with enhanced styling
+        self.chat_display = HTMLText(
             chat_frame,
             wrap=tk.WORD,
-            font=("Arial", 12),
-            bg="#1E1E1E",
-            fg="#FFFFFF",
-            insertbackground="#FFFFFF"
+            font=("Segoe UI", 12),
+            bg=self.tertiary_bg,  # Darker background for better contrast
+            fg=self.fg_color,
+            insertbackground=self.fg_color,
+            padx=15,
+            pady=15,
+            borderwidth=0,
+            highlightthickness=1,
+            highlightcolor=self.subtle_accent,
+            highlightbackground="#333333",
+            cursor="arrow",  # Use arrow cursor for better UX
+            relief="flat"  # Flat appearance for modern look
         )
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -400,16 +507,43 @@ class OllamaChat:
         input_frame = ttk.Frame(self.chat_input_frame)
         input_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5) # Pack below chat display
 
-        # Input field with scrollbar
+        # Input field with scrollbar - make it resizable
+        input_pane = ttk.PanedWindow(input_frame, orient=tk.VERTICAL)
+        input_pane.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Create a frame for the input field
+        input_field_frame = ttk.Frame(input_pane)
+        input_pane.add(input_field_frame, weight=1)
+
+        # Add the input field to the frame with enhanced styling
         self.input_field = scrolledtext.ScrolledText(
-            input_frame,
+            input_field_frame,
             wrap=tk.WORD,
             height=4,
-            font=("Arial", 12),
-            padx=5,
-            pady=5
+            font=("Segoe UI", 12),
+            padx=15,
+            pady=15,
+            bg=self.secondary_bg,
+            fg=self.fg_color,
+            insertbackground=self.accent_color,  # Colored cursor for better visibility
+            borderwidth=0,
+            highlightthickness=1,
+            highlightcolor=self.subtle_accent,
+            highlightbackground="#333333",
+            insertwidth=2,  # Wider cursor for better visibility
+            relief="flat"
         )
-        self.input_field.pack(side=tk.TOP, fill=tk.X, expand=True)
+
+        # Add placeholder text that disappears on focus
+        self.input_field.insert("1.0", "Type your message here...")
+        self.input_field.bind("<FocusIn>", self.on_input_focus_in)
+        self.input_field.bind("<FocusOut>", self.on_input_focus_out)
+        self.input_placeholder_visible = True
+        self.input_field.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Add a grip for resizing
+        grip = ttk.Sizegrip(input_field_frame)
+        grip.place(relx=1.0, rely=1.0, anchor="se")
 
         # Button frame
         button_frame = ttk.Frame(input_frame)
@@ -475,12 +609,23 @@ class OllamaChat:
 
     def configure_tags(self):
         """Configure text tags for styling chat messages."""
-        self.chat_display.tag_configure('user', foreground='#6699CC')
-        self.chat_display.tag_configure('assistant', foreground='#99CC99')
-        self.chat_display.tag_configure('system', foreground='#CC9999')
-        self.chat_display.tag_configure('error', foreground='#FF6666')
-        self.chat_display.tag_configure('status', foreground='#999999')
-        self.chat_display.tag_configure('code', font=("Consolas", 12), background="#2A2A2A", foreground="#E0E0E0")
+        # Configure message tags with softer colors
+        self.chat_display.tag_configure('user', foreground='#9CDCFE')  # Soft blue for user
+        self.chat_display.tag_configure('assistant', foreground='#6A9955')  # Soft green for assistant
+        self.chat_display.tag_configure('system', foreground='#CE9178')  # Soft orange for system
+        self.chat_display.tag_configure('error', foreground=self.error_color)  # Red for errors
+        self.chat_display.tag_configure('status', foreground='#999999')  # Gray for status
+
+        # Configure additional tags for rich text formatting
+        self.chat_display.tag_configure('user_label', foreground='#9CDCFE', font=("Segoe UI", 12, "bold"))
+        self.chat_display.tag_configure('assistant_label', foreground='#6A9955', font=("Segoe UI", 12, "bold"))
+        self.chat_display.tag_configure('system_label', foreground='#CE9178', font=("Segoe UI", 12, "bold"))
+        self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 12, "bold"))
+        self.chat_display.tag_configure('status_label', foreground='#999999', font=("Segoe UI", 12, "bold"))
+
+        # Configure link tag for clickable links
+        self.chat_display.tag_configure('link', foreground=self.subtle_accent, underline=1)
+        self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
 
     def bind_events(self):
         """Bind events to widgets."""
@@ -763,11 +908,24 @@ class OllamaChat:
         else:
             self.status_bar["text"] = "Ready"
 
+    def on_input_focus_in(self, event):
+        """Handle input field focus in - clear placeholder text."""
+        if hasattr(self, 'input_placeholder_visible') and self.input_placeholder_visible:
+            self.input_field.delete("1.0", tk.END)
+            self.input_placeholder_visible = False
+
+    def on_input_focus_out(self, event):
+        """Handle input field focus out - restore placeholder if empty."""
+        if not self.input_field.get("1.0", tk.END).strip():
+            self.input_field.delete("1.0", tk.END)
+            self.input_field.insert("1.0", "Type your message here...")
+            self.input_placeholder_visible = True
+
     @safe_execute("Sending message")
     def send_message(self):
         """Process and send the user's message."""
         user_input = self.input_field.get("1.0", tk.END).strip()
-        if not user_input:
+        if not user_input or user_input == "Type your message here...":
             return
 
         # Debug statement to check file content
@@ -1101,24 +1259,57 @@ class OllamaChat:
         return list(sources.values())
 
     def display_message(self, message, tag=None):
-        """Display a message in the chat window with optional tags."""
+        """Display a message in the chat window with optional tags and markdown rendering."""
         self.chat_display["state"] = "normal"
 
+        # Add role label if it's a new message
+        if message.startswith('\n') and tag in ['user', 'assistant', 'system']:
+            label_tag = f"{tag}_label"
+            if tag == 'user':
+                self.chat_display.insert(tk.END, "\n🧑 You: ", label_tag)
+            elif tag == 'assistant':
+                self.chat_display.insert(tk.END, "\n🤖 Assistant: ", label_tag)
+            elif tag == 'system':
+                self.chat_display.insert(tk.END, "\n⚙️ System: ", label_tag)
+
+            # Remove the leading newline from the message
+            message = message[1:]
+
         if tag == 'assistant':
-            # Process potential code blocks in assistant responses
-            parts = message.split('```')
-            for i, part in enumerate(parts):
-                if i % 2 == 0:  # Regular text
-                    self.chat_display.insert(tk.END, part, 'assistant')
-                else:  # Code block
-                    self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline before code
-                    self.chat_display.insert(tk.END, part.strip(), 'code')  # Code with code tag
-                    self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline after code
+            # Use markdown rendering for assistant messages
+            try:
+                # Process potential code blocks and render markdown
+                self.chat_display.display_markdown(message)
+            except Exception as e:
+                # Fallback to original method if markdown rendering fails
+                parts = message.split('```')
+                for i, part in enumerate(parts):
+                    if i % 2 == 0:  # Regular text
+                        self.chat_display.insert(tk.END, part, 'assistant')
+                    else:  # Code block
+                        self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline before code
+                        self.chat_display.insert(tk.END, part.strip(), 'code')  # Code with code tag
+                        self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline after code
         else:
+            # For other message types, just insert with the tag
             self.chat_display.insert(tk.END, message, tag)
 
         self.chat_display["state"] = "disabled"
         self.chat_display.see(tk.END)
+
+    def open_url_from_text(self):
+        """Open URL from clicked text."""
+        try:
+            # Get the text with the 'link' tag at the current mouse position
+            index = self.chat_display.index("@%d,%d" % (self.root.winfo_pointerx(), self.root.winfo_pointery()))
+            url = self.chat_display.get(index + " linestart", index + " lineend")
+
+            # Extract URL using regex
+            url_match = re.search(r'https?://[^\s]+', url)
+            if url_match:
+                webbrowser.open(url_match.group(0))
+        except Exception as e:
+            self.display_message(f"\nError opening URL: {e}\n", 'error')
 
     def save_settings(self):
         """Save current settings to the settings file."""
