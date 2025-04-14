@@ -1,7 +1,7 @@
 {
-    "developer": "google",
-    "llm_model": "imagen-3.0-generate-002",
-    "embedding_model": "gemini-embedding-exp",
+    "developer": "ollama",
+    "llm_model": "gemma3:12b",
+    "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.5657142857142857,
     "context_size": 16670,
     "chunk_size": 50,
