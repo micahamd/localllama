@@ -23,7 +23,7 @@ from error_handler import error_handler, safe_execute
 
 class OllamaChat:
     """Main application class for Ollama Chat."""
-    
+
     def __init__(self, root):
         """Initialize the application and all its components."""
         self.root = root
@@ -79,11 +79,11 @@ class OllamaChat:
     def setup_error_handler(self):
         """Configure the error handler with a display callback."""
         error_handler.set_display_callback(self.display_error_message)
-    
+
     def display_error_message(self, message, tag):
         """Callback for the error handler to display errors."""
         self.display_message(f"\nError: {message}\n", tag)
-    
+
     @safe_execute("Initializing variables")
     def init_variables(self):
         """Initialize application variables."""
@@ -110,15 +110,15 @@ class OllamaChat:
         self.active_stream = None
         self.stop_event = threading.Event()
         self.rag_files = []
-        
+
         # RAG visualization
         self.rag_visualizer = None
-    
+
     def create_menu(self):
         """Create the application menu."""
         self.menu_bar = Menu(self.root)
         self.root.config(menu=self.menu_bar)
-        
+
         # File menu
         file_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="File", menu=file_menu)
@@ -140,14 +140,14 @@ class OllamaChat:
         edit_menu.add_command(label="Copy", command=self.copy_selection)
         edit_menu.add_command(label="Clear Chat", command=self.clear_chat)
         edit_menu.add_command(label="Clear File", command=self.clear_file)
-        
+
         # View menu
         view_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="View", menu=view_menu)
         view_menu.add_command(label="Show RAG Visualization", command=self.show_rag_visualization)
-        view_menu.add_checkbutton(label="Show Image Preview", variable=self.show_image_var, 
+        view_menu.add_checkbutton(label="Show Image Preview", variable=self.show_image_var,
                                   command=self.on_show_image_toggle)
-        
+
         # API menu
         api_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="API", menu=api_menu)
@@ -163,49 +163,49 @@ class OllamaChat:
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
         help_menu.add_cascade(label="Help", menu=help_menu)
-    
+
     def create_sidebar(self):
         """Create the sidebar with settings and model selection."""
         self.sidebar_frame = ttk.Frame(self.main_frame)  # Sidebar is now part of main_frame
         # self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y) # Pack sidebar on the left, taking full vertical space
         self.main_frame.add(self.sidebar_frame)  # Add to PanedWindow
-        
+
         # Sidebar title
         sidebar_title = ttk.Label(self.sidebar_frame, text="Settings", font=("Arial", 14, "bold"))
         sidebar_title.pack(pady=10)
-        
+
         # Models settings frame
         model_frame = ttk.LabelFrame(self.sidebar_frame, text="Models")
         model_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Developer selector
         ttk.Label(model_frame, text="Developer:").pack(anchor="w", padx=5, pady=2)
         developer_selector = ttk.Combobox(model_frame, textvariable=self.developer,
                                          values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly')  # Added 'deepseek'
         developer_selector.pack(fill=tk.X, padx=5, pady=2)
         developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
-        
+
         # LLM Model selector
         ttk.Label(model_frame, text="LLM Model:").pack(anchor="w", padx=5, pady=2)
         self.model_selector = ttk.Combobox(model_frame, state='readonly')
         self.model_selector.pack(fill=tk.X, padx=5, pady=2)
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
-        
+
         # Embedding Model selector
         ttk.Label(model_frame, text="Embedding Model:").pack(anchor="w", padx=5, pady=2)
         self.embedding_selector = ttk.Combobox(model_frame, state='readonly')
         self.embedding_selector.pack(fill=tk.X, padx=5, pady=2)
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
-        
+
         # Parameters settings frame
         params_frame = ttk.LabelFrame(self.sidebar_frame, text="Parameters")
         params_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Temperature control
         ttk.Label(params_frame, text="Temperature:").pack(anchor="w", padx=5, pady=2)
         temp_frame = ttk.Frame(params_frame)
         temp_frame.pack(fill=tk.X, padx=5, pady=2)
-        
+
         self.temp_slider = ttk.Scale(
             temp_frame,
             from_=0.0,
@@ -215,15 +215,15 @@ class OllamaChat:
             command=self.on_temp_change
         )
         self.temp_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
+
         self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}")
         self.temp_label.pack(side=tk.RIGHT, padx=5)
-        
+
         # Context size control
         ttk.Label(params_frame, text="Context Size:").pack(anchor="w", padx=5, pady=2)
         context_frame = ttk.Frame(params_frame)
         context_frame.pack(fill=tk.X, padx=5, pady=2)
-        
+
         self.context_slider = ttk.Scale(
             context_frame,
             from_=1000,
@@ -233,14 +233,14 @@ class OllamaChat:
             command=self.on_context_change
         )
         self.context_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        
+
         self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()))
         self.context_label.pack(side=tk.RIGHT, padx=5)
-        
+
         # RAG settings frame
         rag_frame = ttk.LabelFrame(self.sidebar_frame, text="RAG Settings")
         rag_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Chunk size
         ttk.Label(rag_frame, text="Chunk Size:").pack(anchor="w", padx=5, pady=2)
         self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5)
@@ -262,14 +262,14 @@ class OllamaChat:
         ttk.Label(rag_frame, text="Max Chunk Size:").pack(anchor="w", padx=5, pady=2)
         self.semantic_max_chunk_entry = ttk.Entry(rag_frame, textvariable=self.semantic_max_chunk_size, width=5)
         self.semantic_max_chunk_entry.pack(anchor="w", padx=5, pady=2)
-        
+
         # Options frame
         options_frame = ttk.LabelFrame(self.sidebar_frame, text="Options")
         options_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Include chat history
         include_chat_checkbox = ttk.Checkbutton(
-            options_frame, 
+            options_frame,
             text="Include chat history",
             variable=self.include_chat_var
         )
@@ -283,7 +283,7 @@ class OllamaChat:
             variable=self.generate_image_var
         )
         generate_image_checkbox.pack(anchor="w", padx=5, pady=2)
-        
+
         # Show image preview
         show_image_checkbox = ttk.Checkbutton(
             options_frame,
@@ -292,7 +292,7 @@ class OllamaChat:
             command=self.on_show_image_toggle
         )
         show_image_checkbox.pack(anchor="w", padx=5, pady=2)
-        
+
         # Include file content
         self.include_file_checkbox = ttk.Checkbutton(
             options_frame,
@@ -300,51 +300,51 @@ class OllamaChat:
             variable=self.include_file_var
         )
         self.include_file_checkbox.pack(anchor="w", padx=5, pady=2)
-        
+
         # Conversations section
         conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
         conversations_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Conversation buttons
         conv_buttons_frame = ttk.Frame(conversations_frame)
         conv_buttons_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         ttk.Button(conv_buttons_frame, text="New", command=self.new_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(conv_buttons_frame, text="Save", command=self.save_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(conv_buttons_frame, text="Load", command=self.load_conversation).pack(side=tk.LEFT, padx=2)
-        
+
         # Recent conversations list
         ttk.Label(conversations_frame, text="Recent:").pack(anchor="w", padx=5)
         self.conversations_listbox = tk.Listbox(conversations_frame, height=5)
         self.conversations_listbox.pack(fill=tk.X, padx=5, pady=2)
         self.conversations_listbox.bind("<Double-1>", self.on_conversation_selected)
-        
+
         # Update the conversations list
         self.update_conversations_list()
-    
+
     def create_chat_display(self):
         """Create the chat display area."""
         # Create a frame for the chat and input areas
         self.chat_input_frame = ttk.Frame(self.main_frame)
         self.main_frame.add(self.chat_input_frame)
-        
+
         # Chat area - now directly in main_frame, below sidebar
-        chat_frame = ttk.Frame(self.chat_input_frame) 
+        chat_frame = ttk.Frame(self.chat_input_frame)
         chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5) # Pack below sidebar
-        
+
         # System instructions area
         system_frame = ttk.LabelFrame(chat_frame, text="System Instructions")
         system_frame.pack(fill=tk.X, padx=5, pady=5)
-        
+
         self.system_text = scrolledtext.ScrolledText(
-            system_frame, 
-            height=2, 
+            system_frame,
+            height=2,
             wrap=tk.WORD,
             font=("Arial", 11)
         )
         self.system_text.pack(fill=tk.X, padx=5, pady=5)
         self.system_text.insert('1.0', self.settings.get("system_prompt", "Respond honestly, objectively and concisely."))
-        
+
         # Main chat display
         self.chat_display = scrolledtext.ScrolledText(
             chat_frame,
@@ -355,11 +355,11 @@ class OllamaChat:
             insertbackground="#FFFFFF"
         )
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
+
         # Make chat display read-only but allow selection
         self.chat_display.config(state=tk.DISABLED)
         # Removed dedicated image preview label
-    
+
     # New helper: display the uploaded image in the chat area
     def display_uploaded_image(self):
         """Display the uploaded image inline in the chat display.
@@ -371,8 +371,19 @@ class OllamaChat:
         if self.show_image_var.get():
             try:
                 from PIL import Image, ImageTk
+                # Open image with reduced size to save memory
                 pil_img = Image.open(self.file_img)
-                pil_img.thumbnail((300, 300))
+                # Calculate aspect ratio
+                width, height = pil_img.size
+                max_size = 300
+                scale = min(max_size/width, max_size/height)
+                new_width = int(width * scale)
+                new_height = int(height * scale)
+                # Use LANCZOS resampling for better quality with less memory
+                pil_img = pil_img.resize((new_width, new_height), Image.LANCZOS)
+                # Convert to RGB if it's RGBA to reduce memory usage
+                if pil_img.mode == 'RGBA':
+                    pil_img = pil_img.convert('RGB')
                 self.preview_image = ImageTk.PhotoImage(pil_img)
                 self.chat_display.image_create(tk.END, image=self.preview_image)
                 self.chat_display.insert(tk.END, "\n")
@@ -382,13 +393,13 @@ class OllamaChat:
             self.chat_display.insert(tk.END, f"Image file: {self.file_img}\n", 'assistant')
         self.chat_display.config(state=tk.DISABLED)
         self.chat_display.see(tk.END)
-    
+
     def create_input_area(self):
         """Create the input area for user messages."""
         # Input area - now directly in main_frame, below chat display
         input_frame = ttk.Frame(self.chat_input_frame)
         input_frame.pack(side=tk.TOP, fill=tk.X, padx=5, pady=5) # Pack below chat display
-        
+
         # Input field with scrollbar
         self.input_field = scrolledtext.ScrolledText(
             input_frame,
@@ -399,69 +410,69 @@ class OllamaChat:
             pady=5
         )
         self.input_field.pack(side=tk.TOP, fill=tk.X, expand=True)
-        
+
         # Button frame
         button_frame = ttk.Frame(input_frame)
         button_frame.pack(side=tk.TOP, fill=tk.X, pady=5)
-        
+
         # RAG indicator and button
         self.rag_indicator = ttk.Label(
-            button_frame, 
+            button_frame,
             text="RAG: Not Active",
             foreground="grey"
         )
         self.rag_indicator.pack(side=tk.LEFT, padx=5)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Select RAG Files", 
+            button_frame,
+            text="Select RAG Files",
             command=self.select_rag_files
         ).pack(side=tk.LEFT, padx=2)
-        
+
         # Spacer
         ttk.Frame(button_frame).pack(side=tk.LEFT, expand=True)
-        
+
         # Action buttons
         ttk.Button(
-            button_frame, 
-            text="Clear Chat", 
+            button_frame,
+            text="Clear Chat",
             command=self.clear_chat
         ).pack(side=tk.LEFT, padx=2)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Clear File", 
+            button_frame,
+            text="Clear File",
             command=self.clear_file
         ).pack(side=tk.LEFT, padx=2)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Batch Process", 
+            button_frame,
+            text="Batch Process",
             command=self.start_batch_process
         ).pack(side=tk.LEFT, padx=2)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Stop", 
+            button_frame,
+            text="Stop",
             command=self.stop_processing
         ).pack(side=tk.LEFT, padx=2)
-        
+
         ttk.Button(
-            button_frame, 
-            text="Send", 
+            button_frame,
+            text="Send",
             command=self.send_message
         ).pack(side=tk.LEFT, padx=2)
-    
+
     def create_status_bar(self):
         """Create the status bar at the bottom of the application."""
         self.status_bar = ttk.Label(
-            self.root, 
-            text="Ready", 
-            relief=tk.SUNKEN, 
+            self.root,
+            text="Ready",
+            relief=tk.SUNKEN,
             anchor=tk.W
         )
         self.status_bar.pack(side=tk.BOTTOM, fill=tk.X)
-    
+
     def configure_tags(self):
         """Configure text tags for styling chat messages."""
         self.chat_display.tag_configure('user', foreground='#6699CC')
@@ -470,50 +481,55 @@ class OllamaChat:
         self.chat_display.tag_configure('error', foreground='#FF6666')
         self.chat_display.tag_configure('status', foreground='#999999')
         self.chat_display.tag_configure('code', font=("Consolas", 12), background="#2A2A2A", foreground="#E0E0E0")
-    
+
     def bind_events(self):
         """Bind events to widgets."""
         # Bind Ctrl+Enter AND Enter to send message
         self.input_field.bind('<Control-Return>', lambda e: self.send_message())
         self.input_field.bind('<Return>', lambda e: self.send_message() if not e.state & 0x0001 else None)
         # Don't trigger on Shift+Enter to allow for multi-line input
-        
+
         # Bind drop for file handling
         self.chat_display.drop_target_register(DND_FILES)
         self.chat_display.dnd_bind('<<Drop>>', self.handle_drop)
-        
+
         # Allow Copy in chat display
         self.chat_display.bind("<Control-c>", lambda e: self.chat_display.event_generate("<<Copy>>"))
-        
+
         # Handle application close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
-    
+
     @safe_execute("Setting up RAG")
     def setup_rag(self):
-        """Initialize the RAG system."""
-        embedding_model = self.settings.get("embedding_model", "")
-        chunk_size = self.settings.get("chunk_size", 128)
-        semantic_chunking = self.settings.get("semantic_chunking", False)
-        min_chunk_size = self.settings.get("semantic_min_chunk_size", 2)
-        max_chunk_size = self.settings.get("semantic_max_chunk_size", 5)
-        
-        self.rag = RAG(
-            embedding_model_name=embedding_model,
-            chunk_size=chunk_size,
-            use_semantic_chunking=semantic_chunking,
-            min_chunk_size=min_chunk_size,
-            max_chunk_size=max_chunk_size
-        )
-        
-        # Create RAG visualizer
+        """Initialize the RAG system with lazy loading."""
+        # Store RAG parameters but don't initialize yet
+        self._rag_params = {
+            "embedding_model_name": self.settings.get("embedding_model", ""),
+            "chunk_size": self.settings.get("chunk_size", 128),
+            "use_semantic_chunking": self.settings.get("semantic_chunking", False),
+            "min_chunk_size": self.settings.get("semantic_min_chunk_size", 2),
+            "max_chunk_size": self.settings.get("semantic_max_chunk_size", 5)
+        }
+
+        # Set rag to None - will be initialized on first use
+        self.rag = None
+
+        # Create RAG visualizer (lightweight)
         self.rag_visualizer = RAGVisualizerPanel(self.root)
-    
+
+    def _ensure_rag_initialized(self):
+        """Ensure RAG is initialized when needed."""
+        if self.rag is None:
+            self.display_message("\nInitializing RAG system...\n", "status")
+            self.rag = RAG(**self._rag_params)
+            self.display_message("\nRAG system initialized.\n", "status")
+
     @safe_execute("Loading models")
     def load_models(self):
         """Load and initialize the AI models."""
         self.model_manager = create_model_manager(self.developer.get())
         self.update_model_list()
-        
+
         # Check if using Google and show API key dialog if needed
         if self.developer.get().lower() == "google" and not self.model_manager.api_config.is_configured():
             self.prompt_for_api_key()
@@ -574,7 +590,7 @@ class OllamaChat:
                 self.display_message("\nAPI key saved successfully.\n", "status")
             else:
                 self.display_message("\nFailed to save API key. Check permissions.\n", "error")
-    
+
     @safe_execute("Applying settings")
     def apply_settings(self):
         """Apply saved settings to the UI components."""
@@ -583,19 +599,19 @@ class OllamaChat:
         if llm_model and llm_model in self.model_selector["values"]:
             self.model_selector.set(llm_model)
             self.selected_model = llm_model
-        
+
         embedding_model = self.settings.get("embedding_model", "")
         if embedding_model and embedding_model in self.embedding_selector["values"]:
             self.embedding_selector.set(embedding_model)
             self.selected_embedding_model = embedding_model
-            
+
             # Update RAG with the selected embedding model
             if self.rag:
                 self.rag.update_embedding_function(embedding_model)
-        
+
         # Update chunk size trace
         self.chunk_size.trace_add("write", self.update_rag_chunk_size)
-        
+
         # Update semantic chunking trace
         self.semantic_chunking_var.trace_add("write", self.update_rag_semantic_chunking)
         self.semantic_min_chunk_size.trace_add("write", self.update_rag_min_chunk_size)
@@ -633,12 +649,12 @@ class OllamaChat:
                 # Handle empty or invalid input
                 self.semantic_max_chunk_size.set(5)  # Reset to default
                 self.rag.max_chunk_size = 5
-    
+
     def update_rag_semantic_chunking(self, *args):
         """Update RAG semantic chunking setting when the checkbox changes."""
         if hasattr(self, 'rag'):
             self.rag.use_semantic_chunking = self.semantic_chunking_var.get()
-            
+
             # Re-initialize the sentence transformer if semantic chunking is enabled
             if self.rag.use_semantic_chunking:
                 try:
@@ -649,61 +665,61 @@ class OllamaChat:
                     self.rag.sentence_transformer = None
             else:
                 self.rag.sentence_transformer = None
-    
+
     def on_developer_changed(self, event):
         """Handle developer selection change."""
         developer = self.developer.get()
         self.model_manager = create_model_manager(developer)
         self.update_model_list()
         self.display_message(f"\nSwitched to {developer} models\n", "status")
-        
+
         # Check if API key is needed for Google
         if developer.lower() == "google" and not self.model_manager.api_config.is_configured():
             self.prompt_for_api_key()
-        
+
         # Check if API key is needed for Deepseek
         if developer.lower() == "deepseek" and not self.model_manager.api_config.is_configured():
             self.prompt_for_deepseek_api_key()
-            
+
         elif developer.lower() == "anthropic" and not self.model_manager.api_config.is_configured():
             self.prompt_for_anthropic_api_key()
-    
+
     def on_model_selected(self, event):
         """Handle model selection change."""
         self.selected_model = self.model_selector.get()
         self.display_message(f"\nSwitched to model: {self.selected_model}\n", "status")
-    
+
     def on_embedding_model_selected(self, event):
         """Handle embedding model selection change."""
         self.selected_embedding_model = self.embedding_selector.get()
         self.display_message(f"\nSwitched to embedding model: {self.selected_embedding_model}\n", "status")
-        
+
         # Update the embedding function in the RAG class
         if hasattr(self, 'rag'):
             self.rag.update_embedding_function(self.selected_embedding_model)
-    
+
     def on_temp_change(self, value):
         """Update temperature label when slider moves."""
         self.temp_label.config(text=f"{float(value):.2f}")
-    
+
     def on_context_change(self, value):
         """Update context window label when slider moves."""
         self.context_label.config(text=f"{int(float(value))}")
-    
+
     def on_show_image_toggle(self):
         """Update inline image display based on the checkbox."""
         if self.file_type == 'image' and self.file_img:
             self.display_uploaded_image()
-    
+
     def handle_drop(self, event):
         """Handle file drop event."""
         file_path = event.data.strip('{}')
         self.file_type = self.get_file_type(file_path)
-        
+
         # Enable the include file checkbox
         self.include_file_checkbox.state(['!disabled'])
         self.include_file_var.set(True)
-        
+
         if self.file_type == 'image':
             self.file_img = file_path
             self.file_content = None
@@ -712,18 +728,20 @@ class OllamaChat:
         else:
             self.file_img = None
             self.file_content = self.extract_content(file_path)
+            # Add this line to preserve file content
+            self.preserved_file_content = self.file_content
             if self.file_content:
                 self.word_count = len(re.findall(r'\w+', self.file_content))
-        
+
         self.update_status()
-    
+
     def get_file_type(self, file_path):
         """Determine the file type from its extension."""
         ext = os.path.splitext(file_path)[1].lower()
         if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp']:
             return 'image'
         return 'document'
-    
+
     def extract_content(self, file_path):
         """Extract text content from a file."""
         try:
@@ -735,7 +753,7 @@ class OllamaChat:
         except Exception as e:
             error_handler.handle_error(e, "Extracting file content")
             return None
-    
+
     def update_status(self):
         """Update status bar with current file information."""
         if self.file_img and self.file_type == 'image':
@@ -744,62 +762,77 @@ class OllamaChat:
             self.status_bar["text"] = f"Document loaded: {self.word_count} words"
         else:
             self.status_bar["text"] = "Ready"
-    
+
     @safe_execute("Sending message")
     def send_message(self):
         """Process and send the user's message."""
         user_input = self.input_field.get("1.0", tk.END).strip()
         if not user_input:
             return
-        
+
+        # Debug statement to check file content
+        print(f"File content exists: {self.file_content is not None}")
+        print(f"Preserved file content exists: {hasattr(self, 'preserved_file_content') and self.preserved_file_content is not None}")
+        print(f"Include file checkbox: {self.include_file_var.get()}")
+
         # Add to conversation manager
         self.conversation_manager.add_message_to_active("user", user_input)
-        
+
         # Display user message
         self.display_message("\n", 'user')
         self.display_message(f"{user_input}\n", 'user')
-        
+
         self.input_field.delete("1.0", tk.END)
-        
+
         # Prepare message content
         content = user_input
-        
-        # Include file content based on the checkbox
-        if self.include_file_var.get() and self.file_content:
-            content += f"\n\nDocument content:\n{self.file_content}"
-        
+
+        # Include file content based on the checkbox - MODIFIED
+        if self.include_file_var.get():
+            content_to_use = self.file_content or getattr(self, 'preserved_file_content', None)
+            if content_to_use:
+                content += f"\n\nDocument content:\n{content_to_use}"
+
+        # Rest of the method remains unchanged...
         # Include chat history if selected
         if self.include_chat_var.get():
             chat_history = self.get_chat_history()
             content += f"\n\nChat history:\n{chat_history}"
-        
+
         # Include RAG context if available
         rag_results = []
-        if hasattr(self, 'rag') and self.rag_files:
+        if self.rag_files:
+            # Ensure RAG is initialized if files are available
+            self._ensure_rag_initialized()
+
+            # Start timing RAG processing
             rag_start_time = time.time()
+
+            # Get RAG context
             rag_context = self.rag.retrieve_context(query=user_input)
             rag_end_time = time.time()
-            
+
             if rag_context and rag_context != "No context retrieved":
                 content += f"\n\nRelevant context:\n{rag_context}"
-                
+
                 # Store RAG results for visualization
                 rag_results = self.get_rag_chunks(user_input)
-                
+
                 # Update RAG visualizer
                 if self.rag_visualizer:
                     self.rag_visualizer.update_chunks(rag_results)
                     self.rag_visualizer.update_metrics({
                         "processing_time": (rag_end_time - rag_start_time) * 1000,  # ms
-                        "embedding_model": self.selected_embedding_model
+                        "embedding_model": self.selected_embedding_model,
+                        "cache_stats": self.rag.get_cache_stats() if hasattr(self.rag, 'get_cache_stats') else {}
                     })
-        
+
         # Prepare message
         message = {
             'role': 'user',
             'content': content
         }
-        
+
         # Add image if available and included
         if self.include_file_var.get() and self.file_img and self.file_type == 'image':
             with open(self.file_img, 'rb') as img_file:
@@ -854,14 +887,32 @@ class OllamaChat:
                             has_image = True
                             image_bytes = message['image']
                             try:
+                                # Process image with memory optimization
                                 pil_img = Image.open(BytesIO(image_bytes))
-                                pil_img.thumbnail((300, 300))
+
+                                # Calculate aspect ratio for resizing
+                                width, height = pil_img.size
+                                max_size = 300
+                                scale = min(max_size/width, max_size/height)
+                                new_width = int(width * scale)
+                                new_height = int(height * scale)
+
+                                # Use LANCZOS resampling for better quality
+                                pil_img = pil_img.resize((new_width, new_height), Image.LANCZOS)
+
+                                # Convert to RGB if it's RGBA to reduce memory usage
+                                if pil_img.mode == 'RGBA':
+                                    pil_img = pil_img.convert('RGB')
+
                                 self.preview_image = ImageTk.PhotoImage(pil_img)
                                 self.chat_display["state"] = "normal"
                                 self.chat_display.image_create(tk.END, image=self.preview_image)
                                 self.chat_display.insert(tk.END, "\n", 'assistant')
                                 self.chat_display["state"] = "disabled"
                                 self.chat_display.see(tk.END)
+
+                                # Clear the original image bytes to free memory
+                                image_bytes = None
                             except Exception as e:
                                 self.display_message(f"\nError displaying image: {e}\n", 'error')
                         elif 'role' in message and message['role'] == 'error':
@@ -873,7 +924,7 @@ class OllamaChat:
                 if full_response or has_image:
                     image_note = " (with generated image)" if has_image else ""
                     self.conversation_manager.add_message_to_active(
-                        "assistant", 
+                        "assistant",
                         f"{full_response}{image_note}"
                     )
 
@@ -893,59 +944,70 @@ class OllamaChat:
             if msg.role in ['user', 'assistant']:
                 history.append(f"{msg.role.capitalize()}: {msg.content}")
         return "\n\n".join(history)
-    
+
     def get_rag_chunks(self, query):
         """Get RAG chunks with metadata for visualization."""
-        if not hasattr(self, 'rag') or not self.rag_files:
+        if not self.rag_files:
             return []
-            
+
+        # Ensure RAG is initialized
+        self._ensure_rag_initialized()
+
         try:
             # Get chunks and their scores from the RAG module
             results = self.rag.collection.query(
-                query_texts=[query], 
+                query_texts=[query],
                 n_results=5,
                 include=['documents', 'distances', 'metadatas']
             )
-            
+
             chunks = []
             if results and 'documents' in results and len(results['documents']) > 0:
-                for i, (doc, score) in enumerate(zip(results['documents'][0], results['distances'][0])):
+                # Get collection info once for efficiency
+                collection_info = self.rag.collection.get()
+                total_chunks = len(collection_info.get('documents', [])) if collection_info else 0
+
+                # Process all chunks in a single loop for better performance
+                documents = results['documents'][0]
+                distances = results['distances'][0]
+                metadatas = results['metadatas'][0] if 'metadatas' in results and results['metadatas'] else []
+
+                for i in range(len(documents)):
                     # Convert distance to similarity score (1 - normalized_distance)
-                    similarity = 1.0 - min(1.0, score / 2.0)  # Simple normalization
-                    
+                    similarity = 1.0 - min(1.0, distances[i] / 2.0)  # Simple normalization
+
                     # Extract source file if available in metadata
                     source = "Unknown"
-                    if 'metadatas' in results and len(results['metadatas']) > 0:
-                        if len(results['metadatas'][0]) > i:
-                            metadata = results['metadatas'][0][i]
-                            if metadata and 'source' in metadata:
-                                source = metadata['source']
-                    
+                    if metadatas and i < len(metadatas):
+                        metadata = metadatas[i]
+                        if metadata and 'source' in metadata:
+                            source = metadata['source']
+
                     chunks.append({
-                        'text': doc,
+                        'text': documents[i],
                         'score': similarity,
                         'source': source,
-                        'total_chunks': len(self.rag.collection.get()['documents'])
+                        'total_chunks': total_chunks
                     })
-            
+
             return chunks
         except Exception as e:
             error_handler.handle_error(e, "Getting RAG chunks")
             return []
-    
+
     @safe_execute("Getting model response")
     def get_response(self, message, rag_results=None):
         """Get a response from the selected model and process it."""
         self.stop_event.clear()
         self.is_processing = True
         self.status_bar["text"] = "Processing..."
-        
+
         try:
             self.display_message("\n", 'assistant')
-            
+
             # Get system instructions
             system_msg = self.system_text.get('1.0', tk.END).strip()
-            
+
             # Create messages array with system message first
             messages = []
             if system_msg:
@@ -953,16 +1015,16 @@ class OllamaChat:
                     'role': 'system',
                     'content': system_msg
                 })
-            
+
             messages.append(message)
-            
+
             # Create a response position mark
             self.chat_display["state"] = "normal"
             response_position = self.chat_display.index(tk.END + "-1c")
             self.chat_display["state"] = "disabled"
-            
+
             full_response = ""
-            
+
             # Get streaming response from model manager
             stream = self.model_manager.get_response(
                 messages=messages,
@@ -970,21 +1032,21 @@ class OllamaChat:
                 temperature=self.temperature.get(),
                 context_size=self.context_size.get()
             )
-            
+
             self.active_stream = stream
-            
+
             try:
                 for chunk in stream:
                     if self.stop_event.is_set():
                         break
-                    
+
                     if chunk and 'message' in chunk and 'content' in chunk['message']:
                         content = chunk['message']['content']
-                        
+
                         # Only append new content
                         if content:
                             full_response += content
-                            
+
                             # Insert only the new chunk, not the full response
                             self.chat_display["state"] = "normal"
                             self.chat_display.insert(tk.END, content, 'assistant')
@@ -992,32 +1054,32 @@ class OllamaChat:
                             self.chat_display.see(tk.END)
             finally:
                 self.active_stream = None
-                
+
                 # Add the completed response to conversation history
                 if full_response:
                     self.conversation_manager.add_message_to_active("assistant", full_response)
-                    
+
                     # If RAG was used, highlight relevant chunks
                     if self.rag_visualizer and rag_results:
                         self.rag_visualizer.highlight_rag_matches(self.chat_display, message['content'], rag_results)
-                        
+
                         # Update sources in RAG visualizer
                         source_data = self.prepare_source_data(rag_results)
                         self.rag_visualizer.update_sources(source_data)
-                
+
                 self.is_processing = False
                 self.status_bar["text"] = "Ready"
-                
+
         except Exception as e:
             error_msg = error_handler.handle_error(e, "Getting response")
             self.display_message(f"\nError: {error_msg}\n", 'error')
             self.is_processing = False
             self.status_bar["text"] = "Error"
-    
+
     def prepare_source_data(self, rag_results):
         """Prepare source data from RAG results for the visualizer."""
         sources = {}
-        
+
         # Group chunks by source
         for chunk in rag_results:
             source = chunk.get('source', 'Unknown')
@@ -1030,18 +1092,18 @@ class OllamaChat:
             else:
                 sources[source]['chunk_count'] += 1
                 sources[source]['relevance'] += chunk.get('score', 0)
-        
+
         # Calculate average relevance
         for source in sources.values():
             if source['chunk_count'] > 0:
                 source['relevance'] /= source['chunk_count']
-        
+
         return list(sources.values())
-    
+
     def display_message(self, message, tag=None):
         """Display a message in the chat window with optional tags."""
         self.chat_display["state"] = "normal"
-        
+
         if tag == 'assistant':
             # Process potential code blocks in assistant responses
             parts = message.split('```')
@@ -1054,10 +1116,10 @@ class OllamaChat:
                     self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline after code
         else:
             self.chat_display.insert(tk.END, message, tag)
-        
+
         self.chat_display["state"] = "disabled"
         self.chat_display.see(tk.END)
-    
+
     def save_settings(self):
         """Save current settings to the settings file."""
         settings_data = {
@@ -1075,74 +1137,74 @@ class OllamaChat:
             "semantic_min_chunk_size": self.semantic_min_chunk_size.get(),
             "semantic_max_chunk_size": self.semantic_max_chunk_size.get()
         }
-        
+
         self.settings.update(settings_data)
         self.settings.save_settings()
         self.display_message("\nSettings saved successfully.\n", "status")
-    
+
     def new_conversation(self):
         """Start a new conversation."""
         # Ask for confirmation if there are messages in the current conversation
         if self.conversation_manager.active_conversation.messages:
             confirm = messagebox.askyesno(
-                "New Conversation", 
+                "New Conversation",
                 "Starting a new conversation will clear the current chat. Continue?"
             )
             if not confirm:
                 return
-        
+
         # Create a new conversation
         self.conversation_manager.new_conversation(model=self.selected_model)
-        
+
         # Clear the chat display
         self.clear_chat()
-        
+
         # Update conversations list
         self.update_conversations_list()
-        
+
         # Show status message
         self.display_message("Started a new conversation.\n", "status")
-    
+
     def save_conversation(self):
         """Save the current conversation."""
         if not self.conversation_manager.active_conversation.messages:
             messagebox.showinfo("Save Conversation", "No messages to save.")
             return
-        
+
         result = self.conversation_manager.save_conversation()
         self.display_message(f"\n{result}\n", "status")
-        
+
         # Update conversations list
         self.update_conversations_list()
-    
+
     def load_conversation(self):
         """Load a saved conversation."""
         # Get list of conversation files
         files = self.conversation_manager.list_conversations()
-        
+
         if not files:
             messagebox.showinfo("Load Conversation", "No saved conversations found.")
             return
-        
+
         # File dialog to select the conversation to load
         filepath = filedialog.askopenfilename(
             title="Select Conversation File",
             initialdir=self.conversation_manager.conversations_dir,
             filetypes=[("JSON files", "*.json")]
         )
-        
+
         if not filepath:
             return
-            
+
         # Load the selected conversation
         conversation = self.conversation_manager.load_conversation(filepath)
-        
+
         if conversation:
             # Update model if it was saved with the conversation
             if conversation.model and conversation.model in self.model_selector["values"]:
                 self.model_selector.set(conversation.model)
                 self.selected_model = conversation.model
-            
+
             # Render the conversation in the chat display
             self.conversation_manager.render_conversation(self.chat_display, {
                 'user': {'foreground': '#6699CC'},
@@ -1152,42 +1214,42 @@ class OllamaChat:
                 'status': {'foreground': '#999999'},
                 'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
             })
-            
+
             self.display_message(f"\nLoaded conversation: {conversation.title}\n", "status")
-    
+
     def update_conversations_list(self):
         """Update the list of recent conversations in the sidebar."""
         # Clear current list
         self.conversations_listbox.delete(0, tk.END)
-        
+
         # Get list of conversation files
         files = self.conversation_manager.list_conversations()
-        
+
         # Sort by modification time (newest first)
         files.sort(key=lambda f: os.path.getmtime(os.path.join(
             self.conversation_manager.conversations_dir, f)), reverse=True)
-        
+
         # Add to listbox (only most recent 10)
         for filename in files[:10]:
             self.conversations_listbox.insert(tk.END, filename)
-    
+
     def on_conversation_selected(self, event):
         """Handle selection of a conversation from the listbox."""
         selection = event.widget.curselection()
         if selection:
             filename = event.widget.get(selection[0])
             filepath = os.path.join(self.conversation_manager.conversations_dir, filename)
-            
+
             if os.path.exists(filepath):
                 # Ask for confirmation
                 confirm = messagebox.askyesno(
-                    "Load Conversation", 
+                    "Load Conversation",
                     f"Load conversation '{filename}'? This will replace the current conversation."
                 )
-                
+
                 if confirm:
                     self.conversation_manager.load_conversation(filepath)
-                    
+
                     # Render the conversation in the chat display
                     self.conversation_manager.render_conversation(self.chat_display, {
                         'user': {'foreground': '#6699CC'},
@@ -1197,18 +1259,18 @@ class OllamaChat:
                         'status': {'foreground': '#999999'},
                         'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
                     })
-    
+
     def show_rag_visualization(self):
         """Show the RAG visualization panel."""
         if self.rag_visualizer:
             self.rag_visualizer.show()
-    
+
     def update_model_list(self):
         """Update the model selection dropdown with available models."""
         try:
             # Get LLM models
             llm_models = self.model_manager.get_llm_models()
-            
+
             # If using Google, add image generation models
             if self.developer.get().lower() == "google" and hasattr(self.model_manager, 'api_config'):
                 image_gen_models = self.model_manager.api_config.get_image_generation_models()
@@ -1216,7 +1278,7 @@ class OllamaChat:
                 for model in image_gen_models:
                     if model not in llm_models:
                         llm_models.append(model)
-            
+
             # Update the LLM combobox
             self.model_selector['values'] = llm_models or []
             if llm_models:
@@ -1225,10 +1287,10 @@ class OllamaChat:
                 else:
                     self.model_selector.set(llm_models[0])
                     self.selected_model = llm_models[0]
-            
+
             # Get embedding models
             embedding_models = self.model_manager.get_embedding_models()
-            
+
             # Update the embedding combobox
             self.embedding_selector['state'] = 'readonly'
             self.embedding_selector['values'] = embedding_models or []
@@ -1238,38 +1300,41 @@ class OllamaChat:
                 else:
                     self.embedding_selector.set(embedding_models[0])
                     self.selected_embedding_model = embedding_models[0]
-            
+
             if not llm_models:
                 self.display_message("\nNo models found. Please check if the selected provider is available.\n", "error")
-                
+
         except Exception as e:
             error_handler.handle_error(e, "Updating model list")
-    
+
     def select_rag_files(self):
         """Open file dialog to select files for RAG."""
         selected_files = filedialog.askopenfilenames(title="Select Files for RAG")
-        
+
         if not selected_files:
             return
-        
+
+        # Ensure RAG is initialized
+        self._ensure_rag_initialized()
+
         # Clear any previous RAG cache
         self.rag.clear_db()
         self.rag_files = selected_files
-        
+
         # Update RAG indicator
         self.rag_indicator.config(text=f"RAG: Active ({len(self.rag_files)} files)", foreground="green")
-        
+
         # Show status message
         self.display_message(f"\nProcessing {len(self.rag_files)} files for RAG...\n", "status")
-        
+
         # Process files in a separate thread to avoid freezing the UI
         threading.Thread(target=self._process_rag_files).start()
-    
+
     def _process_rag_files(self):
         """Process the selected RAG files in a background thread."""
         try:
             self.rag.ingest_data(self.rag_files)
-            
+
             # Update the UI from the main thread
             self.root.after(0, lambda: self.display_message(f"\nRAG processing complete. Ready to use with {len(self.rag_files)} files.\n", "status"))
         except Exception as e:
@@ -1279,12 +1344,15 @@ class OllamaChat:
 
     def clear_rag_files(self):
         """Clear the RAG database and selected files."""
-        if hasattr(self, 'rag'):
+        if self.rag is not None:
             self.rag.clear_db()
 
         self.rag_files = []
         self.rag_indicator.config(text="RAG: Not Active", foreground="grey")
         self.display_message("\nRAG database cleared.\n", "status")
+
+        # Reset RAG to None to free memory
+        self.rag = None
 
     def clear_rag_file(self):
         """Clear a specific file from RAG."""
@@ -1292,6 +1360,9 @@ class OllamaChat:
         if filepath:
             if filepath in self.rag_files:
                 try:
+                    # Ensure RAG is initialized
+                    self._ensure_rag_initialized()
+
                     # Clear the file content
                     with open(filepath, 'w') as f:
                         f.write("")  # Clear the file
@@ -1300,11 +1371,16 @@ class OllamaChat:
                     self.rag.clear_db()
                     self.rag_files.remove(filepath)
 
-                    # Re-ingest the remaining files
-                    self._process_rag_files()
+                    # Re-ingest the remaining files if any
+                    if self.rag_files:
+                        self._process_rag_files()
+                        self.rag_indicator.config(text=f"RAG: Active ({len(self.rag_files)} files)", foreground="green")
+                    else:
+                        # No files left, reset RAG to free memory
+                        self.rag = None
+                        self.rag_indicator.config(text="RAG: Not Active", foreground="grey")
 
                     self.display_message(f"\nCleared RAG file: {os.path.basename(filepath)}\n", "status")
-                    self.rag_indicator.config(text=f"RAG: Active ({len(self.rag_files)} files)", foreground="green")
                 except Exception as e:
                     error_handler.handle_error(e, "Clearing RAG file")
                     self.display_message(f"\nError clearing RAG file: {e}\n", "error")
@@ -1316,29 +1392,29 @@ class OllamaChat:
         if not self.input_field.get("1.0", tk.END).strip():
             self.display_message("\nPlease enter a prompt first.\n", "error")
             return
-        
+
         if not self.selected_model:
             self.display_message("\nNo model selected!\n", "error")
             return
-        
+
         files = filedialog.askopenfilenames(title="Select Files for Batch Processing")
         if files:
             threading.Thread(target=self.process_files, args=(files,)).start()
-    
+
     def process_files(self, files):
         """Process multiple files with the same prompt."""
         base_prompt = self.input_field.get("1.0", tk.END).strip()
         self.display_message(f"\nStarting batch processing of {len(files)} files\n", "status")
-        
+
         for idx, file_path in enumerate(files, 1):
             if self.stop_event.is_set():
                 break
-            
+
             self.display_message(f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)}\n", "status")
-            
+
             file_type = self.get_file_type(file_path)
             content = base_prompt  # base prompt for each file
-            
+
             if file_type == 'image':
                 with open(file_path, 'rb') as img_file:
                     file_data = img_file.read()
@@ -1354,16 +1430,16 @@ class OllamaChat:
                     self.display_message(f"\nFile has {word_count} words\n", "status")
                     content += f"\n\nDocument content:\n{file_content}\n\nFile path: {file_path}"
                 message = {'role': 'user', 'content': content}
-            
+
             # Get system instructions
             system_msg = self.system_text.get("1.0", tk.END).strip()
             messages = []
             if system_msg:
                 messages.append({'role': 'system', 'content': system_msg})
             messages.append(message)
-            
+
             self.display_message(f"\nAssistant (for {os.path.basename(file_path)}): ", 'assistant')
-            
+
             # Get streaming response
             stream = self.model_manager.get_response(
                 messages=messages,
@@ -1372,54 +1448,57 @@ class OllamaChat:
                 context_size=self.context_size.get()
             )
             self.active_stream = stream
-            
+
             full_response = ""
             try:
                 for chunk in stream:
                     if self.stop_event.is_set():
                         break
-                    
+
                     if chunk and 'message' in chunk and 'content' in chunk['message']:
                         content = chunk['message']['content']
                         full_response += content
                         self.display_message(content, 'assistant')
             finally:
                 self.active_stream = None
-                
+
                 # Add to conversation history
                 if full_response:
                     batch_msg = f"Batch result for {os.path.basename(file_path)}: {full_response}"
                     self.conversation_manager.add_message_to_active("assistant", batch_msg)
-            
+
             self.display_message(f"\nCompleted processing file {idx}/{len(files)}\n", "status")
-        
+
         self.display_message("\nBatch processing completed.\n", "status")
-    
+
     def clear_chat(self):
         """Clear the chat display."""
         self.chat_display["state"] = "normal"
         self.chat_display.delete(1.0, tk.END)
         self.chat_display["state"] = "disabled"
         self.status_bar["text"] = "Ready"
-    
+
     def clear_file(self):
-        """Clear the uploaded file or image from memory."""
-        # Clear file-related variables
-        self.file_content = None
+        """Clear the current file."""
+        print("clear_file method called")
         self.file_img = None
+        self.file_content = None
+        # Keep preserved copy even when clearing
+        # self.preserved_file_content = None  # Don't clear this
         self.file_type = None
         self.word_count = 0
-        
+        self.update_status()
+
         # No need to clear a separate image preview label now
         self.preview_image = None  # Clear reference to prevent memory leaks
-        
+
         # Disable file checkbox
         self.include_file_var.set(False)
-        
+
         # Update status
         self.status_bar["text"] = "Ready"
         self.display_message("\nFile cleared.\n", "status")
-    
+
     def copy_selection(self):
         """Copy selected text to clipboard."""
         try:
@@ -1430,7 +1509,7 @@ class OllamaChat:
         except tk.TclError:
             # No selection
             self.status_bar["text"] = "No text selected"
-    
+
     def show_about(self):
         """Show about dialog."""
         messagebox.showinfo(
@@ -1439,27 +1518,27 @@ class OllamaChat:
             "A modular chat interface for interacting with various LLMs.\n"
             "Supports RAG, conversation management, and multiple model providers."
         )
-    
+
     def on_closing(self):
         """Handle application closing."""
         # Save settings before closing
         self.save_settings()
-        
+
         # Ask to save conversation if there are unsaved messages
         if self.conversation_manager.active_conversation.messages:
             save = messagebox.askyesnocancel(
-                "Save Conversation", 
+                "Save Conversation",
                 "Do you want to save the current conversation before exiting?"
             )
-            
+
             if save is None:  # Cancel
                 return
             elif save:  # Yes
                 self.save_conversation()
-        
+
         # Close application
         self.root.destroy()
-    
+
     def stop_processing(self):
         """Stop any ongoing model generation or processing."""
         self.stop_event.set()
@@ -1471,15 +1550,15 @@ class OllamaChat:
             except Exception:
                 pass
             self.active_stream = None
-        
+
         self.is_processing = False
         self.status_bar["text"] = "Processing stopped"
         self.display_message("\nProcessing stopped by user.\n", "status")
-    
+
     def reset_api_key(self):
         """Reset the Gemini API key."""
         self.reset_generic_api_key("gemini")
-    
+
     def reset_deepseek_api_key(self):
         """Reset the DeepSeek API key"""
         self.reset_generic_api_key("deepseek")
@@ -1510,15 +1589,15 @@ class OllamaChat:
 
         else:
             self.display_message(f"\nAPI configuration not available for {provider}.\n", "error")
-    
+
 def main():
     """Main entry point for the application."""
     # Create TkinterDnD root window
     root = TkinterDnD.Tk()
-    
+
     # Create the application instance
     app = OllamaChat(root)
-    
+
     # Start the main event loop
     root.mainloop()
 

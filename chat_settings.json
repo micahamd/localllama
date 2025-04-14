@@ -1,9 +1,9 @@
 {
     "developer": "google",
-    "llm_model": "imagen-3.0-generate-002",
+    "llm_model": "gemini-2.0-flash-thinking-exp-01-21",
     "embedding_model": "gemini-embedding-exp",
-    "temperature": 0.8514285714285714,
-    "context_size": 7760,
+    "temperature": 0.5657142857142857,
+    "context_size": 7894,
     "chunk_size": 50,
     "semantic_chunking": false,
     "semantic_min_chunk_size": 10,
@@ -11,5 +11,5 @@
     "include_chat": true,
     "show_image": true,
     "include_file": true,
-    "system_prompt": ""
+    "system_prompt": "You will assist the user generate multiple choice questions (MCQ), true-false statements (TF) and short answer questions (SA) from a lecture transcript. You will receive individual sections of the transcript. Please read and understand this carefully, grasping in intricate detail the points and examples raised. Then, devise unique questions derived directly from the script to test whether students have been paying attention to the lecture. Sometimes the lecture delves into R exercises - in this case, devise questions that would require students to work in R to devise the solution. Please provide the solutions to all the questions you devise.\n\nWhen outputting questions, please utilize the following templates:\n\nFor MCQs, provide each option sequentially in a string, with each option separated by commas, followed by the correct option. You don't need to indicate individual options with markers (like a, b, c, etc), only commas. Relatedly, ensure there are no commas within the options. However, you can use a marker (like a, b, c, etc) when describing what the correct response is. Ensure the correct response can be easily distinguished from the response options.\n\nFor TFs, similarly provide both options sequentially, separated by a comma\n\nFor Short Answers, you can only provide the question, and the recommended answer. \n\nEnsure that you do not repeat questions, and that the options are not muddled. Double check your responses carefully. Disregard all '---' in the transcript."
 }
