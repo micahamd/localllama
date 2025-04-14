@@ -1006,16 +1006,31 @@ class OllamaChat:
 
     @safe_execute("Getting Gemini image generation response")
     def generate_image_response(self, prompt: str, image_data: Optional[bytes] = None):
-        """Generate an image using Gemini and display the response."""
+        """Generate an image using Gemini and display the response.
+
+        This method handles both text-to-image generation and image editing modes.
+
+        Args:
+            prompt: The text prompt for image generation or editing
+            image_data: Optional image data for image editing
+        """
         self.stop_event.clear()
         self.is_processing = True
-        self.status_bar["text"] = "Generating image..."
+
+        # Update status based on mode
+        if image_data:
+            self.status_bar["text"] = "Editing image..."
+        else:
+            self.status_bar["text"] = "Generating image..."
 
         try:
             self.display_message("\n", 'assistant')
-            self.display_message("Generating image based on your prompt...\n", 'assistant')
 
-            # Get streaming response from model manager
+            # Don't display this message since the model will send its own status message
+            # and we don't want duplicate messages
+            # self.display_message("Generating image based on your prompt...\n", 'assistant')
+
+            # Get response from model manager
             stream = self.model_manager.generate_image(
                 prompt=prompt,
                 image_data=image_data,
@@ -1034,6 +1049,8 @@ class OllamaChat:
 
                     if chunk and 'message' in chunk:
                         message = chunk['message']
+
+                        # Handle text content
                         if 'content' in message and message['content']:
                             content = message['content']
                             full_response += content
@@ -1041,6 +1058,8 @@ class OllamaChat:
                             self.chat_display.insert(tk.END, content, 'assistant')
                             self.chat_display["state"] = "disabled"
                             self.chat_display.see(tk.END)
+
+                        # Handle image content
                         elif 'image' in message and message['image']:
                             has_image = True
                             image_bytes = message['image']
@@ -1050,7 +1069,7 @@ class OllamaChat:
 
                                 # Calculate aspect ratio for resizing
                                 width, height = pil_img.size
-                                max_size = 300
+                                max_size = 400  # Increased size for better visibility
                                 scale = min(max_size/width, max_size/height)
                                 new_width = int(width * scale)
                                 new_height = int(height * scale)
@@ -1062,17 +1081,36 @@ class OllamaChat:
                                 if pil_img.mode == 'RGBA':
                                     pil_img = pil_img.convert('RGB')
 
+                                # Create and display the image
                                 self.preview_image = ImageTk.PhotoImage(pil_img)
                                 self.chat_display["state"] = "normal"
-                                self.chat_display.image_create(tk.END, image=self.preview_image)
+
+                                # Add some spacing before the image
                                 self.chat_display.insert(tk.END, "\n", 'assistant')
+
+                                # Insert the image
+                                self.chat_display.image_create(tk.END, image=self.preview_image)
+
+                                # Add spacing after the image
+                                self.chat_display.insert(tk.END, "\n\n", 'assistant')
                                 self.chat_display["state"] = "disabled"
                                 self.chat_display.see(tk.END)
 
                                 # Clear the original image bytes to free memory
                                 image_bytes = None
+
+                                # Add a message indicating successful image generation
+                                if not full_response:
+                                    self.chat_display["state"] = "normal"
+                                    self.chat_display.insert(tk.END, "Image generated successfully.\n", 'assistant')
+                                    self.chat_display["state"] = "disabled"
+                                    self.chat_display.see(tk.END)
+                                    full_response = "Image generated successfully."
+
                             except Exception as e:
                                 self.display_message(f"\nError displaying image: {e}\n", 'error')
+
+                        # Handle error messages
                         elif 'role' in message and message['role'] == 'error':
                             self.display_message(f"\nError: {message.get('content', 'Unknown error')}\n", 'error')
             finally:

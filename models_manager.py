@@ -238,54 +238,99 @@ class GeminiManager(ModelManager):
 
     @safe_execute("Getting Gemini image generation response")
     def generate_image(self, prompt: str, image_data: Optional[bytes] = None, **kwargs) -> Iterator[Dict[str, Any]]:
-        """Generate an image using Gemini's image generation capabilities."""
-        model_name = kwargs.get("model", self.api_config.get_default_image_generation_model())
-    
+        """Generate an image using Gemini's image generation capabilities.
+
+        This method supports two modes:
+        1. Text-to-image generation using Gemini 2.0 Flash Experimental
+        2. Image editing when image_data is provided
+
+        Args:
+            prompt: The text prompt for image generation or editing
+            image_data: Optional image data for image editing
+            **kwargs: Additional parameters including temperature and max_tokens
+
+        Returns:
+            Iterator of message chunks containing text or image data
+        """
         # Check if API key is configured
         if not self.api_config.is_configured():
             raise ValueError("Gemini API key is not configured. Please set it in the settings.")
-    
-        # Create the model instance
+
+        # Get the correct model for image generation
+        model_name = self.api_config.get_default_image_generation_model()
+
         try:
+            # Create the model instance
             model = genai.GenerativeModel(model_name=model_name)
-            
-            # Prepare content parts
+
+            # Configure generation parameters
+            generation_config = {
+                "temperature": kwargs.get("temperature", 0.7),
+                "max_output_tokens": kwargs.get("max_tokens", 2048),
+                "response_modalities": ["Text", "Image"]  # Required for image generation
+            }
+
+            # Prepare content parts based on whether we're doing image editing or generation
             if image_data:
-                # If image data is provided, include it in the request
-                image = PIL.Image.open(BytesIO(image_data))
-                response = model.generate_content(
-                    [prompt, image],
-                    stream=True,
-                    generation_config={
-                        "temperature": kwargs.get("temperature", 0.7),
-                        "max_output_tokens": kwargs.get("max_tokens", 2048),
-                        "response_modalities": ["Text", "Image"]  # Added this line
-                    }
-                )
+                # Image editing mode - provide both text prompt and image
+                try:
+                    # Convert bytes to PIL Image
+                    image = PIL.Image.open(BytesIO(image_data))
+
+                    # Log the process
+                    print(f"Image editing with prompt: {prompt}")
+                    yield {"message": {"role": "assistant", "content": "Processing your image editing request..."}}
+
+                    # Generate content with both text and image input
+                    response = model.generate_content(
+                        [prompt, image],
+                        generation_config=generation_config
+                    )
+                except Exception as img_error:
+                    error_message = f"Error processing input image: {str(img_error)}"
+                    print(error_message)
+                    yield {"message": {"role": "error", "content": error_message}}
+                    return
             else:
-                # Text-only prompt for image generation
+                # Text-to-image generation mode
+                print(f"Generating image with prompt: {prompt}")
+                yield {"message": {"role": "assistant", "content": "Generating image based on your prompt..."}}
+
+                # Generate content with text-only input
                 response = model.generate_content(
                     prompt,
-                    stream=True,
-                    generation_config={
-                        "temperature": kwargs.get("temperature", 0.7),
-                        "max_output_tokens": kwargs.get("max_tokens", 2048),
-                        "response_modalities": ["Text", "Image"]  # Added this line
-                    }
+                    generation_config=generation_config
                 )
-    
-            # Process the response
-            for chunk in response:
-                if hasattr(chunk, 'text') and chunk.text:
-                    yield {"message": {"role": "assistant", "content": chunk.text}}
-                elif hasattr(chunk, 'parts'):
-                    for part in chunk.parts:
-                        if hasattr(part, 'text') and part.text is not None:
-                            yield {"message": {"role": "assistant", "content": part.text}}
-                        elif hasattr(part, 'inline_data') and part.inline_data is not None:
-                            image_bytes = part.inline_data.data
-                            yield {"message": {"role": "assistant", "image": image_bytes}}
-    
+
+            # Process the response to extract text and images
+            has_content = False
+
+            # Handle the response based on its structure
+            if hasattr(response, 'candidates') and response.candidates:
+                # Process candidates format (non-streaming response)
+                for candidate in response.candidates:
+                    if hasattr(candidate, 'content') and candidate.content:
+                        for part in candidate.content.parts:
+                            has_content = True
+                            if hasattr(part, 'text') and part.text:
+                                yield {"message": {"role": "assistant", "content": part.text}}
+                            elif hasattr(part, 'inline_data') and part.inline_data:
+                                image_bytes = part.inline_data.data
+                                yield {"message": {"role": "assistant", "image": image_bytes}}
+            elif hasattr(response, 'parts'):
+                # Process parts format (direct response)
+                for part in response.parts:
+                    has_content = True
+                    if hasattr(part, 'text') and part.text:
+                        yield {"message": {"role": "assistant", "content": part.text}}
+                    elif hasattr(part, 'inline_data') and part.inline_data:
+                        image_bytes = part.inline_data.data
+                        yield {"message": {"role": "assistant", "image": image_bytes}}
+
+            # If no content was found, provide a fallback message
+            if not has_content:
+                yield {"message": {"role": "assistant", "content": "I wasn't able to generate an image. Please try a different prompt or check your API key permissions."}}
+
         except Exception as e:
             error_message = f"Image generation error: {str(e)}"
             print(f"Error in generate_image: {error_message}")  # Debug output
@@ -310,7 +355,7 @@ class DeepSeekManager(ModelManager):
         # Fallback to available Ollama embedding models
         fallback = OllamaManager()
         return fallback.get_embedding_models()
-    
+
     def save_api_key(self, api_key):
         """Save a new API key."""
         return self.api_config.set_api_key(api_key)
@@ -332,7 +377,7 @@ class DeepSeekManager(ModelManager):
             model=model_name,
             stream=True
         )
-        
+
         for chunk in response_stream:
             yield {"message": {"role": "assistant", "content": chunk}}
 
@@ -365,7 +410,7 @@ class AnthropicManager(ModelManager):
         # Fallback to available Ollama embedding models
         fallback = OllamaManager()
         return fallback.get_embedding_models()
-    
+
     def save_api_key(self, api_key):
         """Save a new API key."""
         return self.api_config.set_api_key(api_key)
@@ -389,7 +434,7 @@ class AnthropicManager(ModelManager):
             max_tokens=max_tokens,
             temperature=temperature
         )
-        
+
         for chunk in response_stream:
             yield {"message": {"role": "assistant", "content": chunk}}
 
