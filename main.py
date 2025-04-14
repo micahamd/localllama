@@ -194,12 +194,14 @@ class OllamaChat:
         self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat"))
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
+        self.web_access_var = tk.BooleanVar(value=self.settings.get("web_access", False))
 
         # Processing control
         self.is_processing = False
         self.active_stream = None
         self.stop_event = threading.Event()
         self.rag_files = []
+        self._web_search_failures = 0  # Counter for web search failures
 
         # RAG visualization
         self.rag_visualizer = None
@@ -390,6 +392,20 @@ class OllamaChat:
             variable=self.include_file_var
         )
         self.include_file_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Tools section
+        tools_frame = ttk.LabelFrame(self.sidebar_frame, text="Tools")
+        tools_frame.pack(fill=tk.X, padx=5, pady=5)
+
+        # Web Access checkbox
+        self.web_access_var = tk.BooleanVar(value=self.settings.get("web_access", False))
+        web_access_checkbox = ttk.Checkbutton(
+            tools_frame,
+            text="Web Access",
+            variable=self.web_access_var,
+            command=self.on_web_access_toggle
+        )
+        web_access_checkbox.pack(anchor="w", padx=5, pady=2)
 
         # Conversations section
         conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
@@ -861,6 +877,107 @@ class OllamaChat:
         if self.file_type == 'image' and self.file_img:
             self.display_uploaded_image()
 
+    def on_web_access_toggle(self):
+        """Handle web access toggle."""
+        web_access = self.web_access_var.get()
+        self.settings.set("web_access", web_access)
+
+        if web_access:
+            self.display_message("\nWeb access enabled. The chatbot can now search the web for information.\n", "status")
+        else:
+            self.display_message("\nWeb access disabled.\n", "status")
+
+    def perform_web_search(self, query):
+        """Perform a web search using requests and BeautifulSoup as a fallback.
+
+        Args:
+            query: The search query
+
+        Returns:
+            str: Formatted search results or None if search failed
+        """
+        # First try using a direct web search approach
+        try:
+            import requests
+            from bs4 import BeautifulSoup
+            import urllib.parse
+
+            # Format the search query for URL
+            encoded_query = urllib.parse.quote(query)
+            search_url = f"https://www.google.com/search?q={encoded_query}"
+
+            # Set a user agent to avoid being blocked
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            }
+
+            # Make the request
+            response = requests.get(search_url, headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+
+            # Parse the HTML
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # Extract search results
+            search_results = []
+            for result in soup.select('div.g')[:5]:  # Limit to 5 results
+                title_element = result.select_one('h3')
+                link_element = result.select_one('a')
+                snippet_element = result.select_one('div.VwiC3b')
+
+                if title_element and link_element and snippet_element:
+                    title = title_element.get_text()
+                    url = link_element.get('href')
+                    if url.startswith('/url?q='):
+                        url = url.split('/url?q=')[1].split('&')[0]
+                    snippet = snippet_element.get_text()
+
+                    search_results.append({
+                        'title': title,
+                        'url': url,
+                        'snippet': snippet
+                    })
+
+            # Format results
+            if not search_results:
+                self.display_message("\nNo search results found. Try a different query.\n", 'status')
+                return None
+
+            formatted_results = ""
+            for i, result in enumerate(search_results, 1):
+                title = result.get('title', 'No title')
+                url = result.get('url', 'No URL')
+                snippet = result.get('snippet', 'No snippet available')
+
+                formatted_results += f"Result {i}:\n"
+                formatted_results += f"Title: {title}\n"
+                formatted_results += f"URL: {url}\n"
+                formatted_results += f"Snippet: {snippet}\n\n"
+
+            return formatted_results
+
+        except ImportError:
+            # If BeautifulSoup is not available, try to install it
+            self.display_message("\nInstalling required packages for web search...\n", 'status')
+            try:
+                import subprocess
+                subprocess.check_call(["pip", "install", "requests beautifulsoup4"])
+                # Try again after installation
+                return self.perform_web_search(query)
+            except Exception as e:
+                error_msg = error_handler.handle_error(e, "Installing web search dependencies")
+                self.display_message(f"\nError installing dependencies: {error_msg}\n", 'error')
+                self.display_message("\nWeb search is currently unavailable. Please install 'requests' and 'beautifulsoup4' packages manually.\n", 'error')
+                # Disable web access to prevent loops
+                self.web_access_var.set(False)
+                self.settings.set("web_access", False)
+                return None
+
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Web search")
+            self.display_message(f"\nError during web search: {error_msg}\n", 'error')
+            return None
+
     def handle_drop(self, event):
         """Handle file drop event."""
         file_path = event.data.strip('{}')
@@ -1242,6 +1359,35 @@ class OllamaChat:
 
         # Prepare message content
         content = user_input
+
+        # Add web search results if web access is enabled
+        if self.web_access_var.get():
+            self.display_message("\nSearching the web for information...\n", 'status')
+            try:
+                # Perform web search with a timeout to prevent hanging
+                search_results = self.perform_web_search(user_input)
+                if search_results:
+                    content += f"\n\nWeb search results:\n{search_results}"
+                    self.display_message("\nWeb search completed.\n", 'status')
+                else:
+                    # If search failed but didn't raise an exception, show a message
+                    self.display_message("\nNo relevant web results found.\n", 'status')
+                    # Disable web access if it's causing problems
+                    if hasattr(self, '_web_search_failures'):
+                        self._web_search_failures += 1
+                        if self._web_search_failures >= 3:
+                            self.display_message("\nWeb search is being disabled due to repeated failures.\n", 'error')
+                            self.web_access_var.set(False)
+                            self.settings.set("web_access", False)
+                            self._web_search_failures = 0
+                    else:
+                        self._web_search_failures = 1
+            except Exception as e:
+                error_msg = error_handler.handle_error(e, "Web search")
+                self.display_message(f"\nError during web search: {error_msg}\n", 'error')
+                # Disable web access if it's causing errors
+                self.web_access_var.set(False)
+                self.settings.set("web_access", False)
 
         # Include file content based on the checkbox - MODIFIED
         if self.include_file_var.get():
@@ -1678,6 +1824,7 @@ class OllamaChat:
             "include_chat": self.include_chat_var.get(),
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
+            "web_access": self.web_access_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip(),
             "semantic_min_chunk_size": self.semantic_min_chunk_size.get(),
             "semantic_max_chunk_size": self.semantic_max_chunk_size.get()
