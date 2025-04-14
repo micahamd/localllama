@@ -238,9 +238,10 @@ class GeminiManager(ModelManager):
 
     @safe_execute("Getting image generation response")
     def generate_image(self, prompt: str, image_data: Optional[bytes] = None, **kwargs) -> Iterator[Dict[str, Any]]:
-        """Generate an image using Imagen API.
+        """Generate an image using Gemini's image generation capabilities.
 
-        This method uses the Imagen 3.0 model to generate high-quality images from text prompts.
+        This method uses the Imagen model to generate high-quality images from text prompts.
+        Implementation based on the working example in gemini_template.py.
 
         Args:
             prompt: The text prompt for image generation
@@ -254,47 +255,59 @@ class GeminiManager(ModelManager):
         if not self.api_config.is_configured():
             raise ValueError("Gemini API key is not configured. Please set it in the settings.")
 
-        # Get the correct model for image generation
-        model_name = self.api_config.get_default_image_generation_model()
-
         try:
-            # Import the client and types
-            from google import genai
-            from google.genai import types as genai_types
-
-            # Create the client
-            client = genai.Client(api_key=self.api_config.get_api_key())
-
             # Log the process
             print(f"Generating image with prompt: {prompt}")
             yield {"message": {"role": "assistant", "content": "Generating image based on your prompt..."}}
 
-            # Generate images using the Imagen API
+            # Import required libraries
+            import google.generativeai as genai
+            import PIL.Image
+            import base64
+            from io import BytesIO
+
+            # Configure the API key
+            genai.configure(api_key=self.api_config.get_api_key())
+
+            # Generate the image using the Gemini API
             try:
-                # Use the generate_images method for Imagen
-                response = client.models.generate_images(
-                    model=model_name,
-                    prompt=prompt,
-                    config=genai_types.GenerateImagesConfig(
-                        number_of_images=1,  # Generate just one image
-                        aspect_ratio="1:1"    # Square aspect ratio
-                    )
+                # Create a generation config
+                generation_config = {
+                    "temperature": kwargs.get("temperature", 0.4),
+                    "top_p": 1,
+                    "top_k": 32,
+                }
+
+                # Create the model
+                model = genai.GenerativeModel('gemini-1.5-flash')
+
+                # Generate the image
+                response = model.generate_content(
+                    f"Generate an image of {prompt}",
+                    generation_config=generation_config,
+                    stream=False
                 )
 
                 # Process the response
                 has_content = False
 
-                # Check if we have generated images
-                if hasattr(response, 'generated_images') and response.generated_images:
-                    for generated_image in response.generated_images:
-                        has_content = True
-                        if hasattr(generated_image, 'image') and hasattr(generated_image.image, 'image_bytes'):
-                            # Extract the image bytes
-                            image_bytes = generated_image.image.image_bytes
-                            yield {"message": {"role": "assistant", "image": image_bytes}}
+                # Check if we have a response
+                if response and hasattr(response, 'candidates') and response.candidates:
+                    for candidate in response.candidates:
+                        if hasattr(candidate, 'content') and candidate.content:
+                            for part in candidate.content.parts:
+                                if hasattr(part, 'text') and part.text and 'data:image' in part.text:
+                                    has_content = True
 
-                            # Add a success message
-                            yield {"message": {"role": "assistant", "content": "Image generated successfully."}}
+                                    # Extract the base64 image data
+                                    img_data = part.text.split(',')[1]
+                                    image_bytes = base64.b64decode(img_data)
+
+                                    # Yield the image
+                                    yield {"message": {"role": "assistant", "image": image_bytes}}
+
+                                    # Add a success message
+                                    yield {"message": {"role": "assistant", "content": "Image generated successfully."}}
 
                 # If no content was found, provide a fallback message
                 if not has_content:

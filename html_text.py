@@ -157,14 +157,22 @@ class HTMLText(Text):
 
     def display_markdown(self, markdown_content, base_tag=None):
         """Convert Markdown to HTML and display it."""
-        # Convert markdown to HTML
-        html = markdown.markdown(
-            markdown_content,
-            extensions=['extra', 'codehilite', 'nl2br', 'sane_lists']
-        )
+        try:
+            # First, ensure we have a clean state for this new content
+            self.clear()
 
-        # Display the HTML
-        self.display_html(html, base_tag)
+            # Convert markdown to HTML
+            html = markdown.markdown(
+                markdown_content,
+                extensions=['extra', 'codehilite', 'nl2br', 'sane_lists']
+            )
+
+            # Display the HTML
+            self.display_html(html, base_tag)
+        except Exception as e:
+            print(f"Error rendering markdown: {e}")
+            # Fallback to plain text if markdown rendering fails
+            self.insert(tk.END, markdown_content)
 
     def clear(self):
         """Clear all content from the widget."""
