@@ -5,13 +5,13 @@
     "temperature": 0.5657142857142857,
     "context_size": 16670,
     "chunk_size": 50,
-    "semantic_chunking": false,
-    "semantic_min_chunk_size": 10,
-    "semantic_max_chunk_size": 2000,
     "include_chat": false,
     "show_image": true,
     "include_file": false,
     "web_access": false,
-    "advanced_web_access": true,
-    "system_prompt": ""
+    "advanced_web_access": false,
+    "system_prompt": "",
+    "semantic_chunking": false,
+    "semantic_min_chunk_size": 10,
+    "semantic_max_chunk_size": 2000
 }
