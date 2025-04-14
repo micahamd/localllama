@@ -1,6 +1,6 @@
 {
     "developer": "google",
-    "llm_model": "gemini-2.0-flash",
+    "llm_model": "imagen-3.0-generate-002",
     "embedding_model": "gemini-embedding-exp",
     "temperature": 0.5657142857142857,
     "context_size": 16670,
@@ -8,7 +8,7 @@
     "semantic_chunking": false,
     "semantic_min_chunk_size": 10,
     "semantic_max_chunk_size": 2000,
-    "include_chat": true,
+    "include_chat": false,
     "show_image": true,
     "include_file": true,
     "system_prompt": ""

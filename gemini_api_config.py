@@ -37,7 +37,8 @@ class GeminiAPIConfig:
 
     def get_default_image_generation_model(self):
         """Get the default image generation model."""
-        return "gemini-2.0-flash-exp-image-generation"
+        # Use the correct model name for image generation
+        return "imagen-3.0-generate-002"
 
     def _load_config(self):
         """Load configuration from file."""
