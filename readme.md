@@ -31,7 +31,7 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 1. Clone this repository:
 ```
 git clone https://github.com/micahamd/localllama.git
-cd enhanced-llm-chat
+cd localllama
 ```
 
 2. Install required dependencies:
