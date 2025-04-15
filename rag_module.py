@@ -82,6 +82,10 @@ class RAG:
         self._cache_misses = 0
         self._max_cache_size = 1000  # Maximum number of embeddings to cache
 
+        # Add use_semantic_chunking property with default value False
+        # This is for backward compatibility with code that might check this property
+        self.use_semantic_chunking = False
+
         try:
             nltk.data.find("tokenizers/punkt")
         except LookupError:
@@ -114,6 +118,12 @@ class RAG:
         self._set_chunk_size(value)
 
     # Semantic chunking property methods removed for better performance
+
+    # Add _model_loaded property for backward compatibility
+    @property
+    def _model_loaded(self):
+        """Always returns True for backward compatibility."""
+        return True
 
     # Sentence transformer methods removed for better performance
 
@@ -306,10 +316,9 @@ class RAG:
             print(f"Successfully ingested {total_added} chunks from {len(file_paths)} files")
 
             # Print cache statistics
-            if self.use_semantic_chunking and self._model_loaded:
-                stats = self.get_cache_stats()
-                print(f"Embedding cache: {stats['cache_size']}/{stats['max_cache_size']} entries, "
-                      f"{stats['hit_rate_percent']:.1f}% hit rate")
+            stats = self.get_cache_stats()
+            print(f"Embedding cache: {stats['cache_size']}/{stats['max_cache_size']} entries, "
+                  f"{stats['hit_rate_percent']:.1f}% hit rate")
         else:
             print("No chunks created for ingestion")
 

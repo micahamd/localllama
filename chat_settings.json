@@ -1,6 +1,6 @@
 {
     "developer": "ollama",
-    "llm_model": "gemma3:12b",
+    "llm_model": "huihui_ai/gemma3-abliterated:4b-q8_0",
     "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.5276595744680851,
     "context_size": 16670,
