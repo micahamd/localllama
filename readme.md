@@ -4,25 +4,16 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 
 ## Features
 
-### Core Features
-- **Multi-Provider Support**: Use models from Ollama, Google Gemini, Deepseek, or Anthropic
-- **RAG (Retrieval-Augmented Generation)**: Enhance responses with knowledge from your documents
-- **Conversation Management**: Save, load, and manage chat sessions
-- **Advanced File Processing**: Drop files directly into the chat or process files in batch mode
-- **Comprehensive Media Support**: Process images, audio files, YouTube videos, and more
-- **System Instructions**: Customize model behavior with system prompts
-
-### Advanced Features
-- **RAG Visualization**: Understand which documents influenced the model's response
-- **Semantic Chunking**: Improved document splitting for better context retrieval
-- **Persistent Settings**: Save your preferences between sessions
-- **Error Handling**: Informative error messages and robust exception handling
-- **Batch Processing**: Process multiple files with the same prompt
-- **Highlighting**: Code block detection and syntax highlighting
-- **Audio Transcription**: Automatically transcribe audio files using MarkItDown
-- **YouTube Integration**: Extract and process content from YouTube videos
-- **ZIP File Processing**: Extract and analyze content from ZIP archives
-- **URL Content Extraction**: Process web content from URLs
+- **Multiple Developers**: Switch between  Ollama, Google Gemini, Deepseek, or Anthropic models within a single session.
+- **RAG (Retrieval-Augmented Generation)**: Use local/remote embedding models, with customizable chunk sizes, to retrieve document context.
+- **Conversation Management**: Chat sessions can be saved and loaded as JSON files.
+- **Temperature and Context customization**: Sliders manage these parameters directly in the UI for all models.
+- **File Processing with MarkItDown**: Utilizes Microsoft's @markitdown package to process nearly all files into ML-readable markdown.
+- **MultiMedia Support**: Process images, audio files, and YouTube videos.
+- **System Instructions**: Customize model behavior with system prompts.
+- **Batch Processing**: Process multiple files with the same prompt.
+- **ZIP File Processing**: Extract content from ZIP archives directly.
+- **URL Content Extraction**: Process web content from URLs using @crawlAI.
 - **Automatic Dependency Management**: Dynamically install required dependencies
 
 ## Getting Started
@@ -39,7 +30,7 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 
 1. Clone this repository:
 ```
-git clone https://github.com/yourusername/enhanced-llm-chat.git
+git clone https://github.com/micahamd/localllama.git
 cd enhanced-llm-chat
 ```
 
@@ -56,15 +47,13 @@ python main.py
 ## Usage Guide
 
 ### Basic Chat
-1. Select a model provider
-2. Choose an LLM model from the dropdown
-3. Type your message in the input field
-4. Click "Send" or press Ctrl+Enter
+1. Select a model provider and an associated LLM model
+2. Type your message in the input field, and click 'Send' or press Enter.
 
 ### Working with Files
 - **Drop Files**: Drag and drop files directly into the chat window
 - **Batch Process**: Process multiple files with the same prompt
-- **File Types**: Supports a wide range of file formats:
+- **File Types Supported**: 
   - **Documents**: PDFs, Word documents, PowerPoint presentations, Excel spreadsheets
   - **Images**: JPG, PNG, GIF, BMP with preview display
   - **Audio**: MP3, WAV, FLAC, M4A with automatic transcription
@@ -78,19 +67,15 @@ python main.py
 ### Using RAG
 1. Select an embedding model from the dropdown
 2. Click "Select RAG Files" to choose reference documents
-3. Adjust chunk size and semantic chunking options:
-   - **Regular Chunking**: Uses a fixed window (default: 128 sentences) regardless of content relationships
-   - **Semantic Chunking**: Groups related sentences together based on their semantic similarity
 4. Ask questions related to your documents
-5. Click "Show RAG Visualization" to see which chunks were used
+5. Click "Show RAG Visualization" to see which chunks were used to inform the response
 
 ### Working with Media and Web Content
 
 #### Audio Files
-1. Drag and drop an audio file (MP3, WAV, etc.) into the chat window
-2. The application will automatically transcribe the audio content
-3. A preview of the transcription will be displayed in the chat
-4. Ask questions about the transcribed content
+1. Drag and drop an audio file (MP3, WAV, etc.) into the chat window to automatically transcribe the audio content
+2. A preview of the transcription will be displayed in the chat
+3. Ask questions about the transcribed content
 
 #### YouTube Videos
 1. Paste a YouTube URL directly into the chat input field and press Enter
@@ -102,30 +87,6 @@ python main.py
 1. Paste any URL into the chat input field and press Enter
 2. The application will extract the content from the webpage
 3. Ask questions about the extracted content
-
-#### Semantic Chunking Recommendations
-
-For optimal results with semantic chunking, adjust the min/max parameters based on content type:
-
-- **General Knowledge Content**:
-  - Min: 3-5 sentences
-  - Max: 8-10 sentences
-  - _Benefits_: Keeps related concepts together, provides more comprehensive context
-
-- **Technical Documentation**:
-  - Min: 2-3 sentences
-  - Max: 5-7 sentences
-  - _Benefits_: Balances precision with sufficient technical context
-
-- **QA/Factual Retrieval**:
-  - Min: 1-2 sentences
-  - Max: 3-5 sentences
-  - _Benefits_: Provides precise, focused answers with minimal irrelevant information
-
-#### Performance Considerations
-- Semantic chunking pre-loads an ML model (all-mpnet-base-v2)
-- First use may experience a brief delay while the model loads
-- For very large documents, regular chunking may be more efficient
 
 ### Managing Conversations
 - **New Conversation**: Start a fresh chat session
