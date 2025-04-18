@@ -1,7 +1,7 @@
 {
-    "developer": "ollama",
-    "llm_model": "huihui_ai/gemma3-abliterated:4b-q8_0",
-    "embedding_model": "nomic-embed-text:latest",
+    "developer": "google",
+    "llm_model": "gemini-2.0-flash",
+    "embedding_model": "gemini-embedding-exp",
     "temperature": 0.5276595744680851,
     "context_size": 16670,
     "chunk_size": 50,
@@ -10,7 +10,7 @@
     "include_file": false,
     "web_access": false,
     "advanced_web_access": false,
-    "system_prompt": "",
+    "system_prompt": "You will objectively and concisely answer the user's query by referring to the document chunks retrieved.",
     "semantic_chunking": false,
     "semantic_min_chunk_size": 10,
     "semantic_max_chunk_size": 2000
