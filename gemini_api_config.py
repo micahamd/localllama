@@ -17,6 +17,7 @@ class GeminiAPIConfig:
         self._text_models = [
             "gemini-2.0-flash",
             "gemini-2.0-flash-lite",
+            "gemini-2.5-flash-preview-04-17",
             "gemini-2.0-flash-thinking-exp-01-21",
             "gemini-2.5-pro-exp-03-25"
         ]
@@ -29,8 +30,7 @@ class GeminiAPIConfig:
         ]
 
         self._image_generation_models = [
-            "gemini-2.0-flash-exp-image-generation",
-            "imagen-3.0-generate-002"
+            "gemini-2.0-flash"
         ]
 
         self._embedding_models = ["gemini-embedding-exp","text-embedding-004"]
