@@ -5,7 +5,7 @@
     "temperature": 0.5276595744680851,
     "context_size": 16670,
     "chunk_size": 50,
-    "include_chat": false,
+    "include_chat": true,
     "show_image": true,
     "include_file": false,
     "web_access": false,
