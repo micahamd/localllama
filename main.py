@@ -1620,10 +1620,8 @@ class OllamaChat:
                 if full_response:
                     self.conversation_manager.add_message_to_active("assistant", full_response)
 
-                    # If RAG was used, highlight relevant chunks
+                    # Update RAG visualizer with source data if available
                     if self.rag_visualizer and rag_results:
-                        self.rag_visualizer.highlight_rag_matches(self.chat_display, message['content'], rag_results)
-
                         # Update sources in RAG visualizer
                         source_data = self.prepare_source_data(rag_results)
                         self.rag_visualizer.update_sources(source_data)
