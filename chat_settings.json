@@ -1,6 +1,6 @@
 {
     "developer": "google",
-    "llm_model": "gemini-2.5-flash-preview-04-17",
+    "llm_model": "gemini-2.0-flash-lite",
     "embedding_model": "gemini-embedding-exp",
     "temperature": 0.45010615711252655,
     "context_size": 1000,
