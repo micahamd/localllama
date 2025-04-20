@@ -2370,16 +2370,47 @@ class OllamaChat:
         if files:
             threading.Thread(target=self.process_files, args=(files,)).start()
 
+    def clear_model_context(self):
+        """Clear the model's context without affecting the UI."""
+        if self.selected_model:
+            try:
+                # Prepare a /clear message
+                messages = [{'role': 'user', 'content': '/clear'}]
+
+                # Send the message without displaying it
+                self.model_manager.get_response(
+                    messages=messages,
+                    model=self.selected_model,
+                    temperature=self.temperature.get(),
+                    context_size=self.context_size.get()
+                )
+                return True
+            except Exception as e:
+                # Silently handle any errors - this is just a best effort
+                print(f"Error sending /clear command: {str(e)}")
+                return False
+        return False
+
     def process_files(self, files):
         """Process multiple files with the same prompt."""
         base_prompt = self.input_field.get("1.0", tk.END).strip()
         self.display_message(f"\nStarting batch processing of {len(files)} files\n", "status")
+
+        # Check if we should include chat history
+        include_chat = self.include_chat_var.get()
+        if not include_chat:
+            self.display_message("\nChat history is disabled for batch processing. Each file will be processed independently.\n", "status")
 
         for idx, file_path in enumerate(files, 1):
             if self.stop_event.is_set():
                 break
 
             self.display_message(f"\nProcessing file {idx}/{len(files)}: {os.path.basename(file_path)}\n", "status")
+
+            # Clear model context if not including chat history
+            if idx > 1 and not include_chat:
+                self.display_message("\nClearing model context to save memory...\n", "status")
+                self.clear_model_context()
 
             file_type = self.get_file_type(file_path)
             content = base_prompt  # base prompt for each file
@@ -2431,12 +2462,22 @@ class OllamaChat:
             finally:
                 self.active_stream = None
 
-                # Add to conversation history
-                if full_response:
+                # Add to conversation history only if include_chat is enabled
+                if full_response and include_chat:
                     batch_msg = f"Batch result for {os.path.basename(file_path)}: {full_response}"
                     self.conversation_manager.add_message_to_active("assistant", batch_msg)
+                    user_msg = f"Processed file: {os.path.basename(file_path)} with prompt: {base_prompt}"
+                    self.conversation_manager.add_message_to_active("user", user_msg)
 
             self.display_message(f"\nCompleted processing file {idx}/{len(files)}\n", "status")
+
+            # Memory management - force garbage collection after each file
+            import gc
+            gc.collect()
+
+        # Final clear of model context after batch processing is complete
+        if not include_chat:
+            self.clear_model_context()
 
         self.display_message("\nBatch processing completed.\n", "status")
 
@@ -2451,25 +2492,8 @@ class OllamaChat:
         # Create a new conversation to clear history
         self.conversation_manager.new_conversation(model=self.selected_model)
 
-        # Send a /clear command to the model to clear its context
-        # This is done silently without displaying in the chat
-        if self.selected_model:
-            try:
-                # Prepare a /clear message
-                messages = [{'role': 'user', 'content': '/clear'}]
-
-                # Send the message without displaying it
-                self.model_manager.get_response(
-                    messages=messages,
-                    model=self.selected_model,
-                    temperature=self.temperature.get(),
-                    context_size=self.context_size.get()
-                )
-
-                # No need to process the response
-            except Exception as e:
-                # Silently handle any errors - this is just a best effort
-                print(f"Error sending /clear command: {str(e)}")
+        # Clear the model context using our helper method
+        self.clear_model_context()
 
         # Display a status message
         self.display_message("Chat and conversation history cleared.\n", "status")
