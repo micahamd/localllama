@@ -29,17 +29,19 @@ from error_handler import error_handler, safe_execute
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
-    # Define color scheme as class variables - improved for better aesthetics
-    bg_color = "#1E1E2E"  # Darker, more pleasant background
-    fg_color = "#F5F5F5"  # Brighter text for better contrast
-    accent_color = "#89B4FA"  # Softer blue accent
-    secondary_bg = "#313244"  # Medium contrast for secondary elements
-    tertiary_bg = "#181825"  # Darker background for some elements
-    subtle_accent = "#74C7EC"  # Lighter blue for highlights
-    success_color = "#A6E3A1"  # Soft green for success messages
-    error_color = "#F38BA8"  # Softer red for errors
-    warning_color = "#FAB387"  # Peach for warnings
-    border_color = "#45475A"  # Border color for elements
+    # Define color scheme as class variables - enhanced for better aesthetics
+    bg_color = "#1A1B26"  # Rich dark blue-black background
+    fg_color = "#C0CAF5"  # Soft blue-white text for better readability
+    accent_color = "#7AA2F7"  # Vibrant blue accent
+    secondary_bg = "#24283B"  # Slightly lighter background for contrast
+    tertiary_bg = "#16161E"  # Darker background for depth
+    subtle_accent = "#BB9AF7"  # Purple accent for highlights and interactive elements
+    success_color = "#9ECE6A"  # Vibrant green for success messages
+    error_color = "#F7768E"  # Bright red for errors
+    warning_color = "#E0AF68"  # Rich amber for warnings
+    border_color = "#414868"  # Subtle border color
+    highlight_color = "#2AC3DE"  # Cyan highlight for selections and focus
+    muted_text = "#565F89"  # Muted text for less important elements
 
     def __init__(self, root):
         """Initialize the application and all its components."""
@@ -62,25 +64,61 @@ class OllamaChat:
         except tk.TclError:
             pass  # Use default theme if clam is not available
 
-        # Configure ttk styles with improved aesthetics
-        style.configure("TFrame", background=self.bg_color, borderwidth=1, relief="solid", bordercolor=self.border_color)
-        style.configure("TLabel", background=self.bg_color, foreground=self.fg_color, font=("Segoe UI", 10))
+        # Configure ttk styles with enhanced aesthetics
+        style.configure("TFrame",
+                      background=self.bg_color,
+                      borderwidth=1,
+                      relief="solid",
+                      bordercolor=self.border_color)
+
+        style.configure("TLabel",
+                      background=self.bg_color,
+                      foreground=self.fg_color,
+                      font=("Segoe UI", 10))
 
         # Create a frame style with no border
-        style.configure("NoBorder.TFrame", background=self.bg_color, borderwidth=0, relief="flat")
+        style.configure("NoBorder.TFrame",
+                      background=self.bg_color,
+                      borderwidth=0,
+                      relief="flat")
 
-        # Create a frame style with subtle border
-        style.configure("SubtleBorder.TFrame", background=self.bg_color, borderwidth=1, relief="solid", bordercolor=self.border_color)
+        # Create a frame style with subtle border and rounded corners
+        style.configure("SubtleBorder.TFrame",
+                      background=self.bg_color,
+                      borderwidth=1,
+                      relief="solid",
+                      bordercolor=self.border_color)
 
-        # Button styling with rounded corners effect
+        # Create a rounded frame style
+        style.configure("Rounded.TFrame",
+                      background=self.bg_color,
+                      borderwidth=1,
+                      relief="solid",
+                      bordercolor=self.border_color)
+
+        # Button styling with enhanced rounded corners effect
         style.configure("TButton",
                       background=self.secondary_bg,
                       foreground=self.fg_color,
                       borderwidth=1,
                       relief="flat",
-                      font=("Segoe UI", 10))
+                      padding=(10, 5),  # More padding for better touch targets
+                      font=("Segoe UI", 10, "bold"))  # Bold text for better visibility
         style.map("TButton",
                  background=[("active", self.subtle_accent), ("pressed", self.accent_color)],
+                 foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
+                 relief=[("pressed", "sunken")])
+
+        # Create a primary button style with accent color
+        style.configure("Primary.TButton",
+                      background=self.accent_color,
+                      foreground="#FFFFFF",
+                      borderwidth=1,
+                      relief="flat",
+                      padding=(10, 5),
+                      font=("Segoe UI", 10, "bold"))
+        style.map("Primary.TButton",
+                 background=[("active", self.subtle_accent), ("pressed", self.highlight_color)],
                  foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
                  relief=[("pressed", "sunken")])
 
@@ -120,18 +158,27 @@ class OllamaChat:
         style.configure("TPanedwindow", background=self.bg_color, sashrelief="flat")
         style.configure("TSizegrip", background=self.bg_color)
 
-        # LabelFrame styling - improved with better borders and padding
+        # Slider styling with accent colors
+        style.configure("Horizontal.TScale",
+                      background=self.bg_color,
+                      troughcolor=self.secondary_bg,
+                      sliderrelief="flat")
+        style.map("Horizontal.TScale",
+                 background=[("active", self.bg_color)],
+                 troughcolor=[("active", self.secondary_bg)])
+
+        # LabelFrame styling - enhanced with better borders, padding and rounded appearance
         style.configure("TLabelframe",
                       background=self.bg_color,
                       foreground=self.fg_color,
                       borderwidth=1,
                       relief="solid",
                       bordercolor=self.border_color,
-                      padding=5)
+                      padding=10)  # Increased padding for better spacing
         style.configure("TLabelframe.Label",
                       background=self.bg_color,
                       foreground=self.accent_color,
-                      font=("Segoe UI", 10, "bold"))
+                      font=("Segoe UI", 11, "bold"))  # Slightly larger font for better readability
 
         # Configure root window
         self.root.configure(background=self.bg_color)
@@ -165,6 +212,8 @@ class OllamaChat:
 
         # Apply saved settings
         self.apply_settings()
+
+        # No custom slider thumbs to initialize
 
         # Show welcome message
         self.display_message("Welcome to Loca(o)llama chat!\n", "status")
@@ -315,8 +364,11 @@ class OllamaChat:
             to=2.0,
             orient='horizontal',
             variable=self.temperature,
-            command=self.on_temp_change
+            command=self.on_temp_change,
+            style="Horizontal.TScale"
         )
+
+        # No custom thumb - using the default ttk.Scale thumb
         self.temp_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}")
@@ -333,8 +385,11 @@ class OllamaChat:
             to=128000,
             orient='horizontal',
             variable=self.context_size,
-            command=self.on_context_change
+            command=self.on_context_change,
+            style="Horizontal.TScale"
         )
+
+        # No custom thumb - using the default ttk.Scale thumb
         self.context_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
         self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()))
@@ -406,7 +461,7 @@ class OllamaChat:
         )
         advanced_web_access_checkbox.pack(anchor="w", padx=5, pady=2)
 
-        # Conversations section
+        # Conversations section with enhanced styling
         conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
         conversations_frame.pack(fill=tk.X, padx=5, pady=5)
 
@@ -421,9 +476,21 @@ class OllamaChat:
         # Prompt History button
         ttk.Button(conv_buttons_frame, text="Prompt History", command=self.show_prompt_history).pack(side=tk.LEFT, padx=2)
 
-        # Recent conversations list
+        # Recent conversations list with enhanced styling
         ttk.Label(conversations_frame, text="Recent:").pack(anchor="w", padx=5)
-        self.conversations_listbox = tk.Listbox(conversations_frame, height=5)
+        self.conversations_listbox = tk.Listbox(
+            conversations_frame,
+            height=5,
+            bg=self.secondary_bg,
+            fg=self.fg_color,
+            selectbackground=self.subtle_accent,
+            selectforeground="#FFFFFF",
+            borderwidth=0,
+            highlightthickness=2,
+            highlightcolor=self.highlight_color,
+            highlightbackground=self.border_color,
+            font=("Segoe UI", 10)
+        )
         self.conversations_listbox.pack(fill=tk.X, padx=5, pady=2)
         self.conversations_listbox.bind("<Double-1>", self.on_conversation_selected)
 
@@ -440,8 +507,8 @@ class OllamaChat:
         chat_frame = ttk.Frame(self.chat_input_frame)
         chat_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=5, pady=5) # Pack below sidebar
 
-        # System instructions area with improved styling
-        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions", padding=(10, 10, 10, 10))
+        # System instructions area with enhanced styling and rounded corners
+        system_frame = ttk.LabelFrame(chat_frame, text="System Instructions", padding=(12, 12, 12, 12))
         system_frame.pack(fill=tk.X, padx=10, pady=10)
 
         self.system_text = scrolledtext.ScrolledText(
@@ -451,34 +518,34 @@ class OllamaChat:
             font=("Segoe UI", 11),  # Slightly larger font
             bg=self.secondary_bg,
             fg=self.fg_color,
-            insertbackground=self.fg_color,
+            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
             padx=15,  # Increased horizontal padding
             pady=15,  # Increased vertical padding
-            borderwidth=1,  # Subtle border
-            highlightthickness=1,
-            highlightcolor=self.subtle_accent,
+            borderwidth=0,  # No border for cleaner look
+            highlightthickness=2,  # Thicker highlight for focus
+            highlightcolor=self.highlight_color,  # Cyan highlight when focused
             highlightbackground=self.border_color,
-            relief="solid"  # Solid border for better definition
+            relief="flat"  # Flat relief for modern look
         )
         self.system_text.pack(fill=tk.X, padx=5, pady=5)
         self.system_text.insert('1.0', self.settings.get("system_prompt", "Respond honestly, objectively and concisely."))
 
-        # Main chat display - using custom HTMLText widget with enhanced styling
+        # Main chat display - using custom HTMLText widget with enhanced styling and rounded corners
         self.chat_display = HTMLText(
             chat_frame,
             wrap=tk.WORD,
             font=("Segoe UI", 12),
             bg=self.tertiary_bg,  # Darker background for better contrast
             fg=self.fg_color,
-            insertbackground=self.fg_color,
+            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
             padx=20,  # Increased padding for better readability
             pady=20,  # Increased padding for better readability
-            borderwidth=1,  # Subtle border
-            highlightthickness=1,
-            highlightcolor=self.subtle_accent,
+            borderwidth=0,  # No border for cleaner look
+            highlightthickness=2,  # Thicker highlight for focus
+            highlightcolor=self.highlight_color,  # Cyan highlight when focused
             highlightbackground=self.border_color,
             cursor="arrow",  # Use arrow cursor for better UX
-            relief="solid"  # Solid border for better definition
+            relief="flat"  # Flat relief for modern look
         )
         self.chat_display.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
 
@@ -534,7 +601,7 @@ class OllamaChat:
         input_field_frame = ttk.Frame(input_pane)
         input_pane.add(input_field_frame, weight=1)
 
-        # Add the input field to the frame with enhanced styling
+        # Add the input field to the frame with enhanced styling and rounded corners
         self.input_field = scrolledtext.ScrolledText(
             input_field_frame,
             wrap=tk.WORD,
@@ -544,13 +611,13 @@ class OllamaChat:
             pady=20,  # Increased padding for better readability
             bg=self.secondary_bg,
             fg=self.fg_color,
-            insertbackground=self.accent_color,  # Colored cursor for better visibility
-            borderwidth=1,  # Subtle border
-            highlightthickness=1,
-            highlightcolor=self.subtle_accent,
+            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
+            borderwidth=0,  # No border for cleaner look
+            highlightthickness=2,  # Thicker highlight for focus
+            highlightcolor=self.highlight_color,  # Cyan highlight when focused
             highlightbackground=self.border_color,
             insertwidth=2,  # Wider cursor for better visibility
-            relief="solid"  # Solid border for better definition
+            relief="flat"  # Flat relief for modern look
         )
 
         # Add placeholder text that disappears on focus
@@ -610,11 +677,13 @@ class OllamaChat:
             command=self.stop_processing
         ).pack(side=tk.LEFT, padx=2)
 
+        # Use Primary button style for the Send button to make it stand out
         ttk.Button(
             button_frame,
             text="Send",
-            command=self.send_message
-        ).pack(side=tk.LEFT, padx=2)
+            command=self.send_message,
+            style="Primary.TButton"
+        ).pack(side=tk.LEFT, padx=5)
 
     def create_status_bar(self):
         """Create the status bar at the bottom of the application."""
@@ -628,28 +697,28 @@ class OllamaChat:
 
     def configure_tags(self):
         """Configure text tags for styling chat messages."""
-        # Configure message tags with softer colors
-        self.chat_display.tag_configure('user', foreground='#9CDCFE')  # Soft blue for user
-        self.chat_display.tag_configure('assistant', foreground='#6A9955')  # Soft green for assistant
-        self.chat_display.tag_configure('system', foreground='#CE9178')  # Soft orange for system
-        self.chat_display.tag_configure('error', foreground=self.error_color)  # Red for errors
-        self.chat_display.tag_configure('warning', foreground='#FFCC00')  # Yellow for warnings
-        self.chat_display.tag_configure('status', foreground='#999999')  # Gray for status
+        # Configure message tags with enhanced colors from our new theme
+        self.chat_display.tag_configure('user', foreground=self.accent_color)  # Vibrant blue for user
+        self.chat_display.tag_configure('assistant', foreground=self.success_color)  # Vibrant green for assistant
+        self.chat_display.tag_configure('system', foreground=self.subtle_accent)  # Purple for system
+        self.chat_display.tag_configure('error', foreground=self.error_color)  # Bright red for errors
+        self.chat_display.tag_configure('warning', foreground=self.warning_color)  # Rich amber for warnings
+        self.chat_display.tag_configure('status', foreground=self.muted_text)  # Muted text for status
 
-        # Configure additional tags for rich text formatting
-        self.chat_display.tag_configure('user_label', foreground='#9CDCFE', font=("Segoe UI", 12, "bold"))
-        self.chat_display.tag_configure('assistant_label', foreground='#6A9955', font=("Segoe UI", 12, "bold"))
-        self.chat_display.tag_configure('warning_label', foreground='#FFCC00', font=("Segoe UI", 12, "bold"))
-        self.chat_display.tag_configure('system_label', foreground='#CE9178', font=("Segoe UI", 12, "bold"))
-        self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 12, "bold"))
-        self.chat_display.tag_configure('status_label', foreground='#999999', font=("Segoe UI", 12, "bold"))
+        # Configure additional tags for rich text formatting with enhanced styling
+        self.chat_display.tag_configure('user_label', foreground=self.accent_color, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('assistant_label', foreground=self.success_color, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('warning_label', foreground=self.warning_color, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('system_label', foreground=self.subtle_accent, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('status_label', foreground=self.muted_text, font=("Segoe UI", 13, "bold"))
 
-        # Configure file preview tags
-        self.chat_display.tag_configure('file_label', foreground='#DCDCAA', font=("Segoe UI", 12, "bold"))  # Gold for file name
-        self.chat_display.tag_configure('file_info', foreground='#4EC9B0', font=("Segoe UI", 11))  # Teal for file info
+        # Configure file preview tags with enhanced colors
+        self.chat_display.tag_configure('file_label', foreground=self.highlight_color, font=("Segoe UI", 13, "bold"))  # Cyan for file name
+        self.chat_display.tag_configure('file_info', foreground=self.subtle_accent, font=("Segoe UI", 12))  # Purple for file info
 
-        # Configure link tag for clickable links
-        self.chat_display.tag_configure('link', foreground=self.subtle_accent, underline=1)
+        # Configure link tag for clickable links with enhanced styling
+        self.chat_display.tag_configure('link', foreground=self.highlight_color, underline=1)
         self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
 
     def bind_events(self):
@@ -828,9 +897,15 @@ class OllamaChat:
         """Update temperature label when slider moves."""
         self.temp_label.config(text=f"{float(value):.2f}")
 
+        # Update the temperature label
+
     def on_context_change(self, value):
         """Update context window label when slider moves."""
         self.context_label.config(text=f"{int(float(value))}")
+
+        # Update the context size label
+
+    # Custom thumb methods removed
 
     def on_show_image_toggle(self):
         """Update inline image display based on the checkbox."""
