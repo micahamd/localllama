@@ -721,8 +721,129 @@ class OllamaChat:
         self.chat_display.tag_configure('link', foreground=self.highlight_color, underline=1)
         self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
 
+    def create_context_menu(self):
+        """Create context menu for right-click actions."""
+        # Common menu style
+        menu_style = {
+            'tearoff': 0,
+            'bg': self.secondary_bg,
+            'fg': self.fg_color,
+            'activebackground': self.subtle_accent,
+            'activeforeground': "#FFFFFF"
+        }
+
+        # Create a context menu for the chat display
+        self.context_menu = Menu(self.root, **menu_style)
+        self.context_menu.add_command(label="Copy", command=self.copy_selection)
+        self.context_menu.add_command(label="Copy All", command=self.copy_all)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Select All", command=self.select_all)
+        self.context_menu.add_separator()
+        self.context_menu.add_command(label="Clear Chat", command=self.clear_chat)
+
+        # Create a context menu for the input field
+        self.input_context_menu = Menu(self.root, **menu_style)
+        self.input_context_menu.add_command(label="Cut", command=lambda: self.input_field.event_generate("<<Cut>>"))
+        self.input_context_menu.add_command(label="Copy", command=lambda: self.input_field.event_generate("<<Copy>>"))
+        self.input_context_menu.add_command(label="Paste", command=lambda: self.input_field.event_generate("<<Paste>>"))
+        self.input_context_menu.add_separator()
+        self.input_context_menu.add_command(label="Select All", command=lambda: self.input_field.tag_add("sel", "1.0", "end"))
+        self.input_context_menu.add_separator()
+        self.input_context_menu.add_command(label="Clear", command=lambda: self.input_field.delete("1.0", tk.END))
+
+        # Create a context menu for the system instructions
+        self.system_context_menu = Menu(self.root, **menu_style)
+        self.system_context_menu.add_command(label="Cut", command=lambda: self.system_text.event_generate("<<Cut>>"))
+        self.system_context_menu.add_command(label="Copy", command=lambda: self.system_text.event_generate("<<Copy>>"))
+        self.system_context_menu.add_command(label="Paste", command=lambda: self.system_text.event_generate("<<Paste>>"))
+        self.system_context_menu.add_separator()
+        self.system_context_menu.add_command(label="Select All", command=lambda: self.system_text.tag_add("sel", "1.0", "end"))
+        self.system_context_menu.add_separator()
+        self.system_context_menu.add_command(label="Reset to Default", command=self.reset_system_prompt)
+
+        # Create a context menu for the conversations listbox
+        self.conv_context_menu = Menu(self.root, **menu_style)
+        self.conv_context_menu.add_command(label="Load Selected", command=lambda: self.load_selected_conversation())
+        self.conv_context_menu.add_command(label="Delete Selected", command=lambda: self.delete_selected_conversation())
+        self.conv_context_menu.add_separator()
+        self.conv_context_menu.add_command(label="New Conversation", command=self.new_conversation)
+
+    def show_context_menu(self, event, menu):
+        """Show the context menu at the current mouse position."""
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            # Make sure to release the grab
+            menu.grab_release()
+
+    def copy_all(self):
+        """Copy all text from the chat display."""
+        self.chat_display.tag_add("sel", "1.0", tk.END)
+        self.chat_display.event_generate("<<Copy>>")
+        self.chat_display.tag_remove("sel", "1.0", tk.END)
+
+    def select_all(self):
+        """Select all text in the chat display."""
+        self.chat_display.tag_add("sel", "1.0", tk.END)
+        self.chat_display.focus_set()
+
+    def reset_system_prompt(self):
+        """Reset the system prompt to default."""
+        default_prompt = "Respond honestly, objectively and concisely."
+        self.system_text.delete("1.0", tk.END)
+        self.system_text.insert("1.0", default_prompt)
+        self.settings.set("system_prompt", default_prompt)
+        self.display_message("\nSystem prompt reset to default.\n", "status")
+
+    def load_selected_conversation(self):
+        """Load the selected conversation from the listbox."""
+        selected = self.conversations_listbox.curselection()
+        if not selected:
+            messagebox.showinfo("Info", "Please select a conversation to load")
+            return
+
+        # Get the conversation name
+        conv_name = self.conversations_listbox.get(selected[0])
+
+        # Load the conversation
+        self.load_conversation_by_name(conv_name)
+
+    def delete_selected_conversation(self):
+        """Delete the selected conversation from the listbox."""
+        selected = self.conversations_listbox.curselection()
+        if not selected:
+            messagebox.showinfo("Info", "Please select a conversation to delete")
+            return
+
+        # Get the conversation name
+        conv_name = self.conversations_listbox.get(selected[0])
+
+        # Confirm deletion
+        confirm = messagebox.askyesno(
+            "Confirm Deletion",
+            f"Are you sure you want to delete the conversation '{conv_name}'?"
+        )
+
+        if confirm:
+            # Delete the conversation file
+            try:
+                filepath = os.path.join("conversations", f"{conv_name}.json")
+                if os.path.exists(filepath):
+                    os.remove(filepath)
+
+                # Update the conversations list
+                self.update_conversations_list()
+
+                # Show success message
+                self.display_message(f"\nConversation '{conv_name}' deleted.\n", "status")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to delete conversation: {str(e)}")
+
     def bind_events(self):
         """Bind events to widgets."""
+        # Create context menus
+        self.create_context_menu()
+
         # Bind Ctrl+Enter AND Enter to send message
         self.input_field.bind('<Control-Return>', lambda e: self.send_message())
         self.input_field.bind('<Return>', lambda e: self.send_message() if not e.state & 0x0001 else None)
@@ -734,6 +855,12 @@ class OllamaChat:
 
         # Allow Copy in chat display
         self.chat_display.bind("<Control-c>", lambda e: self.chat_display.event_generate("<<Copy>>"))
+
+        # Bind right-click to show context menu
+        self.chat_display.bind("<Button-3>", lambda e: self.show_context_menu(e, self.context_menu))
+        self.input_field.bind("<Button-3>", lambda e: self.show_context_menu(e, self.input_context_menu))
+        self.system_text.bind("<Button-3>", lambda e: self.show_context_menu(e, self.system_context_menu))
+        self.conversations_listbox.bind("<Button-3>", lambda e: self.show_context_menu(e, self.conv_context_menu))
 
         # Handle application close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
@@ -2013,26 +2140,57 @@ class OllamaChat:
         if not filepath:
             return
 
-        # Load the selected conversation
-        conversation = self.conversation_manager.load_conversation(filepath)
+        # Get the conversation name from the filepath
+        conversation_name = os.path.basename(filepath)
+        # Remove the .json extension if present
+        if conversation_name.endswith('.json'):
+            conversation_name = conversation_name[:-5]  # Remove .json
 
-        if conversation:
-            # Update model if it was saved with the conversation
-            if conversation.model and conversation.model in self.model_selector["values"]:
-                self.model_selector.set(conversation.model)
-                self.selected_model = conversation.model
+        # Load the conversation by name
+        self.load_conversation_by_name(conversation_name)
 
-            # Render the conversation in the chat display
-            self.conversation_manager.render_conversation(self.chat_display, {
-                'user': {'foreground': '#6699CC'},
-                'assistant': {'foreground': '#99CC99'},
-                'system': {'foreground': '#CC9999'},
-                'error': {'foreground': '#FF6666'},
-                'status': {'foreground': '#999999'},
-                'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
-            })
+    def load_conversation_by_name(self, conversation_name):
+        """Load a conversation by its name."""
+        try:
+            # Construct the filepath
+            filepath = os.path.join(self.conversation_manager.conversations_dir, f"{conversation_name}.json")
 
-            self.display_message(f"\nLoaded conversation: {conversation.title}\n", "status")
+            # Check if the file exists
+            if not os.path.exists(filepath):
+                messagebox.showerror("Error", f"Conversation file not found: {conversation_name}")
+                return
+
+            # Load the selected conversation
+            conversation = self.conversation_manager.load_conversation(filepath)
+
+            if conversation:
+                # Update model if it was saved with the conversation
+                if conversation.model and conversation.model in self.model_selector["values"]:
+                    self.model_selector.set(conversation.model)
+                    self.selected_model = conversation.model
+
+                # Clear the chat display first
+                self.chat_display["state"] = "normal"
+                self.chat_display.delete(1.0, tk.END)
+                self.chat_display["state"] = "disabled"
+
+                # Render the conversation in the chat display
+                self.conversation_manager.render_conversation(self.chat_display, {
+                    'user': {'foreground': '#6699CC'},
+                    'assistant': {'foreground': '#99CC99'},
+                    'system': {'foreground': '#CC9999'},
+                    'error': {'foreground': '#FF6666'},
+                    'status': {'foreground': '#999999'},
+                    'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
+                })
+
+                self.display_message(f"\nLoaded conversation: {conversation.title}\n", "status")
+
+                # Update the conversations list
+                self.update_conversations_list()
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Loading conversation")
+            messagebox.showerror("Error", f"Failed to load conversation: {error_msg}")
 
     def update_conversations_list(self):
         """Update the list of recent conversations in the sidebar."""
@@ -2055,27 +2213,21 @@ class OllamaChat:
         selection = event.widget.curselection()
         if selection:
             filename = event.widget.get(selection[0])
-            filepath = os.path.join(self.conversation_manager.conversations_dir, filename)
 
-            if os.path.exists(filepath):
-                # Ask for confirmation
-                confirm = messagebox.askyesno(
-                    "Load Conversation",
-                    f"Load conversation '{filename}'? This will replace the current conversation."
-                )
+            # Ask for confirmation
+            confirm = messagebox.askyesno(
+                "Load Conversation",
+                f"Load conversation '{filename}'? This will replace the current conversation."
+            )
 
-                if confirm:
-                    self.conversation_manager.load_conversation(filepath)
+            if confirm:
+                # Extract conversation name (remove .json extension if present)
+                conversation_name = filename
+                if conversation_name.endswith('.json'):
+                    conversation_name = conversation_name[:-5]  # Remove .json
 
-                    # Render the conversation in the chat display
-                    self.conversation_manager.render_conversation(self.chat_display, {
-                        'user': {'foreground': '#6699CC'},
-                        'assistant': {'foreground': '#99CC99'},
-                        'system': {'foreground': '#CC9999'},
-                        'error': {'foreground': '#FF6666'},
-                        'status': {'foreground': '#999999'},
-                        'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
-                    })
+                # Use our new method to load the conversation
+                self.load_conversation_by_name(conversation_name)
 
     def show_rag_visualization(self):
         """Show the RAG visualization panel."""
