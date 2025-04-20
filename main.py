@@ -46,7 +46,7 @@ class OllamaChat:
         self.root = root
         self.root.title("Local(o)llama Chat")
         self.root.geometry("1200x800")
-        self.root.minsize(800, 600)
+        self.root.minsize(1400, 1200)
 
         # Set up a modern theme
         self.setup_theme()
@@ -1898,10 +1898,7 @@ class OllamaChat:
             if not confirm:
                 return
 
-        # Create a new conversation
-        self.conversation_manager.new_conversation(model=self.selected_model)
-
-        # Clear the chat display
+        # Use clear_chat to handle both UI clearing and model context clearing
         self.clear_chat()
 
         # Update conversations list
@@ -2217,11 +2214,38 @@ class OllamaChat:
         self.display_message("\nBatch processing completed.\n", "status")
 
     def clear_chat(self):
-        """Clear the chat display."""
+        """Clear the chat display and conversation history."""
+        # Clear the chat display
         self.chat_display["state"] = "normal"
         self.chat_display.delete(1.0, tk.END)
         self.chat_display["state"] = "disabled"
         self.status_bar["text"] = "Ready"
+
+        # Create a new conversation to clear history
+        self.conversation_manager.new_conversation(model=self.selected_model)
+
+        # Send a /clear command to the model to clear its context
+        # This is done silently without displaying in the chat
+        if self.selected_model:
+            try:
+                # Prepare a /clear message
+                messages = [{'role': 'user', 'content': '/clear'}]
+
+                # Send the message without displaying it
+                self.model_manager.get_response(
+                    messages=messages,
+                    model=self.selected_model,
+                    temperature=self.temperature.get(),
+                    context_size=self.context_size.get()
+                )
+
+                # No need to process the response
+            except Exception as e:
+                # Silently handle any errors - this is just a best effort
+                print(f"Error sending /clear command: {str(e)}")
+
+        # Display a status message
+        self.display_message("Chat and conversation history cleared.\n", "status")
 
     def display_file_preview(self, file_path, file_content):
         """Display a file preview in the chat with an icon and the first 5 lines."""
