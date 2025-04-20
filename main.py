@@ -20,6 +20,7 @@ from html_text import HTMLText, HTMLTextParser
 # Import our custom modules
 from settings import Settings
 from conversation import ConversationManager, Message, Conversation
+from prompt_manager import PromptManager, Prompt
 from rag_module import RAG
 from rag_visualizer import RAGVisualizerPanel
 from models_manager import create_model_manager, OllamaManager, GeminiManager
@@ -142,6 +143,7 @@ class OllamaChat:
         # Initialize components
         self.settings = Settings()
         self.conversation_manager = ConversationManager()
+        self.prompt_manager = PromptManager()
 
         # Create minimal UI elements required for error display
         self.create_main_frame()
@@ -239,6 +241,8 @@ class OllamaChat:
         edit_menu.add_command(label="Copy", command=self.copy_selection)
         edit_menu.add_command(label="Clear Chat", command=self.clear_chat)
         edit_menu.add_command(label="Clear File", command=self.clear_file)
+        edit_menu.add_separator()
+        edit_menu.add_command(label="Prompt History", command=self.show_prompt_history)
 
         # View menu
         view_menu = Menu(self.menu_bar, tearoff=0)
@@ -413,6 +417,9 @@ class OllamaChat:
         ttk.Button(conv_buttons_frame, text="New", command=self.new_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(conv_buttons_frame, text="Save", command=self.save_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(conv_buttons_frame, text="Load", command=self.load_conversation).pack(side=tk.LEFT, padx=2)
+
+        # Prompt History button
+        ttk.Button(conv_buttons_frame, text="Prompt History", command=self.show_prompt_history).pack(side=tk.LEFT, padx=2)
 
         # Recent conversations list
         ttk.Label(conversations_frame, text="Recent:").pack(anchor="w", padx=5)
@@ -2310,6 +2317,264 @@ class OllamaChat:
             "A modular chat interface for interacting with various LLMs.\n"
             "Supports RAG, conversation management, and multiple model providers."
         )
+
+    def show_prompt_history(self):
+        """Show the prompt history window."""
+        # Create a new top-level window
+        prompt_window = tk.Toplevel(self.root)
+        prompt_window.title("Prompt History")
+        prompt_window.geometry("600x500")
+        prompt_window.minsize(500, 400)
+        prompt_window.configure(background=self.bg_color)
+
+        # Make it modal
+        prompt_window.transient(self.root)
+        prompt_window.grab_set()
+
+        # Create main frame
+        main_frame = ttk.Frame(prompt_window, padding=(10, 10, 10, 10))
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Create buttons frame
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # Add buttons
+        ttk.Button(buttons_frame, text="Add Prompt", command=lambda: self.add_prompt(prompt_window, prompt_listbox)).pack(side=tk.LEFT, padx=5)
+        ttk.Button(buttons_frame, text="Delete Prompt", command=lambda: self.delete_prompt(prompt_listbox)).pack(side=tk.LEFT, padx=5)
+
+        # Create prompt list frame
+        list_frame = ttk.LabelFrame(main_frame, text="Saved Prompts")
+        list_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+
+        # Add listbox for prompts
+        prompt_listbox = tk.Listbox(list_frame, font=("Segoe UI", 11), bg=self.secondary_bg, fg=self.fg_color)
+        prompt_listbox.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # Bind double-click to view prompt
+        prompt_listbox.bind("<Double-1>", lambda e: self.view_prompt(prompt_window, prompt_listbox))
+
+        # Populate the listbox with prompt titles
+        self.update_prompt_listbox(prompt_listbox)
+
+        # Add close button at the bottom
+        ttk.Button(main_frame, text="Close", command=prompt_window.destroy).pack(pady=10)
+
+    def update_prompt_listbox(self, listbox):
+        """Update the prompt listbox with current prompts."""
+        listbox.delete(0, tk.END)
+        for title in self.prompt_manager.get_prompt_titles():
+            listbox.insert(tk.END, title)
+
+    def add_prompt(self, parent_window, listbox):
+        """Add a new prompt."""
+        # Create a new top-level window for adding a prompt
+        add_window = tk.Toplevel(parent_window)
+        add_window.title("Add New Prompt")
+        add_window.geometry("600x400")
+        add_window.minsize(500, 300)
+        add_window.configure(background=self.bg_color)
+
+        # Make it modal
+        add_window.transient(parent_window)
+        add_window.grab_set()
+
+        # Create main frame
+        main_frame = ttk.Frame(add_window, padding=(10, 10, 10, 10))
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Title field
+        ttk.Label(main_frame, text="Title:").pack(anchor="w", pady=(0, 5))
+        title_entry = ttk.Entry(main_frame, width=50, font=("Segoe UI", 11))
+        title_entry.pack(fill=tk.X, pady=(0, 10))
+
+        # Content field
+        ttk.Label(main_frame, text="Content:").pack(anchor="w", pady=(0, 5))
+        content_text = scrolledtext.ScrolledText(
+            main_frame,
+            wrap=tk.WORD,
+            height=10,
+            font=("Segoe UI", 11),
+            bg=self.secondary_bg,
+            fg=self.fg_color
+        )
+        content_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Buttons frame
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(fill=tk.X, pady=10)
+
+        # Save and Cancel buttons
+        ttk.Button(
+            buttons_frame,
+            text="Save",
+            command=lambda: self.save_prompt(title_entry.get(), content_text.get("1.0", tk.END), add_window, listbox)
+        ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            buttons_frame,
+            text="Cancel",
+            command=add_window.destroy
+        ).pack(side=tk.RIGHT, padx=5)
+
+    def save_prompt(self, title, content, window, listbox):
+        """Save a prompt to the prompt manager."""
+        if not title.strip():
+            messagebox.showerror("Error", "Title cannot be empty")
+            return
+
+        if not content.strip():
+            messagebox.showerror("Error", "Content cannot be empty")
+            return
+
+        # Add the prompt
+        success = self.prompt_manager.add_prompt(title, content)
+
+        if success:
+            # Update the listbox
+            self.update_prompt_listbox(listbox)
+            # Close the window
+            window.destroy()
+            # Show success message
+            messagebox.showinfo("Success", f"Prompt '{title}' saved successfully")
+        else:
+            messagebox.showerror("Error", "Failed to save prompt")
+
+    def delete_prompt(self, listbox):
+        """Delete a selected prompt."""
+        # Get selected index
+        selected = listbox.curselection()
+
+        if not selected:
+            messagebox.showinfo("Info", "Please select a prompt to delete")
+            return
+
+        # Get the title
+        title = listbox.get(selected[0])
+
+        # Confirm deletion
+        confirm = messagebox.askyesno(
+            "Confirm Deletion",
+            f"Are you sure you want to delete the prompt '{title}'?"
+        )
+
+        if confirm:
+            # Delete the prompt
+            success = self.prompt_manager.delete_prompt(title)
+
+            if success:
+                # Update the listbox
+                self.update_prompt_listbox(listbox)
+                # Show success message
+                messagebox.showinfo("Success", f"Prompt '{title}' deleted successfully")
+            else:
+                messagebox.showerror("Error", "Failed to delete prompt")
+
+    def view_prompt(self, parent_window, listbox):
+        """View and edit a selected prompt."""
+        # Get selected index
+        selected = listbox.curselection()
+
+        if not selected:
+            messagebox.showinfo("Info", "Please select a prompt to view")
+            return
+
+        # Get the title
+        title = listbox.get(selected[0])
+
+        # Get the prompt
+        prompt = self.prompt_manager.get_prompt(title)
+
+        if not prompt:
+            messagebox.showerror("Error", f"Could not find prompt '{title}'")
+            return
+
+        # Create a new top-level window for viewing/editing the prompt
+        view_window = tk.Toplevel(parent_window)
+        view_window.title(f"Prompt: {title}")
+        view_window.geometry("600x400")
+        view_window.minsize(500, 300)
+        view_window.configure(background=self.bg_color)
+
+        # Make it modal
+        view_window.transient(parent_window)
+        view_window.grab_set()
+
+        # Create main frame
+        main_frame = ttk.Frame(view_window, padding=(10, 10, 10, 10))
+        main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Content field
+        content_text = scrolledtext.ScrolledText(
+            main_frame,
+            wrap=tk.WORD,
+            height=15,
+            font=("Segoe UI", 11),
+            bg=self.secondary_bg,
+            fg=self.fg_color
+        )
+        content_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+        # Insert the prompt content
+        content_text.insert("1.0", prompt.content)
+
+        # Buttons frame
+        buttons_frame = ttk.Frame(main_frame)
+        buttons_frame.pack(fill=tk.X, pady=10)
+
+        # Use in Chat button
+        ttk.Button(
+            buttons_frame,
+            text="Use in Chat",
+            command=lambda: self.use_prompt_in_chat(prompt.content, view_window)
+        ).pack(side=tk.LEFT, padx=5)
+
+        # Save and Close buttons
+        ttk.Button(
+            buttons_frame,
+            text="Save Changes",
+            command=lambda: self.update_prompt(title, content_text.get("1.0", tk.END), view_window, listbox)
+        ).pack(side=tk.RIGHT, padx=5)
+
+        ttk.Button(
+            buttons_frame,
+            text="Close",
+            command=view_window.destroy
+        ).pack(side=tk.RIGHT, padx=5)
+
+    def update_prompt(self, title, content, window, listbox):
+        """Update an existing prompt."""
+        if not content.strip():
+            messagebox.showerror("Error", "Content cannot be empty")
+            return
+
+        # Update the prompt
+        success = self.prompt_manager.update_prompt(title, content)
+
+        if success:
+            # Show success message
+            messagebox.showinfo("Success", f"Prompt '{title}' updated successfully")
+            # Close the window
+            window.destroy()
+        else:
+            messagebox.showerror("Error", "Failed to update prompt")
+
+    def use_prompt_in_chat(self, content, window):
+        """Use the selected prompt in the chat input field."""
+        # Clear the input field
+        self.input_field.delete("1.0", tk.END)
+
+        # Insert the prompt content
+        self.input_field.insert("1.0", content)
+
+        # Close the window
+        window.destroy()
+
+        # Focus on the input field
+        self.input_field.focus_set()
+
+        # Set placeholder visible to False
+        self.input_placeholder_visible = False
 
     def on_closing(self):
         """Handle application closing."""
