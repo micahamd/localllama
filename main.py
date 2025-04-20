@@ -2481,32 +2481,89 @@ class OllamaChat:
                         content = chunk['message']['content']
                         full_response += content
 
-                        # For batch processing, accumulate content and display in complete sentences
+                        # For batch processing, accumulate content and display in logical chunks
                         # to avoid character-by-character display issues
                         if hasattr(self, 'batch_mode') and self.batch_mode:
                             # Accumulate content until we have a meaningful chunk
                             accumulated_content += content
 
-                            # Process accumulated content to find natural breakpoints
-                            # Look for sentence endings followed by space or newline
-                            sentence_end_pattern = re.compile(r'[.!?][ \n]')
-                            match = sentence_end_pattern.search(accumulated_content)
+                            # Define patterns for natural breakpoints
+                            paragraph_break = re.compile(r'\n\s*\n')
+                            list_item = re.compile(r'\n\s*[-*•]\s')
+                            numbered_item = re.compile(r'\n\s*\d+\.\s')
+                            code_block = re.compile(r'```[\s\S]*?```')
+                            sentence_end = re.compile(r'[.!?]\s')
 
-                            # If we have a complete sentence or substantial content, display it
-                            if match or len(accumulated_content) > 150 or '\n\n' in accumulated_content:
-                                # If we found a sentence end, break there
-                                if match:
-                                    display_index = match.end()
-                                    to_display = accumulated_content[:display_index]
-                                    accumulated_content = accumulated_content[display_index:]
+                            # Check for paragraph breaks first (strongest delimiter)
+                            match = paragraph_break.search(accumulated_content)
+                            if match:
+                                display_index = match.end()
+                                to_display = accumulated_content[:display_index]
+                                accumulated_content = accumulated_content[display_index:]
+                            # Then check for list items
+                            elif list_item.search(accumulated_content) or numbered_item.search(accumulated_content):
+                                # Find the last list item
+                                list_matches = list(list_item.finditer(accumulated_content))
+                                num_matches = list(numbered_item.finditer(accumulated_content))
+                                all_matches = list_matches + num_matches
+                                if all_matches:
+                                    # Get the position of the last complete list item
+                                    last_match = all_matches[-1]
+                                    # Display up to the last complete list item
+                                    to_display = accumulated_content[:last_match.start()]
+                                    accumulated_content = accumulated_content[last_match.start():]
                                 else:
-                                    # Otherwise display everything we've accumulated
-                                    to_display = accumulated_content
-                                    accumulated_content = ""
+                                    # No complete list items found, check for sentences
+                                    match = sentence_end.search(accumulated_content)
+                                    if match and len(accumulated_content) > 30:
+                                        display_index = match.end()
+                                        to_display = accumulated_content[:display_index]
+                                        accumulated_content = accumulated_content[display_index:]
+                                    elif len(accumulated_content) > 200:
+                                        # If content is getting long, display it anyway
+                                        to_display = accumulated_content
+                                        accumulated_content = ""
+                                    else:
+                                        # Not enough content to display yet
+                                        continue
+                            # Check for code blocks
+                            elif code_block.search(accumulated_content):
+                                # Find complete code blocks
+                                matches = list(code_block.finditer(accumulated_content))
+                                if matches:
+                                    last_match = matches[-1]
+                                    to_display = accumulated_content[:last_match.end()]
+                                    accumulated_content = accumulated_content[last_match.end():]
+                                else:
+                                    # No complete code blocks, check for sentences
+                                    match = sentence_end.search(accumulated_content)
+                                    if match and len(accumulated_content) > 30:
+                                        display_index = match.end()
+                                        to_display = accumulated_content[:display_index]
+                                        accumulated_content = accumulated_content[display_index:]
+                                    else:
+                                        continue
+                            # Check for complete sentences
+                            elif sentence_end.search(accumulated_content) and len(accumulated_content) > 30:
+                                # Find the last sentence end
+                                matches = list(sentence_end.finditer(accumulated_content))
+                                if matches:
+                                    last_match = matches[-1]
+                                    to_display = accumulated_content[:last_match.end()]
+                                    accumulated_content = accumulated_content[last_match.end():]
+                                else:
+                                    continue
+                            # If content is getting long, display it anyway
+                            elif len(accumulated_content) > 200:
+                                to_display = accumulated_content
+                                accumulated_content = ""
+                            else:
+                                # Not enough content to display yet
+                                continue
 
-                                # Only display non-empty content
-                                if to_display.strip():
-                                    self.display_message(to_display, 'assistant')
+                            # Only display non-empty content
+                            if to_display and to_display.strip():
+                                self.display_message(to_display, 'assistant')
                         else:
                             # Normal streaming mode
                             self.display_message(content, 'assistant')
@@ -2515,10 +2572,24 @@ class OllamaChat:
 
                 # Display any remaining accumulated content
                 if hasattr(self, 'batch_mode') and self.batch_mode and accumulated_content.strip():
-                    # Add proper punctuation if missing
+                    # Format the final content for better readability
                     final_content = accumulated_content.rstrip()
-                    if final_content and not final_content[-1] in ['.', '!', '?']:
+
+                    # Check if it's a partial code block
+                    if '```' in final_content and final_content.count('```') % 2 == 1:
+                        # Close the code block
+                        final_content += '\n```'
+
+                    # Check if it's a partial list
+                    elif re.search(r'\n\s*[-*•]\s[^\n]*$', final_content) or re.search(r'\n\s*\d+\.\s[^\n]*$', final_content):
+                        # Add a newline to complete the list
+                        final_content += '\n'
+
+                    # Add proper punctuation if missing for regular text
+                    elif final_content and not final_content[-1] in ['.', '!', '?', ':', ';', ')', ']', '}']:
                         final_content += '.'
+
+                    # Display the formatted content
                     self.display_message(final_content, 'assistant')
 
                 # Add to conversation history only if include_chat is enabled
