@@ -3,6 +3,7 @@
 \chroma_db
 \conversations
 \generated_images
+\prompts
 .env
 error_log.txt
 gemini_template.py
