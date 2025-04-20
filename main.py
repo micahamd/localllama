@@ -2358,17 +2358,35 @@ class OllamaChat:
 
     def start_batch_process(self):
         """Start batch processing on multiple files."""
-        if not self.input_field.get("1.0", tk.END).strip():
-            self.display_message("\nPlease enter a prompt first.\n", "error")
+        # Get the current prompt from the input field
+        current_prompt = self.input_field.get("1.0", tk.END).strip()
+
+        if not current_prompt:
+            self.display_message("\nPlease enter a prompt in the input field first.\n", "error")
+            self.display_message("\nThe prompt will be applied to each selected file.\n", "status")
             return
 
         if not self.selected_model:
             self.display_message("\nNo model selected!\n", "error")
             return
 
+        # Show a message explaining what will happen
+        self.display_message(f"\nBatch processing will apply this prompt to each file:\n", "status")
+        self.display_message(f"\"{current_prompt}\"\n", "user")
+
+        # Ask user to select files
+        self.display_message("\nPlease select files to process...\n", "status")
         files = filedialog.askopenfilenames(title="Select Files for Batch Processing")
+
         if files:
-            threading.Thread(target=self.process_files, args=(files,)).start()
+            # Reset stop event before starting
+            self.stop_event.clear()
+            # Start processing in a separate thread
+            processing_thread = threading.Thread(target=self.process_files, args=(files,))
+            processing_thread.daemon = True  # Make thread daemon so it doesn't block program exit
+            processing_thread.start()
+        else:
+            self.display_message("\nBatch processing cancelled - no files selected.\n", "status")
 
     def clear_model_context(self):
         """Clear the model's context without affecting the UI."""
@@ -2393,6 +2411,9 @@ class OllamaChat:
 
     def process_files(self, files):
         """Process multiple files with the same prompt."""
+        # Set batch mode flag to control display behavior
+        self.batch_mode = True
+
         base_prompt = self.input_field.get("1.0", tk.END).strip()
         self.display_message(f"\nStarting batch processing of {len(files)} files\n", "status")
 
@@ -2450,6 +2471,7 @@ class OllamaChat:
             self.active_stream = stream
 
             full_response = ""
+            accumulated_content = ""
             try:
                 for chunk in stream:
                     if self.stop_event.is_set():
@@ -2458,9 +2480,46 @@ class OllamaChat:
                     if chunk and 'message' in chunk and 'content' in chunk['message']:
                         content = chunk['message']['content']
                         full_response += content
-                        self.display_message(content, 'assistant')
+
+                        # For batch processing, accumulate content and display in complete sentences
+                        # to avoid character-by-character display issues
+                        if hasattr(self, 'batch_mode') and self.batch_mode:
+                            # Accumulate content until we have a meaningful chunk
+                            accumulated_content += content
+
+                            # Process accumulated content to find natural breakpoints
+                            # Look for sentence endings followed by space or newline
+                            sentence_end_pattern = re.compile(r'[.!?][ \n]')
+                            match = sentence_end_pattern.search(accumulated_content)
+
+                            # If we have a complete sentence or substantial content, display it
+                            if match or len(accumulated_content) > 150 or '\n\n' in accumulated_content:
+                                # If we found a sentence end, break there
+                                if match:
+                                    display_index = match.end()
+                                    to_display = accumulated_content[:display_index]
+                                    accumulated_content = accumulated_content[display_index:]
+                                else:
+                                    # Otherwise display everything we've accumulated
+                                    to_display = accumulated_content
+                                    accumulated_content = ""
+
+                                # Only display non-empty content
+                                if to_display.strip():
+                                    self.display_message(to_display, 'assistant')
+                        else:
+                            # Normal streaming mode
+                            self.display_message(content, 'assistant')
             finally:
                 self.active_stream = None
+
+                # Display any remaining accumulated content
+                if hasattr(self, 'batch_mode') and self.batch_mode and accumulated_content.strip():
+                    # Add proper punctuation if missing
+                    final_content = accumulated_content.rstrip()
+                    if final_content and not final_content[-1] in ['.', '!', '?']:
+                        final_content += '.'
+                    self.display_message(final_content, 'assistant')
 
                 # Add to conversation history only if include_chat is enabled
                 if full_response and include_chat:
@@ -2478,6 +2537,9 @@ class OllamaChat:
         # Final clear of model context after batch processing is complete
         if not include_chat:
             self.clear_model_context()
+
+        # Reset batch mode flag
+        self.batch_mode = False
 
         self.display_message("\nBatch processing completed.\n", "status")
 
