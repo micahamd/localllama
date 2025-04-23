@@ -4,6 +4,7 @@
 \conversations
 \generated_images
 \prompts
+\memories
 .env
 error_log.txt
 gemini_template.py
