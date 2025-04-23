@@ -26,6 +26,10 @@ from rag_visualizer import RAGVisualizerPanel
 from models_manager import create_model_manager, OllamaManager, GeminiManager
 from error_handler import error_handler, safe_execute
 
+# Import MCP modules
+from mcp_server import MCPManager
+from mcp_ui import MCPPanel
+
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
@@ -192,6 +196,10 @@ class OllamaChat:
         self.conversation_manager = ConversationManager()
         self.prompt_manager = PromptManager()
 
+        # Initialize MCP manager
+        self.mcp_manager = MCPManager()
+        self.mcp_panel = None
+
         # Create minimal UI elements required for error display
         self.create_main_frame()
         self.create_chat_display()  # Create chat display FIRST for error handling
@@ -207,6 +215,7 @@ class OllamaChat:
         self.create_status_bar()
         self.configure_tags()
         self.setup_rag()
+        self.setup_mcp()
         self.load_models()
         self.bind_events()
 
@@ -312,9 +321,14 @@ class OllamaChat:
         api_menu.add_command(label="Configure Anthropic API Key", command=self.prompt_for_anthropic_api_key)
         api_menu.add_command(label="Reset Anthropic API Key", command=self.reset_anthropic_api_key)
 
+        # Tools menu
+        tools_menu = Menu(self.menu_bar, tearoff=0)
+        self.menu_bar.add_cascade(label="Tools", menu=tools_menu)
+        tools_menu.add_command(label="Memory Control Program", command=self.show_mcp_panel)
+
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
-        help_menu.add_cascade(label="Help", menu=help_menu)
+        self.menu_bar.add_cascade(label="Help", menu=help_menu)
 
     def create_sidebar(self):
         """Create the sidebar with settings and model selection."""
@@ -879,6 +893,41 @@ class OllamaChat:
 
         # Create RAG visualizer (lightweight)
         self.rag_visualizer = RAGVisualizerPanel(self.root)
+
+    def setup_mcp(self):
+        """Initialize the MCP (Memory Control Program) system."""
+        # Create MCP panel but don't show it yet
+        self.mcp_panel = MCPPanel(
+            self.root,
+            self.mcp_manager,
+            self.bg_color,
+            self.fg_color,
+            self.accent_color,
+            self.secondary_bg
+        )
+
+    def show_mcp_panel(self):
+        """Show the MCP panel in a new window."""
+        if not self.mcp_panel:
+            self.setup_mcp()
+
+        # Create a new top-level window
+        mcp_window = tk.Toplevel(self.root)
+        mcp_window.title("Memory Control Program")
+        mcp_window.geometry("800x600")
+        mcp_window.minsize(600, 400)
+        mcp_window.configure(background=self.bg_color)
+
+        # Create a new MCP panel specifically for this window
+        mcp_panel = MCPPanel(
+            mcp_window,
+            self.mcp_manager,
+            self.bg_color,
+            self.fg_color,
+            self.accent_color,
+            self.secondary_bg
+        )
+        mcp_panel.show()
 
     def _ensure_rag_initialized(self):
         """Ensure RAG is initialized when needed."""
@@ -1690,6 +1739,13 @@ class OllamaChat:
                         "cache_stats": self.rag.get_cache_stats() if hasattr(self.rag, 'get_cache_stats') else {}
                     })
 
+        # Include relevant memories if MCP is running
+        if hasattr(self, 'mcp_manager') and self.mcp_manager.is_running:
+            # Get relevant memories
+            memories = self.mcp_manager.get_relevant_memories(user_input)
+            if memories and memories != "No relevant memories found.":
+                content += f"\n\n{memories}"
+
         # Prepare message
         message = {
             'role': 'user',
@@ -1828,6 +1884,14 @@ class OllamaChat:
                 # Add the completed response to conversation history
                 if full_response:
                     self.conversation_manager.add_message_to_active("assistant", full_response)
+
+                    # Add the response to MCP memories if it's running
+                    if hasattr(self, 'mcp_manager') and self.mcp_manager.is_running:
+                        # Extract the user's question from the message
+                        user_question = message.get('content', '').split('\n')[0]  # Get first line as question
+                        # Create a memory with the Q&A pair
+                        memory_content = f"Q: {user_question}\nA: {full_response}"
+                        self.mcp_manager.add_memory(memory_content, tags=["conversation"])
 
                     # Update RAG visualizer with source data if available
                     if self.rag_visualizer and rag_results:
