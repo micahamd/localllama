@@ -14,6 +14,8 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 - **Batch Processing**: Process multiple files with the same prompt.
 - **ZIP File Processing**: Extract content from ZIP archives directly.
 - **URL Content Extraction**: Process web content from URLs using @crawlAI.
+- **Memory Control Program (MCP)**: Store and retrieve knowledge with persistent memory system.
+- **File Import for Memories**: Convert various file types to memories using MarkItDown.
 - **Automatic Dependency Management**: Dynamically install required dependencies
 
 ## Getting Started
@@ -49,6 +51,7 @@ python main.py
 ### Basic Chat
 1. Select a model provider and an associated LLM model
 2. Type your message in the input field, and click 'Send' or press Enter.
+3. Enable the Memory Control Program (MCP) to enhance responses with relevant memories.
 
 ### Working with Files
 - **Drop Files**: Drag and drop files directly into the chat window
@@ -83,6 +86,11 @@ python main.py
 3. A preview with title, URL, and transcription excerpt will be displayed
 4. Ask questions about the video content
 
+#### Web Search
+1. Enable the Web Search option in the Tools section
+2. Ask questions that require up-to-date information
+3. The application will search the web using crawl4ai and include relevant results in the response
+
 #### Web Content
 1. Paste any URL into the chat input field and press Enter
 2. The application will extract the content from the webpage
@@ -99,6 +107,40 @@ python main.py
 - **Context Size**: Adjust the context window size for the model
 - **System Instructions**: Set custom instructions for the model's behavior
 
+### Memory Control Program (MCP)
+
+#### Overview
+The Memory Control Program (MCP) provides a persistent knowledge base for your chatbot. It stores information that can be retrieved and included in conversations when relevant.
+
+#### Getting Started with MCP
+1. Open the MCP panel from the Tools menu
+2. Click "Start Server" to activate the memory system
+3. Add memories manually or import from files
+4. Ask questions related to your stored memories
+
+#### Adding Memories
+- **Manual Entry**: Click "Add Memory" to enter text directly
+- **File Import**: Click "Import File" to convert various file types to memories
+- **Automatic**: Conversations are automatically saved as memories when the MCP server is running
+
+#### Importing Files as Memories
+1. Click "Import File" in the MCP panel
+2. Select any supported file type (documents, code, images, audio, etc.)
+3. The file will be converted to markdown using MarkItDown
+4. Edit the title, content, and tags before saving
+5. For large files, you can split them into multiple memories
+
+#### Memory Organization
+- **Tags**: Add tags to categorize and organize memories
+- **Search**: Use the search box to find specific memories
+- **Edit/Delete**: Manage existing memories as needed
+
+#### How Memories Are Used
+- When you ask a question, the MCP searches for relevant memories
+- Up to 3 most relevant memories are included in the context sent to the model
+- This happens automatically when the MCP server is running
+- You can start/stop the server to control when memories are used
+
 ## Architecture
 
 The application is built with a modular architecture for maintainability:
@@ -109,6 +151,9 @@ The application is built with a modular architecture for maintainability:
 - **models_manager.py**: Abstracts different model providers (Ollama, Google, Deepseek, Anthropic)
 - **rag_module.py**: Implements retrieval-augmented generation
 - **rag_visualizer.py**: Visualizes RAG process and results
+- **mcp_server.py**: Implements the Memory Control Program server
+- **mcp_ui.py**: Provides the user interface for the MCP
+- **mcp_file_import.py**: Handles file import for the MCP
 - **error_handler.py**: Provides robust error management
 - **html_text.py**: Handles HTML and Markdown rendering in the UI
 
