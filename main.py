@@ -1993,7 +1993,6 @@ class OllamaChat:
             "include_chat": self.include_chat_var.get(),
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
-            "web_access": self.web_access_var.get(),
             "advanced_web_access": self.advanced_web_access_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip()
             # generate_image_var removed - functionality not working
