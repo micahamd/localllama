@@ -29,6 +29,7 @@ class MCPPanel:
         self.fg_color = fg_color
         self.accent_color = accent_color
         self.secondary_bg = secondary_bg
+        self.cursor_color = "#61AFEF"  # Light blue cursor for better visibility
 
         # Create file importer
         self.file_importer = MCPFileImporter(parent, mcp_manager, bg_color, fg_color, accent_color, secondary_bg)
@@ -123,7 +124,8 @@ class MCPPanel:
             fg=self.fg_color,
             font=("Segoe UI", 10),
             wrap=tk.WORD,
-            height=6
+            height=6,
+            insertbackground=self.cursor_color  # Light blue cursor for better visibility
         )
         self.content_text.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
         self.content_text.config(state=tk.DISABLED)

@@ -45,6 +45,7 @@ class OllamaChat:
     warning_color = "#E0AF68"  # Rich amber for warnings
     border_color = "#414868"  # Subtle border color
     highlight_color = "#2AC3DE"  # Cyan highlight for selections and focus
+    cursor_color = "#61AFEF"  # Light blue cursor for better visibility
     muted_text = "#565F89"  # Muted text for less important elements
 
     def __init__(self, root):
@@ -520,7 +521,7 @@ class OllamaChat:
             font=("Segoe UI", 11),  # Slightly larger font
             bg=self.secondary_bg,
             fg=self.fg_color,
-            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
+            insertbackground=self.cursor_color,  # Light blue cursor for better visibility
             padx=15,  # Increased horizontal padding
             pady=15,  # Increased vertical padding
             borderwidth=0,  # No border for cleaner look
@@ -539,7 +540,7 @@ class OllamaChat:
             font=("Segoe UI", 12),
             bg=self.tertiary_bg,  # Darker background for better contrast
             fg=self.fg_color,
-            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
+            insertbackground=self.cursor_color,  # Light blue cursor for better visibility
             padx=20,  # Increased padding for better readability
             pady=20,  # Increased padding for better readability
             borderwidth=0,  # No border for cleaner look
@@ -613,7 +614,7 @@ class OllamaChat:
             pady=20,  # Increased padding for better readability
             bg=self.secondary_bg,
             fg=self.fg_color,
-            insertbackground=self.highlight_color,  # Cyan cursor for better visibility
+            insertbackground=self.cursor_color,  # Light blue cursor for better visibility
             borderwidth=0,  # No border for cleaner look
             highlightthickness=2,  # Thicker highlight for focus
             highlightcolor=self.highlight_color,  # Cyan highlight when focused
@@ -2717,7 +2718,8 @@ class OllamaChat:
             height=10,
             font=("Segoe UI", 11),
             bg=self.secondary_bg,
-            fg=self.fg_color
+            fg=self.fg_color,
+            insertbackground=self.cursor_color  # Light blue cursor for better visibility
         )
         content_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
@@ -2832,7 +2834,8 @@ class OllamaChat:
             height=15,
             font=("Segoe UI", 11),
             bg=self.secondary_bg,
-            fg=self.fg_color
+            fg=self.fg_color,
+            insertbackground=self.cursor_color  # Light blue cursor for better visibility
         )
         content_text.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
