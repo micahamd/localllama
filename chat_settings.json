@@ -1,7 +1,7 @@
 {
-    "developer": "google",
-    "llm_model": "gemini-2.5-flash-preview-04-17",
-    "embedding_model": "gemini-embedding-exp",
+    "developer": "anthropic",
+    "llm_model": "claude-opus-4-20250514",
+    "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.4883227176220807,
     "context_size": 11215,
     "chunk_size": 50,
