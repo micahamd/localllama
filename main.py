@@ -1161,7 +1161,21 @@ class OllamaChat:
         else:
             self.display_message("\nIntelligent file processing disabled. Only text content will be extracted.\n", "status")
 
-    # Simple web search method removed as we're now using only the advanced web search
+    # OpenAI Example
+    # def create_intelligent_markitdown(self):
+    #     """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
+    #     try:
+    #         from openai import OpenAI
+    #         api_key = os.getenv('OPENAI_API_KEY')
+    #         if not api_key:
+    #             return self.create_basic_markitdown()
+    #         
+    #         client = OpenAI(api_key=api_key)
+    #         md = MarkItDown(llm_client=client, llm_model="gpt-4o")
+    #         return md
+    #     except Exception as e:
+    #         return self.create_basic_markitdown()
+    # 
 
     def create_intelligent_markitdown(self):
         try:
