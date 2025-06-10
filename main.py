@@ -13,6 +13,10 @@ import markdown
 from markitdown import MarkItDown
 from typing import Optional, List, Dict, Any
 import webbrowser
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Import custom HTML/Markdown renderer
 from html_text import HTMLText, HTMLTextParser
@@ -261,6 +265,7 @@ class OllamaChat:
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
         self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
+        self.intelligent_processing_var = tk.BooleanVar(value=self.settings.get("intelligent_processing", True))
 
         # Processing control
         self.is_processing = False
@@ -449,6 +454,15 @@ class OllamaChat:
             variable=self.include_file_var
         )
         self.include_file_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Intelligent file processing
+        intelligent_processing_checkbox = ttk.Checkbutton(
+            options_frame,
+            text="Intelligent File Processing?",
+            variable=self.intelligent_processing_var,
+            command=self.on_intelligent_processing_toggle
+        )
+        intelligent_processing_checkbox.pack(anchor="w", padx=5, pady=2)
 
         # Tools section
         tools_frame = ttk.LabelFrame(self.sidebar_frame, text="Tools")
@@ -1137,7 +1151,71 @@ class OllamaChat:
         else:
             self.display_message("\nAdvanced web search disabled.\n", "status")
 
+    def on_intelligent_processing_toggle(self):
+        """Handle intelligent file processing toggle."""
+        intelligent_processing = self.intelligent_processing_var.get()
+        self.settings.set("intelligent_processing", intelligent_processing)
+
+        if intelligent_processing:
+            self.display_message("\nIntelligent file processing enabled. Images and complex content will be processed with AI.\n", "status")
+        else:
+            self.display_message("\nIntelligent file processing disabled. Only text content will be extracted.\n", "status")
+
     # Simple web search method removed as we're now using only the advanced web search
+
+    def create_intelligent_markitdown(self):
+        """Create a MarkItDown instance with OpenAI integration for intelligent processing.
+
+        This enables AI-powered processing of images, tables, and complex document layouts.
+
+        To use a different LLM provider, modify this method:
+
+        For Gemini:
+            import google.generativeai as genai
+            genai.configure(api_key=os.getenv('GOOGLE_API_KEY'))
+            # Note: MarkItDown doesn't directly support Gemini yet, but you could
+            # create a wrapper that implements the same interface as OpenAI client
+
+        For Ollama:
+            from ollama import Client
+            ollama_client = Client(host='http://localhost:11434')
+            # Note: MarkItDown expects OpenAI-compatible interface, so you'd need
+            # to create a wrapper that translates Ollama calls to OpenAI format
+
+        For other providers:
+            # Create a client that implements the OpenAI-compatible interface
+            # that MarkItDown expects (chat.completions.create method)
+        """
+        try:
+            # Import OpenAI client
+            from openai import OpenAI
+
+            # Get API key from environment
+            api_key = os.getenv('OPENAI_API_KEY')
+            if not api_key:
+                self.display_message("\nWarning: OPENAI_API_KEY not found in environment. Falling back to basic processing.\n", 'warning')
+                return self.create_basic_markitdown()
+
+            # Create OpenAI client
+            client = OpenAI(api_key=api_key)
+
+            # Create MarkItDown with OpenAI integration
+            # Using gpt-4o for best image and document understanding
+            md = MarkItDown(llm_client=client, llm_model="gpt-4o")
+
+            return md
+
+        except ImportError:
+            self.display_message("\nWarning: OpenAI package not installed. Falling back to basic processing.\n", 'warning')
+            return self.create_basic_markitdown()
+        except Exception as e:
+            error_msg = error_handler.handle_error(e, "Creating intelligent MarkItDown")
+            self.display_message(f"\nWarning: Failed to create intelligent MarkItDown: {error_msg}. Falling back to basic processing.\n", 'warning')
+            return self.create_basic_markitdown()
+
+    def create_basic_markitdown(self):
+        """Create a basic MarkItDown instance for text-only extraction."""
+        return MarkItDown()
 
     def handle_drop(self, event):
         """Handle file drop event."""
@@ -1221,7 +1299,14 @@ class OllamaChat:
         """Extract text content from a file or URL."""
         try:
             file_type = self.get_file_type(file_path)
-            md = MarkItDown()
+
+            # Choose MarkItDown instance based on intelligent processing setting
+            if self.intelligent_processing_var.get():
+                self.display_message("\nUsing intelligent processing for enhanced content extraction...\n", 'status')
+                md = self.create_intelligent_markitdown()
+            else:
+                self.display_message("\nUsing basic text extraction...\n", 'status')
+                md = self.create_basic_markitdown()
 
             # Install optional dependencies if needed
             if file_type == 'audio' and not self._check_audio_dependencies():

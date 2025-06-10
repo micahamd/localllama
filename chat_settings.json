@@ -1,7 +1,7 @@
 {
-    "developer": "anthropic",
-    "llm_model": "claude-opus-4-20250514",
-    "embedding_model": "nomic-embed-text:latest",
+    "developer": "google",
+    "llm_model": "gemini-2.0-flash",
+    "embedding_model": "gemini-embedding-exp",
     "temperature": 0.4883227176220807,
     "context_size": 11215,
     "chunk_size": 50,
@@ -10,6 +10,7 @@
     "include_file": true,
     "web_access": false,
     "advanced_web_access": false,
+    "intelligent_processing": true,
     "system_prompt": "",
     "semantic_chunking": false,
     "semantic_min_chunk_size": 10,

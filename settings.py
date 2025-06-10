@@ -17,6 +17,7 @@ class Settings:
         "include_file": True,
         "web_access": False,
         "advanced_web_access": False,
+        "intelligent_processing": True,
         "system_prompt": "Respond honestly and factually at all times."
     }
 
