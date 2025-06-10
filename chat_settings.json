@@ -2,7 +2,7 @@
     "developer": "google",
     "llm_model": "gemini-2.0-flash-lite",
     "embedding_model": "gemini-embedding-exp",
-    "temperature": 0.4883227176220807,
+    "temperature": 0.897172236503856,
     "context_size": 11215,
     "chunk_size": 50,
     "include_chat": true,

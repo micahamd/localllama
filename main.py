@@ -1162,48 +1162,45 @@ class OllamaChat:
             self.display_message("\nIntelligent file processing disabled. Only text content will be extracted.\n", "status")
 
     # OpenAI Example
-    def create_intelligent_markitdown(self):
-        """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
-        try:
-            from openai import OpenAI
-            api_key = os.getenv('OPENAI_API_KEY')
-            if not api_key:
-                return self.create_basic_markitdown()
-            
-            client = OpenAI(api_key=api_key)
-            md = MarkItDown(llm_client=client, llm_model="gpt-4o")
-            return md
-        except Exception as e:
-            return self.create_basic_markitdown()
+    #def create_intelligent_markitdown(self):
+    #    """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
+    #    try:
+    #        from openai import OpenAI
+    #        api_key = os.getenv('OPENAI_API_KEY')
+    #        if not api_key:
+    #            return self.create_basic_markitdown()
+    #        
+    #        client = OpenAI(api_key=api_key)
+    #        md = MarkItDown(llm_client=client, llm_model="gpt-4o")
+    #        return md
+    #    except Exception as e:
+    #        return self.create_basic_markitdown()
     
 
-    # Qwen Example using ollama
-    # def create_intelligent_markitdown(self):
-    #     try:
-    #         from ollama import Client
-    # 
-    #         # Create Ollama client
-    #         ollama_client = Client(host='http://localhost:11434')
-    # 
-    #         # Create wrapper to make Ollama compatible with OpenAI interface
-    #         class OllamaWrapper:
-    #             def __init__(self, client):
-    #                 self.client = client
-    # 
-    #             class chat:
-    #                 class completions:
-    #                     @staticmethod
-    #                     def create(messages, model="qwen2.5vl", **kwargs):
-    #                         # Convert OpenAI messages to Ollama format
-    #                         # Call ollama_client.chat()
-    #                         # Return OpenAI-compatible response
-    #                         pass
-    #                     
-    #         client = OllamaWrapper(ollama_client)
-    #         md = MarkItDown(llm_client=client, llm_model="llava")  # Use vision model
-    #         return md
-    #     except Exception:
-    #         return self.create_basic_markitdown()
+    # Qwen Example using Ollama
+    def create_intelligent_markitdown(self):
+        try:
+            from ollama import Client
+    
+            # Create Ollama client
+            ollama_client = Client(host='http://localhost:11434')
+    
+            # Create wrapper to make Ollama compatible with OpenAI interface
+            class OllamaWrapper:
+                def __init__(self, client):
+                    self.client = client
+    
+                class chat:
+                    class completions:
+                        @staticmethod
+                        def create(messages, model="qwen2.5vl", **kwargs):
+                            pass
+                        
+            client = OllamaWrapper(ollama_client)
+            md = MarkItDown(llm_client=client, llm_model="llava")  # Use vision model
+            return md
+        except Exception:
+            return self.create_basic_markitdown()
 
     def create_basic_markitdown(self):
         """Create a basic MarkItDown instance for text-only extraction."""
