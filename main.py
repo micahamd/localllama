@@ -1197,7 +1197,7 @@ class OllamaChat:
                             pass
                         
             client = OllamaWrapper(ollama_client)
-            md = MarkItDown(llm_client=client, llm_model="llava")  # Use vision model
+            md = MarkItDown(llm_client=client, llm_model="qwen2.5vl")  # Use vision model
             return md
         except Exception:
             return self.create_basic_markitdown()
