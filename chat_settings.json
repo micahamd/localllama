@@ -1,6 +1,6 @@
 {
     "developer": "ollama",
-    "llm_model": "granite3.3:latest",
+    "llm_model": "qwen2.5vl:latest",
     "embedding_model": "nomic-embed-text:latest",
     "temperature": 0.8959660297239915,
     "context_size": 11215,

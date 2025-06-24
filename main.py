@@ -5,6 +5,7 @@ from tkinterdnd2 import DND_FILES, TkinterDnD
 import os
 import threading
 import time
+import json
 from PIL import Image, ImageTk
 from PIL import Image as PILImage
 from io import BytesIO
@@ -292,6 +293,7 @@ class OllamaChat:
         file_menu.add_command(label="New Conversation", command=self.new_conversation)
         file_menu.add_command(label="Save Conversation", command=self.save_conversation)
         file_menu.add_command(label="Load Conversation", command=self.load_conversation)
+        file_menu.add_command(label="Rename Conversation", command=self.rename_conversation)
         file_menu.add_separator()
         file_menu.add_command(label="Select RAG Files", command=self.select_rag_files)
         file_menu.add_command(label="Clear all RAG Files", command=self.clear_rag_files)
@@ -861,6 +863,7 @@ class OllamaChat:
         # Create a context menu for the conversations listbox
         self.conv_context_menu = Menu(self.root, **menu_style)
         self.conv_context_menu.add_command(label="Load Selected", command=lambda: self.load_selected_conversation())
+        self.conv_context_menu.add_command(label="Rename Selected", command=lambda: self.rename_selected_conversation())
         self.conv_context_menu.add_command(label="Delete Selected", command=lambda: self.delete_selected_conversation())
         self.conv_context_menu.add_separator()
         self.conv_context_menu.add_command(label="New Conversation", command=self.new_conversation)
@@ -904,6 +907,60 @@ class OllamaChat:
 
         # Load the conversation
         self.load_conversation_by_name(conv_name)
+
+    def rename_selected_conversation(self):
+        """Rename the selected conversation from the listbox."""
+        selected = self.conversations_listbox.curselection()
+        if not selected:
+            messagebox.showinfo("Info", "Please select a conversation to rename")
+            return
+
+        # Get the conversation name
+        conv_name = self.conversations_listbox.get(selected[0])
+        old_name = conv_name.replace('.json', '') if conv_name.endswith('.json') else conv_name
+
+        # Prompt for new name
+        from tkinter import simpledialog
+        new_name = simpledialog.askstring(
+            "Rename Conversation",
+            f"Enter new name for '{old_name}':",
+            initialvalue=old_name
+        )
+
+        if not new_name or new_name.strip() == old_name:
+            return
+
+        # Clean the new filename
+        safe_name = "".join(c if c.isalnum() or c in [' ', '-', '_'] else '_' for c in new_name.strip())
+        safe_name = safe_name.replace(' ', '_')
+
+        if not safe_name:
+            messagebox.showerror("Invalid Name", "Please enter a valid name.")
+            return
+
+        # Ensure .json extension
+        if not safe_name.endswith('.json'):
+            safe_name += '.json'
+
+        # Rename the file
+        try:
+            conversations_dir = self.conversation_manager.conversations_dir
+            old_filepath = os.path.join(conversations_dir, f"{conv_name}.json" if not conv_name.endswith('.json') else conv_name)
+            new_filepath = os.path.join(conversations_dir, safe_name)
+
+            if os.path.exists(new_filepath):
+                messagebox.showerror("File Exists", f"A conversation named '{safe_name}' already exists.")
+                return
+
+            os.rename(old_filepath, new_filepath)
+
+            # Update the conversations list
+            self.update_conversations_list()
+
+            # Show success message
+            self.display_message(f"\nConversation renamed to '{safe_name.replace('.json', '')}'.\n", "status")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to rename conversation: {str(e)}")
 
     def delete_selected_conversation(self):
         """Delete the selected conversation from the listbox."""
@@ -2201,16 +2258,256 @@ class OllamaChat:
         self.display_message("Started a new conversation.\n", "status")
 
     def save_conversation(self):
-        """Save the current conversation."""
+        """Save the current conversation with custom filename and clean format."""
         if not self.conversation_manager.active_conversation.messages:
             messagebox.showinfo("Save Conversation", "No messages to save.")
             return
 
-        result = self.conversation_manager.save_conversation()
+        # Prompt user for custom filename
+        from tkinter import simpledialog
+
+        # Suggest a default name based on the first user message or current time
+        default_name = self._generate_default_filename()
+
+        custom_name = simpledialog.askstring(
+            "Save Conversation",
+            "Enter a name for this conversation:",
+            initialvalue=default_name
+        )
+
+        if not custom_name:
+            return  # User cancelled
+
+        # Clean the filename
+        safe_name = "".join(c if c.isalnum() or c in [' ', '-', '_'] else '_' for c in custom_name)
+        safe_name = safe_name.strip().replace(' ', '_')
+
+        if not safe_name:
+            safe_name = "conversation"
+
+        # Save with clean format
+        result = self.save_conversation_clean_format(safe_name)
         self.display_message(f"\n{result}\n", "status")
 
         # Update conversations list
         self.update_conversations_list()
+
+    def _generate_default_filename(self):
+        """Generate a default filename based on conversation content."""
+        messages = self.conversation_manager.active_conversation.messages
+
+        # Find the first meaningful user message
+        for message in messages:
+            if message.role == 'user' and message.content.strip():
+                # Take first 30 characters and clean them
+                content = message.content.strip()
+                # Remove common file-related prefixes
+                if content.lower().startswith(('document content:', 'file content:', 'image:')):
+                    continue
+                # Take first sentence or 30 characters
+                first_sentence = content.split('.')[0][:30]
+                if first_sentence:
+                    return first_sentence.strip()
+
+        # Fallback to timestamp
+        from datetime import datetime
+        return f"Chat_{datetime.now().strftime('%Y%m%d_%H%M')}"
+
+    def save_conversation_clean_format(self, filename):
+        """Save conversation in a clean, simplified format."""
+        try:
+            messages = self.conversation_manager.active_conversation.messages
+            if not messages:
+                return "No messages to save"
+
+            # Create clean conversation data
+            clean_conversation = []
+            files_mentioned = []
+
+            for message in messages:
+                # Skip system, status, and error messages for clean format
+                if message.role in ['system', 'status', 'error']:
+                    continue
+
+                content = message.content.strip()
+                if not content:
+                    continue
+
+                # Check for file references
+                if 'Document content:' in content or 'File path:' in content:
+                    # Extract file information
+                    lines = content.split('\n')
+                    for line in lines:
+                        if line.strip().startswith('File path:'):
+                            file_path = line.replace('File path:', '').strip()
+                            if file_path and file_path not in files_mentioned:
+                                files_mentioned.append(os.path.basename(file_path))
+
+                    # Clean the content by removing file metadata
+                    cleaned_lines = []
+                    skip_next = False
+                    for line in lines:
+                        line = line.strip()
+                        if line.startswith(('Document content:', 'File path:', 'File has', 'Word count:')):
+                            if line.startswith('Document content:'):
+                                skip_next = True
+                            continue
+                        if skip_next and not line:
+                            skip_next = False
+                            continue
+                        skip_next = False
+                        if line:
+                            cleaned_lines.append(line)
+
+                    content = '\n'.join(cleaned_lines).strip()
+
+                # Only add non-empty content
+                if content:
+                    if message.role == 'user':
+                        clean_conversation.append({"User": content})
+                    elif message.role == 'assistant':
+                        clean_conversation.append({"Assistant": content})
+
+            # Add file information if any files were processed
+            if files_mentioned:
+                file_info = f"Files processed: {', '.join(files_mentioned)}"
+                clean_conversation.insert(0, {"Files": file_info})
+
+            # Ensure filename has .json extension
+            if not filename.endswith('.json'):
+                filename += '.json'
+
+            # Save to conversations directory
+            conversations_dir = self.conversation_manager.conversations_dir
+            filepath = os.path.join(conversations_dir, filename)
+
+            # Check if file exists and ask for confirmation
+            if os.path.exists(filepath):
+                confirm = messagebox.askyesno(
+                    "File Exists",
+                    f"A file named '{filename}' already exists. Do you want to overwrite it?"
+                )
+                if not confirm:
+                    return "Save cancelled"
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(clean_conversation, f, indent=2, ensure_ascii=False)
+
+            return f"Conversation saved as '{filename}' in clean format"
+
+        except Exception as e:
+            return f"Error saving conversation: {str(e)}"
+
+    def rename_conversation(self):
+        """Rename an existing conversation file."""
+        # Get list of conversation files
+        files = self.conversation_manager.list_conversations()
+
+        if not files:
+            messagebox.showinfo("Rename Conversation", "No saved conversations found.")
+            return
+
+        # Create a selection dialog
+        rename_window = tk.Toplevel(self.root)
+        rename_window.title("Rename Conversation")
+        rename_window.geometry("500x400")
+        rename_window.configure(background=self.bg_color)
+        rename_window.transient(self.root)
+        rename_window.grab_set()
+
+        # Center the window
+        rename_window.update_idletasks()
+        x = (rename_window.winfo_screenwidth() // 2) - (500 // 2)
+        y = (rename_window.winfo_screenheight() // 2) - (400 // 2)
+        rename_window.geometry(f"500x400+{x}+{y}")
+
+        # Title
+        title_label = ttk.Label(rename_window, text="Select Conversation to Rename",
+                               font=("Segoe UI", 12, "bold"))
+        title_label.pack(pady=10)
+
+        # Listbox for conversations
+        listbox_frame = ttk.Frame(rename_window)
+        listbox_frame.pack(fill=tk.BOTH, expand=True, padx=20, pady=10)
+
+        conversations_listbox = tk.Listbox(
+            listbox_frame,
+            bg=self.secondary_bg,
+            fg=self.fg_color,
+            selectbackground=self.subtle_accent,
+            selectforeground="#FFFFFF",
+            font=("Segoe UI", 10)
+        )
+        conversations_listbox.pack(fill=tk.BOTH, expand=True)
+
+        # Populate listbox
+        for filename in sorted(files):
+            display_name = filename.replace('.json', '') if filename.endswith('.json') else filename
+            conversations_listbox.insert(tk.END, display_name)
+
+        # Buttons
+        button_frame = ttk.Frame(rename_window)
+        button_frame.pack(fill=tk.X, padx=20, pady=10)
+
+        def do_rename():
+            selection = conversations_listbox.curselection()
+            if not selection:
+                messagebox.showwarning("No Selection", "Please select a conversation to rename.")
+                return
+
+            old_filename = files[selection[0]]
+            old_name = old_filename.replace('.json', '') if old_filename.endswith('.json') else old_filename
+
+            # Prompt for new name
+            from tkinter import simpledialog
+            new_name = simpledialog.askstring(
+                "Rename Conversation",
+                f"Enter new name for '{old_name}':",
+                initialvalue=old_name
+            )
+
+            if not new_name or new_name.strip() == old_name:
+                return
+
+            # Clean the new filename
+            safe_name = "".join(c if c.isalnum() or c in [' ', '-', '_'] else '_' for c in new_name.strip())
+            safe_name = safe_name.replace(' ', '_')
+
+            if not safe_name:
+                messagebox.showerror("Invalid Name", "Please enter a valid name.")
+                return
+
+            # Ensure .json extension
+            if not safe_name.endswith('.json'):
+                safe_name += '.json'
+
+            # Check if new name already exists
+            conversations_dir = self.conversation_manager.conversations_dir
+            old_filepath = os.path.join(conversations_dir, old_filename)
+            new_filepath = os.path.join(conversations_dir, safe_name)
+
+            if os.path.exists(new_filepath):
+                messagebox.showerror("File Exists", f"A conversation named '{safe_name}' already exists.")
+                return
+
+            try:
+                # Rename the file
+                os.rename(old_filepath, new_filepath)
+                messagebox.showinfo("Success", f"Conversation renamed to '{safe_name}'")
+
+                # Update the conversations list in main window
+                self.update_conversations_list()
+
+                # Close the rename window
+                rename_window.destroy()
+
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to rename conversation: {str(e)}")
+
+        ttk.Button(button_frame, text="Rename", command=do_rename,
+                  style="Primary.TButton").pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel",
+                  command=rename_window.destroy).pack(side=tk.LEFT, padx=5)
 
     def load_conversation(self):
         """Load a saved conversation."""
