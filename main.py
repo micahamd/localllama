@@ -261,6 +261,10 @@ class OllamaChat:
         self.temperature = tk.DoubleVar(value=self.settings.get("temperature"))
         self.context_size = tk.IntVar(value=self.settings.get("context_size"))
         self.chunk_size = tk.IntVar(value=self.settings.get("chunk_size"))
+        self.top_k = tk.IntVar(value=self.settings.get("top_k", 40))
+        self.top_p = tk.DoubleVar(value=self.settings.get("top_p", 0.9))
+        self.repeat_penalty = tk.DoubleVar(value=self.settings.get("repeat_penalty", 1.1))
+        self.max_tokens = tk.IntVar(value=self.settings.get("max_tokens", 2048))
         self.include_chat_var = tk.BooleanVar(value=self.settings.get("include_chat"))
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
@@ -412,6 +416,82 @@ class OllamaChat:
 
         self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()))
         self.context_label.pack(side=tk.RIGHT, padx=5)
+
+        # Top-k control
+        ttk.Label(params_frame, text="Top-k (diversity):").pack(anchor="w", padx=5, pady=2)
+        top_k_frame = ttk.Frame(params_frame)
+        top_k_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        self.top_k_slider = ttk.Scale(
+            top_k_frame,
+            from_=1,
+            to=100,
+            orient='horizontal',
+            variable=self.top_k,
+            command=self.on_top_k_change,
+            style="Horizontal.TScale"
+        )
+        self.top_k_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+
+        self.top_k_label = ttk.Label(top_k_frame, text=str(self.top_k.get()))
+        self.top_k_label.pack(side=tk.RIGHT, padx=5)
+
+        # Top-p control
+        ttk.Label(params_frame, text="Top-p (nucleus):").pack(anchor="w", padx=5, pady=2)
+        top_p_frame = ttk.Frame(params_frame)
+        top_p_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        self.top_p_slider = ttk.Scale(
+            top_p_frame,
+            from_=0.1,
+            to=1.0,
+            orient='horizontal',
+            variable=self.top_p,
+            command=self.on_top_p_change,
+            style="Horizontal.TScale"
+        )
+        self.top_p_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+
+        self.top_p_label = ttk.Label(top_p_frame, text=f"{self.top_p.get():.2f}")
+        self.top_p_label.pack(side=tk.RIGHT, padx=5)
+
+        # Repeat penalty control
+        ttk.Label(params_frame, text="Repeat Penalty:").pack(anchor="w", padx=5, pady=2)
+        repeat_penalty_frame = ttk.Frame(params_frame)
+        repeat_penalty_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        self.repeat_penalty_slider = ttk.Scale(
+            repeat_penalty_frame,
+            from_=0.8,
+            to=1.5,
+            orient='horizontal',
+            variable=self.repeat_penalty,
+            command=self.on_repeat_penalty_change,
+            style="Horizontal.TScale"
+        )
+        self.repeat_penalty_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+
+        self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}")
+        self.repeat_penalty_label.pack(side=tk.RIGHT, padx=5)
+
+        # Max tokens control
+        ttk.Label(params_frame, text="Max Tokens:").pack(anchor="w", padx=5, pady=2)
+        max_tokens_frame = ttk.Frame(params_frame)
+        max_tokens_frame.pack(fill=tk.X, padx=5, pady=2)
+
+        self.max_tokens_slider = ttk.Scale(
+            max_tokens_frame,
+            from_=256,
+            to=8192,
+            orient='horizontal',
+            variable=self.max_tokens,
+            command=self.on_max_tokens_change,
+            style="Horizontal.TScale"
+        )
+        self.max_tokens_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+
+        self.max_tokens_label = ttk.Label(max_tokens_frame, text=str(self.max_tokens.get()))
+        self.max_tokens_label.pack(side=tk.RIGHT, padx=5)
 
         # RAG settings frame
         rag_frame = ttk.LabelFrame(self.sidebar_frame, text="RAG Settings")
@@ -1082,7 +1162,21 @@ class OllamaChat:
         """Update context window label when slider moves."""
         self.context_label.config(text=f"{int(float(value))}")
 
-        # Update the context size label
+    def on_top_k_change(self, value):
+        """Update top-k label when slider moves."""
+        self.top_k_label.config(text=f"{int(float(value))}")
+
+    def on_top_p_change(self, value):
+        """Update top-p label when slider moves."""
+        self.top_p_label.config(text=f"{float(value):.2f}")
+
+    def on_repeat_penalty_change(self, value):
+        """Update repeat penalty label when slider moves."""
+        self.repeat_penalty_label.config(text=f"{float(value):.2f}")
+
+    def on_max_tokens_change(self, value):
+        """Update max tokens label when slider moves."""
+        self.max_tokens_label.config(text=f"{int(float(value))}")
 
     # Custom thumb methods removed
 
@@ -1162,19 +1256,19 @@ class OllamaChat:
             self.display_message("\nIntelligent file processing disabled. Only text content will be extracted.\n", "status")
 
     # OpenAI Example
-    #def create_intelligent_markitdown(self):
-    #    """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
-    #    try:
-    #        from openai import OpenAI
-    #        api_key = os.getenv('OPENAI_API_KEY')
-    #        if not api_key:
-    #            return self.create_basic_markitdown()
-    #        
-    #        client = OpenAI(api_key=api_key)
-    #        md = MarkItDown(llm_client=client, llm_model="gpt-4o")
-    #        return md
-    #    except Exception as e:
-    #        return self.create_basic_markitdown()
+    # def create_intelligent_markitdown(self):
+    #     """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
+    #     try:
+    #         from openai import OpenAI
+    #         api_key = os.getenv('OPENAI_API_KEY')
+    #         if not api_key:
+    #             return self.create_basic_markitdown()
+    #         
+    #         client = OpenAI(api_key=api_key)
+    #         md = MarkItDown(llm_client=client, llm_model="gpt-4o-mini")
+    #         return md
+    #     except Exception as e:
+    #         return self.create_basic_markitdown()
     
 
     # Qwen Example using Ollama
@@ -1193,11 +1287,11 @@ class OllamaChat:
                 class chat:
                     class completions:
                         @staticmethod
-                        def create(messages, model="qwen2.5vl", **kwargs):
+                        def create(messages, model="benhaotang/Nanonets-OCR-s:latest", **kwargs):
                             pass
                         
             client = OllamaWrapper(ollama_client)
-            md = MarkItDown(llm_client=client, llm_model="qwen2.5vl")  # Use vision model
+            md = MarkItDown(llm_client=client, llm_model="benhaotang/Nanonets-OCR-s:latest")  # Use vision model
             return md
         except Exception:
             return self.create_basic_markitdown()
@@ -1781,7 +1875,11 @@ class OllamaChat:
                 messages=messages,
                 model=self.selected_model,
                 temperature=self.temperature.get(),
-                context_size=self.context_size.get()
+                context_size=self.context_size.get(),
+                top_k=self.top_k.get(),
+                top_p=self.top_p.get(),
+                repeat_penalty=self.repeat_penalty.get(),
+                max_tokens=self.max_tokens.get()
             )
 
             self.active_stream = stream
@@ -2065,10 +2163,15 @@ class OllamaChat:
             "temperature": self.temperature.get(),
             "context_size": self.context_size.get(),
             "chunk_size": self.chunk_size.get(),
+            "top_k": self.top_k.get(),
+            "top_p": self.top_p.get(),
+            "repeat_penalty": self.repeat_penalty.get(),
+            "max_tokens": self.max_tokens.get(),
             "include_chat": self.include_chat_var.get(),
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
             "advanced_web_access": self.advanced_web_access_var.get(),
+            "intelligent_processing": self.intelligent_processing_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip()
             # generate_image_var removed - functionality not working
         }
@@ -2388,7 +2491,11 @@ class OllamaChat:
                     messages=messages,
                     model=self.selected_model,
                     temperature=self.temperature.get(),
-                    context_size=self.context_size.get()
+                    context_size=self.context_size.get(),
+                    top_k=self.top_k.get(),
+                    top_p=self.top_p.get(),
+                    repeat_penalty=self.repeat_penalty.get(),
+                    max_tokens=self.max_tokens.get()
                 )
                 return True
             except Exception as e:
@@ -2454,7 +2561,11 @@ class OllamaChat:
                 messages=messages,
                 model=self.selected_model,
                 temperature=self.temperature.get(),
-                context_size=self.context_size.get()
+                context_size=self.context_size.get(),
+                top_k=self.top_k.get(),
+                top_p=self.top_p.get(),
+                repeat_penalty=self.repeat_penalty.get(),
+                max_tokens=self.max_tokens.get()
             )
             self.active_stream = stream
 
