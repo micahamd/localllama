@@ -58,7 +58,7 @@ class OllamaChat:
         self.root = root
         self.root.title("Local(o)llama Chat")
         self.root.geometry("1200x800")
-        self.root.minsize(1400, 1200)
+        self.root.minsize(800, 400)
 
         # Set up a modern theme
         self.setup_theme()
@@ -350,8 +350,47 @@ class OllamaChat:
         sidebar_title = ttk.Label(self.sidebar_frame, text="Settings", font=("Arial", 14, "bold"))
         sidebar_title.pack(pady=10)
 
-        # Models settings frame
-        model_frame = ttk.LabelFrame(self.sidebar_frame, text="Models")
+        # Create a canvas and scrollbar for scrollable content
+        self.sidebar_canvas = tk.Canvas(
+            self.sidebar_frame,
+            bg=self.bg_color,
+            highlightthickness=0,
+            width=300  # Set a reasonable width for the sidebar
+        )
+        self.sidebar_scrollbar = ttk.Scrollbar(
+            self.sidebar_frame,
+            orient="vertical",
+            command=self.sidebar_canvas.yview
+        )
+        self.sidebar_canvas.configure(yscrollcommand=self.sidebar_scrollbar.set)
+
+        # Create a frame inside the canvas for all the content
+        self.scrollable_sidebar = ttk.Frame(self.sidebar_canvas)
+        self.sidebar_canvas_window = self.sidebar_canvas.create_window(
+            (0, 0),
+            window=self.scrollable_sidebar,
+            anchor="nw"
+        )
+
+        # Pack the canvas and scrollbar
+        self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+        self.sidebar_scrollbar.pack(side="right", fill="y")
+
+        # Bind events for scrolling
+        self.sidebar_canvas.bind('<Configure>', self._on_sidebar_canvas_configure)
+        self.scrollable_sidebar.bind('<Configure>', self._on_sidebar_frame_configure)
+
+        # Bind mousewheel to canvas for scrolling
+        self.sidebar_canvas.bind("<MouseWheel>", self._on_sidebar_mousewheel)
+        self.sidebar_canvas.bind("<Button-4>", self._on_sidebar_mousewheel)
+        self.sidebar_canvas.bind("<Button-5>", self._on_sidebar_mousewheel)
+
+        # Bind focus events to enable scrolling when sidebar is focused
+        self.sidebar_canvas.bind("<Enter>", lambda e: self.sidebar_canvas.focus_set())
+        self.sidebar_canvas.bind("<Leave>", lambda e: self.root.focus_set())
+
+        # Models settings frame - now using scrollable_sidebar
+        model_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Models")
         model_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Developer selector
@@ -374,7 +413,7 @@ class OllamaChat:
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
 
         # Parameters settings frame
-        params_frame = ttk.LabelFrame(self.sidebar_frame, text="Parameters")
+        params_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Parameters")
         params_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Temperature control
@@ -496,7 +535,7 @@ class OllamaChat:
         self.max_tokens_label.pack(side=tk.RIGHT, padx=5)
 
         # RAG settings frame
-        rag_frame = ttk.LabelFrame(self.sidebar_frame, text="RAG Settings")
+        rag_frame = ttk.LabelFrame(self.scrollable_sidebar, text="RAG Settings")
         rag_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Chunk size
@@ -507,7 +546,7 @@ class OllamaChat:
         # No semantic chunking options - removed for better performance
 
         # Options frame
-        options_frame = ttk.LabelFrame(self.sidebar_frame, text="Options")
+        options_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Options")
         options_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Include chat history
@@ -561,7 +600,7 @@ class OllamaChat:
         advanced_web_access_checkbox.pack(anchor="w", padx=5, pady=2)
 
         # Conversations section with enhanced styling
-        conversations_frame = ttk.LabelFrame(self.sidebar_frame, text="Conversations")
+        conversations_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Conversations")
         conversations_frame.pack(fill=tk.X, padx=5, pady=5)
 
         # Conversation buttons
@@ -595,6 +634,38 @@ class OllamaChat:
 
         # Update the conversations list
         self.update_conversations_list()
+
+    def _on_sidebar_canvas_configure(self, event):
+        """Handle canvas configuration changes for sidebar scrolling."""
+        # Update the scroll region to encompass the inner frame
+        self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all"))
+
+        # Update the canvas window width to match the canvas width
+        canvas_width = event.width
+        self.sidebar_canvas.itemconfig(self.sidebar_canvas_window, width=canvas_width)
+
+    def _on_sidebar_frame_configure(self, event):
+        """Handle frame configuration changes for sidebar scrolling."""
+        # Update the scroll region when the frame size changes
+        self.sidebar_canvas.configure(scrollregion=self.sidebar_canvas.bbox("all"))
+
+    def _on_sidebar_mousewheel(self, event):
+        """Handle mouse wheel scrolling in the sidebar."""
+        # Determine scroll direction and amount
+        if event.delta:
+            # Windows
+            delta = -1 * (event.delta / 120)
+        elif event.num == 4:
+            # Linux scroll up
+            delta = -1
+        elif event.num == 5:
+            # Linux scroll down
+            delta = 1
+        else:
+            delta = 0
+
+        # Scroll the canvas
+        self.sidebar_canvas.yview_scroll(int(delta), "units")
 
     def create_chat_display(self):
         """Create the chat display area."""
