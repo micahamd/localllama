@@ -91,6 +91,17 @@ python main.py
 2. Ask questions that require up-to-date information
 3. The application will search the web using crawl4ai and include relevant results in the response
 
+#### Write File Tool
+1. Enable the Write File option in the Tools section
+2. Ask the AI to create files by specifying paths like: `[["C:\path\to\file.txt"]]`
+3. Examples:
+   - "Create a summary table and save it as [["./summary.txt"]]"
+   - "Write a Python script and save as [["scripts/hello.py"]]"
+   - "Generate JSON data and save as [["data/config.json"]]"
+4. Supported formats: TXT, MD, JSON, CSV, HTML, XML, PY, JS, and more
+5. The AI will automatically extract content from code blocks or response text
+6. Files are created with safety checks, backups, and error handling
+
 #### Web Content
 1. Paste any URL into the chat input field and press Enter
 2. The application will extract the content from the webpage
