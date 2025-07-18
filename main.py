@@ -236,8 +236,28 @@ class OllamaChat:
 
     def create_main_frame(self):
         """Create the main application frame."""
+        # Set minimum window size for better usability
+        self.root.minsize(800, 600)
+
+        # Set initial window size to 80% of screen if not maximized
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        initial_width = int(screen_width * 0.8)
+        initial_height = int(screen_height * 0.8)
+
+        # Center the window
+        x = (screen_width - initial_width) // 2
+        y = (screen_height - initial_height) // 2
+        self.root.geometry(f"{initial_width}x{initial_height}+{x}+{y}")
+
+        # Bind keyboard shortcut for sidebar toggle
+        self.root.bind('<Control-b>', lambda e: self.toggle_sidebar())
+
         self.main_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)  # Use PanedWindow
         self.main_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Configure PanedWindow for better responsiveness
+        self.root.after(100, self.configure_paned_window)
 
     def setup_error_handler(self):
         """Configure the error handler with a display callback."""
@@ -344,19 +364,36 @@ class OllamaChat:
     def create_sidebar(self):
         """Create the sidebar with settings and model selection."""
         self.sidebar_frame = ttk.Frame(self.main_frame)  # Sidebar is now part of main_frame
-        # self.sidebar_frame.pack(side=tk.LEFT, fill=tk.Y) # Pack sidebar on the left, taking full vertical space
-        self.main_frame.add(self.sidebar_frame)  # Add to PanedWindow
 
-        # Sidebar title
-        sidebar_title = ttk.Label(self.sidebar_frame, text="Settings", font=("Arial", 14, "bold"))
-        sidebar_title.pack(pady=10)
+        # Add to PanedWindow with responsive sizing
+        self.main_frame.add(self.sidebar_frame, weight=0)  # Sidebar doesn't expand
+
+        # Set initial sidebar width based on screen size
+        screen_width = self.root.winfo_screenwidth()
+        if screen_width < 1200:
+            sidebar_width = 250  # Smaller width for smaller screens
+        else:
+            sidebar_width = 300  # Standard width for larger screens
+
+        # Sidebar header with collapse button
+        header_frame = ttk.Frame(self.sidebar_frame)
+        header_frame.pack(fill=tk.X, pady=(5, 10))
+
+        # Sidebar title - smaller font for compact layout
+        sidebar_title = ttk.Label(header_frame, text="Settings", font=("Arial", 12, "bold"))
+        sidebar_title.pack(side=tk.LEFT)
+
+        # Collapse/expand button
+        self.sidebar_collapsed = False
+        self.collapse_button = ttk.Button(header_frame, text="◀", width=3, command=self.toggle_sidebar)
+        self.collapse_button.pack(side=tk.RIGHT)
 
         # Create a canvas and scrollbar for scrollable content
         self.sidebar_canvas = tk.Canvas(
             self.sidebar_frame,
             bg=self.bg_color,
             highlightthickness=0,
-            width=300  # Set a reasonable width for the sidebar
+            width=sidebar_width  # Responsive width
         )
         self.sidebar_scrollbar = ttk.Scrollbar(
             self.sidebar_frame,
@@ -392,35 +429,36 @@ class OllamaChat:
 
         # Models settings frame - now using scrollable_sidebar
         model_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Models")
-        model_frame.pack(fill=tk.X, padx=5, pady=5)
+        model_frame.pack(fill=tk.X, padx=3, pady=3)
 
-        # Developer selector
-        ttk.Label(model_frame, text="Developer:").pack(anchor="w", padx=5, pady=2)
+        # Developer selector - more compact
+        ttk.Label(model_frame, text="Developer:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
         developer_selector = ttk.Combobox(model_frame, textvariable=self.developer,
-                                         values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly')  # Added 'deepseek'
-        developer_selector.pack(fill=tk.X, padx=5, pady=2)
+                                         values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly',
+                                         font=("Arial", 9))  # Added 'deepseek'
+        developer_selector.pack(fill=tk.X, padx=3, pady=1)
         developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
 
-        # LLM Model selector
-        ttk.Label(model_frame, text="LLM Model:").pack(anchor="w", padx=5, pady=2)
-        self.model_selector = ttk.Combobox(model_frame, state='readonly')
-        self.model_selector.pack(fill=tk.X, padx=5, pady=2)
+        # LLM Model selector - more compact
+        ttk.Label(model_frame, text="LLM Model:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
+        self.model_selector = ttk.Combobox(model_frame, state='readonly', font=("Arial", 9))
+        self.model_selector.pack(fill=tk.X, padx=3, pady=1)
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
 
-        # Embedding Model selector
-        ttk.Label(model_frame, text="Embedding Model:").pack(anchor="w", padx=5, pady=2)
-        self.embedding_selector = ttk.Combobox(model_frame, state='readonly')
-        self.embedding_selector.pack(fill=tk.X, padx=5, pady=2)
+        # Embedding Model selector - more compact
+        ttk.Label(model_frame, text="Embedding:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
+        self.embedding_selector = ttk.Combobox(model_frame, state='readonly', font=("Arial", 9))
+        self.embedding_selector.pack(fill=tk.X, padx=3, pady=1)
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
 
-        # Parameters settings frame
+        # Parameters settings frame - more compact
         params_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Parameters")
-        params_frame.pack(fill=tk.X, padx=5, pady=5)
+        params_frame.pack(fill=tk.X, padx=3, pady=3)
 
-        # Temperature control
-        ttk.Label(params_frame, text="Temperature:").pack(anchor="w", padx=5, pady=2)
+        # Temperature control - more compact
+        ttk.Label(params_frame, text="Temperature:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
         temp_frame = ttk.Frame(params_frame)
-        temp_frame.pack(fill=tk.X, padx=5, pady=2)
+        temp_frame.pack(fill=tk.X, padx=3, pady=1)
 
         self.temp_slider = ttk.Scale(
             temp_frame,
@@ -435,13 +473,13 @@ class OllamaChat:
         # No custom thumb - using the default ttk.Scale thumb
         self.temp_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
 
-        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}")
-        self.temp_label.pack(side=tk.RIGHT, padx=5)
+        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Arial", 8))
+        self.temp_label.pack(side=tk.RIGHT, padx=3)
 
-        # Context size control
-        ttk.Label(params_frame, text="Context Size:").pack(anchor="w", padx=5, pady=2)
+        # Context size control - more compact
+        ttk.Label(params_frame, text="Context Size:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
         context_frame = ttk.Frame(params_frame)
-        context_frame.pack(fill=tk.X, padx=5, pady=2)
+        context_frame.pack(fill=tk.X, padx=3, pady=1)
 
         self.context_slider = ttk.Scale(
             context_frame,
@@ -535,20 +573,20 @@ class OllamaChat:
         self.max_tokens_label = ttk.Label(max_tokens_frame, text=str(self.max_tokens.get()))
         self.max_tokens_label.pack(side=tk.RIGHT, padx=5)
 
-        # RAG settings frame
+        # RAG settings frame - more compact
         rag_frame = ttk.LabelFrame(self.scrollable_sidebar, text="RAG Settings")
-        rag_frame.pack(fill=tk.X, padx=5, pady=5)
+        rag_frame.pack(fill=tk.X, padx=3, pady=3)
 
-        # Chunk size
-        ttk.Label(rag_frame, text="Chunk Size:").pack(anchor="w", padx=5, pady=2)
-        self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5)
-        self.chunk_entry.pack(anchor="w", padx=5, pady=2)
+        # Chunk size - more compact
+        ttk.Label(rag_frame, text="Chunk Size:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
+        self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5, font=("Arial", 9))
+        self.chunk_entry.pack(anchor="w", padx=3, pady=1)
 
         # No semantic chunking options - removed for better performance
 
-        # Options frame
+        # Options frame - more compact
         options_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Options")
-        options_frame.pack(fill=tk.X, padx=5, pady=5)
+        options_frame.pack(fill=tk.X, padx=3, pady=3)
 
         # Include chat history
         include_chat_checkbox = ttk.Checkbutton(
@@ -556,26 +594,26 @@ class OllamaChat:
             text="Include chat history",
             variable=self.include_chat_var
         )
-        include_chat_checkbox.pack(anchor="w", padx=5, pady=2)
+        include_chat_checkbox.pack(anchor="w", padx=3, pady=1)
 
         # Generate image checkbox removed - functionality not working
 
-        # Show image preview
+        # Show image preview - more compact
         show_image_checkbox = ttk.Checkbutton(
             options_frame,
             text="Show image preview",
             variable=self.show_image_var,
             command=self.on_show_image_toggle
         )
-        show_image_checkbox.pack(anchor="w", padx=5, pady=2)
+        show_image_checkbox.pack(anchor="w", padx=3, pady=1)
 
-        # Include file content
+        # Include file content - more compact
         self.include_file_checkbox = ttk.Checkbutton(
             options_frame,
             text="Include file content",
             variable=self.include_file_var
         )
-        self.include_file_checkbox.pack(anchor="w", padx=5, pady=2)
+        self.include_file_checkbox.pack(anchor="w", padx=3, pady=1)
 
         # Intelligent file processing
         intelligent_processing_checkbox = ttk.Checkbutton(
@@ -586,9 +624,9 @@ class OllamaChat:
         )
         intelligent_processing_checkbox.pack(anchor="w", padx=5, pady=2)
 
-        # Tools section
-        tools_frame = ttk.LabelFrame(self.sidebar_frame, text="Tools")
-        tools_frame.pack(fill=tk.X, padx=5, pady=5)
+        # Tools section - more compact
+        tools_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Tools")
+        tools_frame.pack(fill=tk.X, padx=3, pady=3)
 
         # Web Search checkbox
         self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
@@ -598,24 +636,24 @@ class OllamaChat:
             variable=self.advanced_web_access_var,
             command=self.on_advanced_web_access_toggle
         )
-        advanced_web_access_checkbox.pack(anchor="w", padx=5, pady=2)
+        advanced_web_access_checkbox.pack(anchor="w", padx=3, pady=1)
 
-        # Write File checkbox
+        # Write File checkbox - more compact
         write_file_checkbox = ttk.Checkbutton(
             tools_frame,
             text="Write File",
             variable=self.write_file_var,
             command=self.on_write_file_toggle
         )
-        write_file_checkbox.pack(anchor="w", padx=5, pady=2)
+        write_file_checkbox.pack(anchor="w", padx=3, pady=1)
 
-        # Conversations section with enhanced styling
+        # Conversations section with enhanced styling - more compact
         conversations_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Conversations")
-        conversations_frame.pack(fill=tk.X, padx=5, pady=5)
+        conversations_frame.pack(fill=tk.X, padx=3, pady=3)
 
-        # Conversation buttons
+        # Conversation buttons - more compact
         conv_buttons_frame = ttk.Frame(conversations_frame)
-        conv_buttons_frame.pack(fill=tk.X, padx=5, pady=5)
+        conv_buttons_frame.pack(fill=tk.X, padx=3, pady=3)
 
         ttk.Button(conv_buttons_frame, text="New", command=self.new_conversation).pack(side=tk.LEFT, padx=2)
         ttk.Button(conv_buttons_frame, text="Save", command=self.save_conversation).pack(side=tk.LEFT, padx=2)
@@ -677,11 +715,42 @@ class OllamaChat:
         # Scroll the canvas
         self.sidebar_canvas.yview_scroll(int(delta), "units")
 
+    def toggle_sidebar(self):
+        """Toggle sidebar collapse/expand."""
+        if self.sidebar_collapsed:
+            # Expand sidebar
+            self.sidebar_canvas.pack(side="left", fill="both", expand=True)
+            self.sidebar_scrollbar.pack(side="right", fill="y")
+            self.collapse_button.config(text="◀")
+            self.sidebar_collapsed = False
+        else:
+            # Collapse sidebar
+            self.sidebar_canvas.pack_forget()
+            self.sidebar_scrollbar.pack_forget()
+            self.collapse_button.config(text="▶")
+            self.sidebar_collapsed = True
+
+    def configure_paned_window(self):
+        """Configure the PanedWindow with appropriate initial sizing."""
+        try:
+            # Get current window width
+            window_width = self.root.winfo_width()
+
+            # Set sidebar to take 25% of window width, but with min/max limits
+            if window_width > 100:  # Ensure window is actually rendered
+                sidebar_width = max(250, min(350, int(window_width * 0.25)))
+
+                # Set the sash position (distance from left edge)
+                self.main_frame.sashpos(0, sidebar_width)
+        except:
+            # If there's any error, try again later
+            self.root.after(100, self.configure_paned_window)
+
     def create_chat_display(self):
         """Create the chat display area."""
         # Create a frame for the chat and input areas with padding
         self.chat_input_frame = ttk.Frame(self.main_frame, padding=(10, 10, 10, 10))
-        self.main_frame.add(self.chat_input_frame)
+        self.main_frame.add(self.chat_input_frame, weight=1)  # Chat area expands to fill remaining space
 
         # Chat area - now directly in main_frame, below sidebar
         chat_frame = ttk.Frame(self.chat_input_frame)
