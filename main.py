@@ -270,6 +270,7 @@ class OllamaChat:
         self.show_image_var = tk.BooleanVar(value=self.settings.get("show_image"))
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
         self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
+        self.write_file_var = tk.BooleanVar(value=self.settings.get("write_file", False))
         self.intelligent_processing_var = tk.BooleanVar(value=self.settings.get("intelligent_processing", True))
 
         # Processing control
@@ -598,6 +599,15 @@ class OllamaChat:
             command=self.on_advanced_web_access_toggle
         )
         advanced_web_access_checkbox.pack(anchor="w", padx=5, pady=2)
+
+        # Write File checkbox
+        write_file_checkbox = ttk.Checkbutton(
+            tools_frame,
+            text="Write File",
+            variable=self.write_file_var,
+            command=self.on_write_file_toggle
+        )
+        write_file_checkbox.pack(anchor="w", padx=5, pady=2)
 
         # Conversations section with enhanced styling
         conversations_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Conversations")
@@ -1373,6 +1383,21 @@ class OllamaChat:
         else:
             self.display_message("\nAdvanced web search disabled.\n", "status")
 
+    def on_write_file_toggle(self):
+        """Handle write file tool toggle."""
+        write_file_enabled = self.write_file_var.get()
+        self.settings.set("write_file", write_file_enabled)
+
+        if write_file_enabled:
+            self.display_message("\n📝 Write File tool enabled!\n", "status")
+            self.display_message("\nHow to use:\n", "status")
+            self.display_message("• Ask the AI to create a file and specify the path like: [[\"/path/to/file.txt\"]]\n", "status")
+            self.display_message("• Example: \"Create a summary table and save it as [[\"C:\\Users\\micah\\summary.txt\"]]\"\n", "status")
+            self.display_message("• Supported formats: TXT, MD, JSON, CSV, HTML, XML, PY, JS, and more\n", "status")
+            self.display_message("• The AI will automatically extract content from code blocks or response text\n", "status")
+        else:
+            self.display_message("\nWrite File tool disabled.\n", "status")
+
     def on_intelligent_processing_toggle(self):
         """Handle intelligent file processing toggle."""
         intelligent_processing = self.intelligent_processing_var.get()
@@ -1981,6 +2006,43 @@ class OllamaChat:
             # Get system instructions
             system_msg = self.system_text.get('1.0', tk.END).strip()
 
+            # Add tool capabilities to system message if tools are enabled
+            tool_instructions = []
+
+            if self.write_file_var.get():
+                tool_instructions.append(
+                    "WRITE FILE TOOL: You can create files by including file paths in your response using the format [[\"path/to/file.ext\"]] or [[path/to/file.ext]]. "
+                    "IMPORTANT: When a user asks you to save content to a file, you MUST include the exact file path in your response using the [[ ]] format. "
+                    "Example: 'Here is your content: [content here] [[\"C:\\Users\\file.txt\"]]' "
+                    "The system will automatically extract content from your response and write it to the specified file. "
+                    "Supported formats include TXT, MD, JSON, CSV, HTML, XML, PY, JS, and more."
+                )
+
+            if self.advanced_web_access_var.get():
+                tool_instructions.append(
+                    "WEB SEARCH TOOL: You have access to real-time web search capabilities. "
+                    "You can search for current information and browse websites to provide up-to-date responses."
+                )
+
+            # Combine system message with tool instructions
+            if tool_instructions:
+                enhanced_system_msg = system_msg
+                if enhanced_system_msg:
+                    enhanced_system_msg += "\n\nAVAILABLE TOOLS:\n" + "\n".join(tool_instructions)
+                else:
+                    enhanced_system_msg = "AVAILABLE TOOLS:\n" + "\n".join(tool_instructions)
+                system_msg = enhanced_system_msg
+
+                # Debug message to confirm tools are enabled
+                tool_names = []
+                if self.write_file_var.get():
+                    tool_names.append("Write File")
+                if self.advanced_web_access_var.get():
+                    tool_names.append("Web Search")
+
+                if tool_names:
+                    self.display_message(f"\n🔧 Active tools: {', '.join(tool_names)}\n", "status")
+
             # Create messages array with system message first
             messages = []
             if system_msg:
@@ -2035,6 +2097,34 @@ class OllamaChat:
                 # Add the completed response to conversation history
                 if full_response:
                     self.conversation_manager.add_message_to_active("assistant", full_response)
+
+                    # Process file write requests if the tool is enabled
+                    if self.write_file_var.get():
+                        try:
+                            # Debug: Show what we're analyzing
+                            self.display_message(f"\n🔍 Analyzing response for file paths...\n", 'status')
+
+                            files_written = self.process_file_write_requests(full_response)
+                            if files_written > 0:
+                                # Add file writing info to conversation history
+                                file_info = f"\n[File Writing: {files_written} file(s) created]"
+                                self.conversation_manager.add_message_to_active("system", file_info)
+                            else:
+                                # Check if user requested file saving but AI didn't include path pattern
+                                user_message = message.get('content', '').lower()
+                                if any(keyword in user_message for keyword in ['save to', 'write to', 'save as', 'create file', 'save it to']):
+                                    self.display_message(f"\n⚠️ File save requested but no file path pattern found in AI response.\n", 'warning')
+                                    self.display_message(f"💡 The AI should include the file path like: [[\"C:\\path\\to\\file.txt\"]] in its response.\n", 'warning')
+
+                                    # Try to extract file path from user message and suggest a follow-up
+                                    import re
+                                    path_match = re.search(r'\[\[([^\]]+)\]\]', message.get('content', ''))
+                                    if path_match:
+                                        suggested_path = path_match.group(1).strip('"').strip("'")
+                                        self.display_message(f"🔧 Try asking: 'Please include [[\"" + suggested_path + "\"]] in your response to save the file.'\n", 'status')
+                        except Exception as e:
+                            error_msg = error_handler.handle_error(e, "Processing file write requests")
+                            self.display_message(f"\nError processing file write requests: {error_msg}\n", 'error')
 
                     # Add the response to MCP memories if it's running
                     if hasattr(self, 'mcp_manager') and self.mcp_manager.is_running:
@@ -2155,6 +2245,336 @@ class OllamaChat:
                 webbrowser.open(url_match.group(0))
         except Exception as e:
             self.display_message(f"\nError opening URL: {e}\n", 'error')
+
+    def detect_file_write_requests(self, response_text):
+        """Detect file writing requests in the AI response.
+
+        Args:
+            response_text: The complete AI response text
+
+        Returns:
+            list: List of dictionaries containing file write requests
+        """
+        if not self.write_file_var.get():
+            return []
+
+        write_requests = []
+
+        # Pattern 1: [["/path/to/file.ext"]] format (with quotes)
+        pattern1 = r'\[\["([^"]+)"\]\]'
+        matches1 = re.findall(pattern1, response_text)
+
+        # Pattern 2: [[path]] format (without quotes)
+        pattern2 = r'\[\[([^\]"]+)\]\]'
+        matches2 = re.findall(pattern2, response_text)
+
+        # Combine and deduplicate matches
+        all_paths = list(set(matches1 + matches2))
+
+        for path in all_paths:
+            # Clean the path
+            clean_path = path.strip().strip('"').strip("'")
+
+            # Validate path
+            if self.is_valid_file_path(clean_path):
+                # Extract content for this file
+                content = self.extract_file_content_from_response(response_text, path)
+
+                write_requests.append({
+                    'path': clean_path,
+                    'content': content,
+                    'original_pattern': path
+                })
+
+        return write_requests
+
+    def is_valid_file_path(self, path):
+        """Validate if the path is a valid file path.
+
+        Args:
+            path: The file path to validate
+
+        Returns:
+            bool: True if valid, False otherwise
+        """
+        try:
+            # Check if path is not empty
+            if not path or len(path.strip()) == 0:
+                return False
+
+            # Check for invalid characters (basic validation)
+            invalid_chars = ['<', '>', '|', '*', '?']
+            if any(char in path for char in invalid_chars):
+                return False
+
+            # Check if it has a file extension
+            if '.' not in os.path.basename(path):
+                return False
+
+            # Check if directory part exists or can be created
+            directory = os.path.dirname(path)
+            if directory and not os.path.exists(directory):
+                # Try to create directory
+                try:
+                    os.makedirs(directory, exist_ok=True)
+                except:
+                    return False
+
+            return True
+        except:
+            return False
+
+    def extract_file_content_from_response(self, response_text, file_path):
+        """Extract content intended for a specific file from the AI response.
+
+        Args:
+            response_text: The complete AI response
+            file_path: The file path to extract content for
+
+        Returns:
+            str: The extracted content
+        """
+        # Try to find content in code blocks first
+        code_block_content = self.extract_from_code_blocks(response_text, file_path)
+        if code_block_content:
+            return code_block_content
+
+        # Try to find content after the file path mention
+        content_after_path = self.extract_content_after_path(response_text, file_path)
+        if content_after_path:
+            return content_after_path
+
+        # Fallback: use the entire response (cleaned)
+        return self.clean_response_for_file(response_text)
+
+    def extract_from_code_blocks(self, response_text, file_path):
+        """Extract content from code blocks in the response.
+
+        Args:
+            response_text: The AI response text
+            file_path: The target file path
+
+        Returns:
+            str: Extracted code block content or None
+        """
+        # Pattern for code blocks with language specification
+        code_block_pattern = r'```(\w+)?\s*(.*?)\s*```'
+        matches = re.findall(code_block_pattern, response_text, re.DOTALL)
+
+        if matches:
+            # Get file extension to match with code block language
+            file_ext = os.path.splitext(file_path)[1].lower()
+
+            # Language mapping
+            lang_map = {
+                '.py': 'python',
+                '.js': 'javascript',
+                '.html': 'html',
+                '.css': 'css',
+                '.json': 'json',
+                '.xml': 'xml',
+                '.md': 'markdown',
+                '.txt': 'text',
+                '.csv': 'csv'
+            }
+
+            expected_lang = lang_map.get(file_ext, '')
+
+            # Try to find matching language block first
+            for lang, content in matches:
+                if lang.lower() == expected_lang:
+                    return content.strip()
+
+            # If no language match, return the first code block
+            return matches[0][1].strip()
+
+        return None
+
+    def extract_content_after_path(self, response_text, file_path):
+        """Extract content that appears after the file path mention.
+
+        Args:
+            response_text: The AI response text
+            file_path: The file path mentioned
+
+        Returns:
+            str: Extracted content or None
+        """
+        # Find the position of the file path in the response
+        path_patterns = [
+            f'[["{file_path}"]]',
+            f'[[\'{file_path}\']]',
+            f'[[{file_path}]]'
+        ]
+
+        for pattern in path_patterns:
+            if pattern in response_text:
+                # Find content after this pattern
+                start_pos = response_text.find(pattern) + len(pattern)
+                remaining_text = response_text[start_pos:].strip()
+
+                # Extract meaningful content (stop at next file path or end)
+                next_file_pattern = r'\[\[.*?\]\]'
+                next_match = re.search(next_file_pattern, remaining_text)
+
+                if next_match:
+                    content = remaining_text[:next_match.start()].strip()
+                else:
+                    content = remaining_text
+
+                # Clean and return if substantial content
+                if len(content) > 10:  # Minimum content length
+                    return self.clean_response_for_file(content)
+
+        return None
+
+    def clean_response_for_file(self, text):
+        """Clean the response text for file writing.
+
+        Args:
+            text: The text to clean
+
+        Returns:
+            str: Cleaned text suitable for file writing
+        """
+        # Remove file path patterns
+        text = re.sub(r'\[\[.*?\]\]', '', text)
+
+        # Remove common AI response prefixes
+        prefixes_to_remove = [
+            "Here's the content for",
+            "I'll create",
+            "I'll write",
+            "Here is",
+            "Here's",
+            "The file content is:",
+            "File content:",
+        ]
+
+        for prefix in prefixes_to_remove:
+            if text.strip().lower().startswith(prefix.lower()):
+                text = text[len(prefix):].strip()
+                break
+
+        # Remove leading/trailing whitespace and normalize line endings
+        text = text.strip()
+        text = re.sub(r'\r\n|\r', '\n', text)
+
+        return text
+
+    def write_file_safely(self, file_path, content):
+        """Write content to a file with safety checks.
+
+        Args:
+            file_path: The path where to write the file
+            content: The content to write
+
+        Returns:
+            tuple: (success: bool, message: str)
+        """
+        try:
+            # Normalize the path
+            file_path = os.path.normpath(file_path)
+
+            # Additional safety checks
+            if len(file_path) > 260:  # Windows path length limit
+                return False, f"Path too long (max 260 characters): '{file_path}'"
+
+            # Check for dangerous paths
+            dangerous_patterns = ['..', '~', '$']
+            if any(pattern in file_path for pattern in dangerous_patterns):
+                return False, f"Potentially unsafe path detected: '{file_path}'"
+
+            # Check file size limit (10MB)
+            if len(content.encode('utf-8')) > 10 * 1024 * 1024:
+                return False, f"Content too large (max 10MB): {len(content)} characters"
+
+            # Check if file already exists
+            file_exists = os.path.exists(file_path)
+            if file_exists:
+                self.display_message(f"\n⚠️ File '{file_path}' already exists and will be overwritten.\n", 'warning')
+
+            # Ensure directory exists
+            directory = os.path.dirname(file_path)
+            if directory:
+                os.makedirs(directory, exist_ok=True)
+
+            # Create backup if file exists
+            backup_path = None
+            if file_exists:
+                backup_path = f"{file_path}.backup"
+                try:
+                    import shutil
+                    shutil.copy2(file_path, backup_path)
+                    self.display_message(f"\n💾 Backup created: '{backup_path}'\n", 'status')
+                except:
+                    pass  # Backup failed, but continue
+
+            # Write the file
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+            # Verify the write was successful
+            if os.path.exists(file_path):
+                file_size = os.path.getsize(file_path)
+                return True, f"Successfully wrote {len(content)} characters ({file_size} bytes) to '{file_path}'"
+            else:
+                return False, f"File write appeared to succeed but file not found: '{file_path}'"
+
+        except PermissionError:
+            return False, f"Permission denied: Cannot write to '{file_path}'. Check folder permissions."
+        except OSError as e:
+            return False, f"OS error writing to '{file_path}': {str(e)}"
+        except UnicodeEncodeError as e:
+            return False, f"Unicode encoding error for '{file_path}': {str(e)}"
+        except Exception as e:
+            return False, f"Unexpected error writing to '{file_path}': {str(e)}"
+
+    def process_file_write_requests(self, response_text):
+        """Process all file write requests found in the response.
+
+        Args:
+            response_text: The complete AI response text
+
+        Returns:
+            int: Number of files successfully written
+        """
+        if not self.write_file_var.get():
+            return 0
+
+        write_requests = self.detect_file_write_requests(response_text)
+
+        if not write_requests:
+            return 0
+
+        successful_writes = 0
+
+        self.display_message(f"\n📝 Processing {len(write_requests)} file write request(s)...\n", 'status')
+
+        for request in write_requests:
+            file_path = request['path']
+            content = request['content']
+
+            if not content or len(content.strip()) == 0:
+                self.display_message(f"\n⚠️ Skipping '{file_path}': No content to write\n", 'warning')
+                continue
+
+            success, message = self.write_file_safely(file_path, content)
+
+            if success:
+                successful_writes += 1
+                self.display_message(f"\n✅ {message}\n", 'status')
+
+                # Show preview of written content
+                preview = content[:100] + "..." if len(content) > 100 else content
+                self.display_message(f"Preview: {preview}\n", 'status')
+            else:
+                self.display_message(f"\n❌ Failed to write '{file_path}': {message}\n", 'error')
+
+        if successful_writes > 0:
+            self.display_message(f"\n🎉 Successfully wrote {successful_writes} file(s)!\n", 'status')
+
+        return successful_writes
 
     def perform_advanced_web_search(self, query):
         """Perform an advanced web search using crawl4ai.
@@ -2299,6 +2719,7 @@ class OllamaChat:
             "show_image": self.show_image_var.get(),
             "include_file": self.include_file_var.get(),
             "advanced_web_access": self.advanced_web_access_var.get(),
+            "write_file": self.write_file_var.get(),
             "intelligent_processing": self.intelligent_processing_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip()
             # generate_image_var removed - functionality not working
