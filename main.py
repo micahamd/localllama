@@ -291,7 +291,9 @@ class OllamaChat:
         self.include_file_var = tk.BooleanVar(value=self.settings.get("include_file"))
         self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
         self.write_file_var = tk.BooleanVar(value=self.settings.get("write_file", False))
+        self.read_file_var = tk.BooleanVar(value=self.settings.get("read_file", False))
         self.intelligent_processing_var = tk.BooleanVar(value=self.settings.get("intelligent_processing", True))
+        self.truncate_file_display_var = tk.BooleanVar(value=self.settings.get("truncate_file_display", True))
 
         # Processing control
         self.is_processing = False
@@ -646,6 +648,24 @@ class OllamaChat:
             command=self.on_write_file_toggle
         )
         write_file_checkbox.pack(anchor="w", padx=3, pady=1)
+
+        # Read File checkbox - more compact
+        read_file_checkbox = ttk.Checkbutton(
+            tools_frame,
+            text="Read File",
+            variable=self.read_file_var,
+            command=self.on_read_file_toggle
+        )
+        read_file_checkbox.pack(anchor="w", padx=3, pady=1)
+
+        # Truncate File Display checkbox - more compact
+        truncate_file_display_checkbox = ttk.Checkbutton(
+            tools_frame,
+            text="Truncate file display in chat",
+            variable=self.truncate_file_display_var,
+            command=self.on_truncate_file_display_toggle
+        )
+        truncate_file_display_checkbox.pack(anchor="w", padx=3, pady=1)
 
         # Conversations section with enhanced styling - more compact
         conversations_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Conversations")
@@ -1467,6 +1487,21 @@ class OllamaChat:
         else:
             self.display_message("\nWrite File tool disabled.\n", "status")
 
+    def on_read_file_toggle(self):
+        """Handle read file tool toggle."""
+        read_file_enabled = self.read_file_var.get()
+        self.settings.set("read_file", read_file_enabled)
+
+        if read_file_enabled:
+            self.display_message("\n📖 Read File tool enabled!\n", "status")
+            self.display_message("\nHow to use:\n", "status")
+            self.display_message("• Reference files in your messages using: <<\"C:\\path\\to\\file.ext\">>\n", "status")
+            self.display_message("• Example: \"Using the data in <<\"data.csv\">>, create a summary\"\n", "status")
+            self.display_message("• Supported formats: All MarkItDown formats (DOCX, PDF, images, etc.)\n", "status")
+            self.display_message("• Files are automatically read and included in your message\n", "status")
+        else:
+            self.display_message("\nRead File tool disabled.\n", "status")
+
     def on_intelligent_processing_toggle(self):
         """Handle intelligent file processing toggle."""
         intelligent_processing = self.intelligent_processing_var.get()
@@ -1476,6 +1511,11 @@ class OllamaChat:
             self.display_message("\nIntelligent file processing enabled. Images and complex content will be processed with AI.\n", "status")
         else:
             self.display_message("\nIntelligent file processing disabled. Only text content will be extracted.\n", "status")
+
+    def on_truncate_file_display_toggle(self):
+        """Handle truncate file display toggle."""
+        truncate_enabled = self.truncate_file_display_var.get()
+        self.settings.set("truncate_file_display", truncate_enabled)
 
     # OpenAI Example
     # def create_intelligent_markitdown(self):
@@ -1883,6 +1923,13 @@ class OllamaChat:
         if not user_input or user_input == "Type your message here...":
             return
 
+        # Store original input for display purposes
+        original_input = user_input
+
+        # Process file read requests if Read File tool is enabled
+        if self.read_file_var.get():
+            user_input = self.process_file_read_requests(user_input)
+
         # Check if input is a URL
         url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
         urls = re.findall(url_pattern, user_input)
@@ -1899,12 +1946,13 @@ class OllamaChat:
         print(f"Preserved file content exists: {hasattr(self, 'preserved_file_content') and self.preserved_file_content is not None}")
         print(f"Include file checkbox: {self.include_file_var.get()}")
 
-        # Add to conversation manager
+        # Add to conversation manager (use processed input)
         self.conversation_manager.add_message_to_active("user", user_input)
 
-        # Display user message
+        # Display user message (use truncated version if enabled)
+        display_input = self.get_truncated_display_message(original_input)
         self.display_message("\n", 'user')
-        self.display_message(f"{user_input}\n", 'user')
+        self.display_message(f"{display_input}\n", 'user')
 
         self.input_field.delete("1.0", tk.END)
 
@@ -2087,6 +2135,13 @@ class OllamaChat:
                     "Supported formats include TXT, MD, JSON, CSV, HTML, XML, PY, JS, and more."
                 )
 
+            if self.read_file_var.get():
+                tool_instructions.append(
+                    "READ FILE TOOL: The user can reference files in their messages using the format <<\"path/to/file.ext\">> or <<path/to/file.ext>>. "
+                    "When you see this format in a user's message, the file content has already been automatically read and included in their message. "
+                    "You can reference and work with this file content directly. The system supports all MarkItDown formats including DOCX, PDF, images, and more."
+                )
+
             if self.advanced_web_access_var.get():
                 tool_instructions.append(
                     "WEB SEARCH TOOL: You have access to real-time web search capabilities. "
@@ -2106,6 +2161,8 @@ class OllamaChat:
                 tool_names = []
                 if self.write_file_var.get():
                     tool_names.append("Write File")
+                if self.read_file_var.get():
+                    tool_names.append("Read File")
                 if self.advanced_web_access_var.get():
                     tool_names.append("Web Search")
 
@@ -2632,11 +2689,16 @@ class OllamaChat:
 
             if success:
                 successful_writes += 1
-                self.display_message(f"\n✅ {message}\n", 'status')
-
-                # Show preview of written content
-                preview = content[:100] + "..." if len(content) > 100 else content
-                self.display_message(f"Preview: {preview}\n", 'status')
+                if self.truncate_file_display_var.get():
+                    # Minimal status message
+                    filename = os.path.basename(file_path)
+                    self.display_message(f"{filename} written\n", 'status')
+                else:
+                    # Detailed status message (existing)
+                    self.display_message(f"\n✅ {message}\n", 'status')
+                    # Show preview of written content
+                    preview = content[:100] + "..." if len(content) > 100 else content
+                    self.display_message(f"Preview: {preview}\n", 'status')
             else:
                 self.display_message(f"\n❌ Failed to write '{file_path}': {message}\n", 'error')
 
@@ -2644,6 +2706,170 @@ class OllamaChat:
             self.display_message(f"\n🎉 Successfully wrote {successful_writes} file(s)!\n", 'status')
 
         return successful_writes
+
+    def get_truncated_display_message(self, user_input):
+        """Generate truncated display message showing only file operations."""
+        if not self.truncate_file_display_var.get():
+            return user_input
+
+        # Extract file read patterns
+        read_pattern1 = r'<<\"([^\"]+)\">>'
+        read_pattern2 = r'<<([^>\"]+)>>'
+        read_matches = re.findall(read_pattern1, user_input) + re.findall(read_pattern2, user_input)
+
+        # Extract file write patterns
+        write_pattern1 = r'\[\[\"([^\"]+)\"\]\]'
+        write_pattern2 = r'\[\[([^\]\"]+)\]\]'
+        write_matches = re.findall(write_pattern1, user_input) + re.findall(write_pattern2, user_input)
+
+        # Build truncated message
+        truncated_parts = []
+
+        # Add file read notifications
+        for path in read_matches:
+            filename = os.path.basename(path.strip().strip('"').strip("'"))
+            truncated_parts.append(f"{filename} read")
+
+        # Add file write notifications
+        for path in write_matches:
+            filename = os.path.basename(path.strip().strip('"').strip("'"))
+            truncated_parts.append(f"{filename} written")
+
+        # Remove file patterns from original message
+        display_message = user_input
+        for pattern in [read_pattern1, read_pattern2, write_pattern1, write_pattern2]:
+            display_message = re.sub(pattern, '', display_message)
+
+        # Clean up extra whitespace
+        display_message = re.sub(r'\s+', ' ', display_message).strip()
+
+        # Combine with file operations
+        if truncated_parts:
+            if display_message:
+                return f"{display_message}\n\n" + "\n".join(truncated_parts)
+            else:
+                return "\n".join(truncated_parts)
+
+        return display_message
+
+    def process_file_read_requests(self, user_input):
+        """Process file read requests in user input and replace with file content.
+
+        Args:
+            user_input: The user's input message
+
+        Returns:
+            str: The processed message with file content included
+        """
+        if not self.read_file_var.get():
+            return user_input
+
+        # Pattern 1: <<"path">> format (with quotes)
+        pattern1 = r'<<\"([^\"]+)\">>'
+        # Pattern 2: <<path>> format (without quotes)
+        pattern2 = r'<<([^>\"]+)>>'
+
+        # Find all file read requests
+        matches1 = re.findall(pattern1, user_input)
+        matches2 = re.findall(pattern2, user_input)
+
+        # Combine and deduplicate matches
+        all_paths = list(set(matches1 + matches2))
+
+        if not all_paths:
+            return user_input
+
+        self.display_message(f"\n📖 Processing {len(all_paths)} file read request(s)...\n", 'status')
+
+        processed_input = user_input
+        files_read = 0
+
+        for path in all_paths:
+            # Clean the path
+            clean_path = path.strip().strip('"').strip("'")
+
+            # Try to read the file
+            file_content = self.read_file_safely(clean_path)
+
+            if file_content:
+                files_read += 1
+
+                # Replace the file reference with the content
+                # Try both patterns
+                for pattern in [f'<<"{path}">>', f"<<'{path}'>>", f'<<{path}>>']:
+                    if pattern in processed_input:
+                        replacement = f"\n\n--- Content from {clean_path} ---\n{file_content}\n--- End of {clean_path} ---\n\n"
+                        processed_input = processed_input.replace(pattern, replacement)
+                        break
+
+                if self.truncate_file_display_var.get():
+                    # Minimal status message
+                    filename = os.path.basename(clean_path)
+                    self.display_message(f"{filename} read\n", 'status')
+                else:
+                    # Detailed status message (existing)
+                    self.display_message(f"✅ Read file: {clean_path} ({len(file_content)} characters)\n", 'status')
+            else:
+                self.display_message(f"❌ Failed to read file: {clean_path}\n", 'error')
+
+        if files_read > 0:
+            self.display_message(f"📚 Successfully read {files_read} file(s) and included in your message.\n", 'status')
+
+        return processed_input
+
+    def read_file_safely(self, file_path):
+        """Safely read a file using MarkItDown.
+
+        Args:
+            file_path: The path to the file to read
+
+        Returns:
+            str: The file content as markdown, or None if failed
+        """
+        try:
+            # Normalize the path
+            file_path = os.path.normpath(file_path)
+
+            # Check if file exists
+            if not os.path.exists(file_path):
+                return None
+
+            # Check file size limit (50MB)
+            file_size = os.path.getsize(file_path)
+            if file_size > 50 * 1024 * 1024:
+                self.display_message(f"⚠️ File too large (max 50MB): {file_path}\n", 'warning')
+                return None
+
+            # Use MarkItDown to convert file content
+            md = MarkItDown()
+
+            # Check if intelligent processing is enabled
+            if self.intelligent_processing_var.get():
+                # Use OpenAI for intelligent processing if available
+                try:
+                    import openai
+                    api_key = os.getenv('OPENAI_API_KEY')
+                    if api_key:
+                        md = MarkItDown(llm_client=openai.OpenAI(api_key=api_key), llm_model="gpt-4o-mini")
+                except:
+                    pass  # Fall back to basic processing
+
+            # Convert file to markdown
+            result = md.convert(file_path)
+
+            if result and hasattr(result, 'text_content'):
+                return result.text_content
+            elif isinstance(result, str):
+                return result
+            else:
+                return None
+
+        except PermissionError:
+            self.display_message(f"⚠️ Permission denied: {file_path}\n", 'warning')
+            return None
+        except Exception as e:
+            self.display_message(f"⚠️ Error reading file {file_path}: {str(e)}\n", 'warning')
+            return None
 
     def perform_advanced_web_search(self, query):
         """Perform an advanced web search using crawl4ai.
@@ -2789,6 +3015,7 @@ class OllamaChat:
             "include_file": self.include_file_var.get(),
             "advanced_web_access": self.advanced_web_access_var.get(),
             "write_file": self.write_file_var.get(),
+            "read_file": self.read_file_var.get(),
             "intelligent_processing": self.intelligent_processing_var.get(),
             "system_prompt": self.system_text.get('1.0', tk.END).strip()
             # generate_image_var removed - functionality not working
