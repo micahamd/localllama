@@ -56,7 +56,7 @@ python main.py
 ### Working with Files
 - **Drop Files**: Drag and drop files directly into the chat window
 - **Batch Process**: Process multiple files with the same prompt
-- **File Types Supported**: 
+- **File Types Supported**:
   - **Documents**: PDFs, Word documents, PowerPoint presentations, Excel spreadsheets
   - **Images**: JPG, PNG, GIF, BMP with preview display
   - **Audio**: MP3, WAV, FLAC, M4A with automatic transcription
@@ -102,6 +102,16 @@ python main.py
 5. The AI will automatically extract content from code blocks or response text
 6. Files are created with safety checks, backups, and error handling
 
+#### Read File Tool
+1. Enable the Read File option in the Tools section
+2. Reference files in your messages using: `<<"C:\path\to\file.ext">>`
+3. Examples:
+   - "Analyze the data in <<"data.csv">> and create insights"
+   - "Using instructions in <<"guide.docx">> process <<"input.pdf">>"
+   - "Following <<"template.md">> create summary and save as [["output.txt"]]"
+4. Supported formats: All MarkItDown formats (DOCX, PDF, images, audio, etc.)
+5. Files are automatically read and content included in your message
+6. Works seamlessly with Write File tool for complete file workflows
 #### Web Content
 1. Paste any URL into the chat input field and press Enter
 2. The application will extract the content from the webpage
