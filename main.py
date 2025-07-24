@@ -1949,8 +1949,15 @@ class OllamaChat:
         # Add to conversation manager (use processed input)
         self.conversation_manager.add_message_to_active("user", user_input)
 
-        # Display user message (use truncated version if enabled)
-        display_input = self.get_truncated_display_message(original_input)
+        # Display user message (use truncated version if enabled, but only for display)
+        if self.truncate_file_display_var.get():
+            # For truncated display, show the original message without file patterns
+            # The actual file operation status will be shown by the processing methods
+            display_input = self.get_truncated_display_message_text_only(original_input)
+        else:
+            # For full display, show the processed message with file content
+            display_input = user_input
+
         self.display_message("\n", 'user')
         self.display_message(f"{display_input}\n", 'user')
 
@@ -2752,6 +2759,26 @@ class OllamaChat:
 
         return display_message
 
+    def get_truncated_display_message_text_only(self, user_input):
+        """Remove file patterns from message for display, without adding status messages."""
+        # Extract file read patterns
+        read_pattern1 = r'<<\"([^\"]+)\">>'
+        read_pattern2 = r'<<([^>\"]+)>>'
+
+        # Extract file write patterns
+        write_pattern1 = r'\[\[\"([^\"]+)\"\]\]'
+        write_pattern2 = r'\[\[([^\]\"]+)\]\]'
+
+        # Remove file patterns from original message
+        display_message = user_input
+        for pattern in [read_pattern1, read_pattern2, write_pattern1, write_pattern2]:
+            display_message = re.sub(pattern, '', display_message)
+
+        # Clean up extra whitespace
+        display_message = re.sub(r'\s+', ' ', display_message).strip()
+
+        return display_message
+
     def process_file_read_requests(self, user_input):
         """Process file read requests in user input and replace with file content.
 
@@ -2864,6 +2891,20 @@ class OllamaChat:
             else:
                 return None
 
+        except UnicodeDecodeError as e:
+            # If MarkItDown fails with Unicode error, try manual UTF-8 reading for text files
+            try:
+                if file_path.lower().endswith(('.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.csv')):
+                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+                        content = f.read()
+                        self.display_message(f"⚠️ Used fallback UTF-8 reading for {file_path} due to encoding issue\n", 'warning')
+                        return content
+                else:
+                    self.display_message(f"⚠️ Unicode error reading file {file_path}: {str(e)}\n", 'warning')
+                    return None
+            except Exception as fallback_e:
+                self.display_message(f"⚠️ Fallback reading failed for {file_path}: {str(fallback_e)}\n", 'warning')
+                return None
         except PermissionError:
             self.display_message(f"⚠️ Permission denied: {file_path}\n", 'warning')
             return None
