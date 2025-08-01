@@ -35,6 +35,80 @@ from error_handler import error_handler, safe_execute
 from mcp_server import MCPManager
 from mcp_ui import MCPPanel
 
+class CollapsibleFrame(ttk.Frame):
+    """A collapsible frame widget that can expand/collapse its content."""
+
+    def __init__(self, parent, title="", expanded=True, **kwargs):
+        super().__init__(parent, **kwargs)
+
+        self.expanded = expanded
+        self.title = title
+
+        # Configure style for better visual hierarchy
+        self.configure(relief="solid", borderwidth=1)
+
+        # Create header frame with enhanced styling
+        self.header_frame = ttk.Frame(self, style="Header.TFrame")
+        self.header_frame.pack(fill=tk.X, padx=0, pady=0)
+
+        # Add subtle background to header
+        header_bg = ttk.Label(self.header_frame, text="", style="HeaderBG.TLabel")
+        header_bg.place(x=0, y=0, relwidth=1, relheight=1)
+
+        # Toggle button (arrow) with enhanced styling
+        self.toggle_button = ttk.Button(
+            self.header_frame,
+            text="▼" if expanded else "▶",
+            width=3,
+            command=self.toggle,
+            style="Toggle.TButton"
+        )
+        self.toggle_button.pack(side=tk.LEFT, padx=3, pady=2)
+
+        # Title label with enhanced typography
+        self.title_label = ttk.Label(
+            self.header_frame,
+            text=title,
+            font=("Segoe UI", 10, "bold"),
+            style="SectionTitle.TLabel"
+        )
+        self.title_label.pack(side=tk.LEFT, padx=(2, 0), pady=2)
+
+        # Content frame with subtle background
+        self.content_frame = ttk.Frame(self, style="Content.TFrame")
+        if expanded:
+            self.content_frame.pack(fill=tk.BOTH, expand=True, padx=3, pady=(0, 3))
+
+        # Make header clickable
+        self.header_frame.bind("<Button-1>", lambda e: self.toggle())
+        self.title_label.bind("<Button-1>", lambda e: self.toggle())
+        header_bg.bind("<Button-1>", lambda e: self.toggle())
+
+    def toggle(self):
+        """Toggle the expanded/collapsed state."""
+        if self.expanded:
+            self.collapse()
+        else:
+            self.expand()
+
+    def expand(self):
+        """Expand the content frame."""
+        self.expanded = True
+        self.toggle_button.config(text="▼")
+        self.content_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=2)
+
+    def collapse(self):
+        """Collapse the content frame."""
+        self.expanded = False
+        self.toggle_button.config(text="▶")
+        self.content_frame.pack_forget()
+
+    def add_content(self, widget):
+        """Add a widget to the content frame."""
+        widget.pack(in_=self.content_frame, fill=tk.X, padx=2, pady=1)
+        return widget
+
+
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
@@ -190,6 +264,34 @@ class OllamaChat:
                       foreground=self.accent_color,
                       font=("Segoe UI", 11, "bold"))  # Slightly larger font for better readability
 
+        # Enhanced styles for CollapsibleFrame visual hierarchy
+        style.configure('Header.TFrame',
+                      background=self.secondary_bg,
+                      relief="flat",
+                      borderwidth=0)
+        style.configure('HeaderBG.TLabel',
+                      background=self.secondary_bg,
+                      relief="flat")
+        style.configure('Content.TFrame',
+                      background=self.bg_color,
+                      relief="flat",
+                      borderwidth=0)
+        style.configure('SectionTitle.TLabel',
+                      background=self.secondary_bg,
+                      foreground=self.fg_color,
+                      font=("Segoe UI", 10, "bold"))
+        style.configure('Toggle.TButton',
+                      background=self.secondary_bg,
+                      foreground=self.accent_color,
+                      borderwidth=0,
+                      focuscolor='none',
+                      font=("Segoe UI", 8),
+                      relief="flat",
+                      padding=(2, 1))
+        style.map('Toggle.TButton',
+                 background=[('active', self.subtle_accent), ('pressed', self.highlight_color)],
+                 foreground=[('active', '#FFFFFF'), ('pressed', '#FFFFFF')])
+
         # Configure root window
         self.root.configure(background=self.bg_color)
 
@@ -253,6 +355,9 @@ class OllamaChat:
         # Bind keyboard shortcut for sidebar toggle
         self.root.bind('<Control-b>', lambda e: self.toggle_sidebar())
 
+        # Bind window resize event for responsive spacing
+        self.root.bind('<Configure>', self.on_window_resize)
+
         self.main_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)  # Use PanedWindow
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
@@ -305,6 +410,9 @@ class OllamaChat:
         # RAG visualization
         self.rag_visualizer = None
 
+        # Layout preset
+        self.current_layout_preset = self.settings.get("layout_preset", "full")
+
     def create_menu(self):
         """Create the application menu."""
         self.menu_bar = Menu(self.root)
@@ -341,6 +449,14 @@ class OllamaChat:
         view_menu.add_command(label="Show RAG Visualization", command=self.show_rag_visualization)
         view_menu.add_checkbutton(label="Show Image Preview", variable=self.show_image_var,
                                   command=self.on_show_image_toggle)
+        view_menu.add_separator()
+
+        # Layout presets submenu
+        layout_menu = Menu(view_menu, tearoff=0)
+        view_menu.add_cascade(label="Layout Presets", menu=layout_menu)
+        layout_menu.add_command(label="Compact", command=lambda: self.set_layout_preset("compact"))
+        layout_menu.add_command(label="Full", command=lambda: self.set_layout_preset("full"))
+        layout_menu.add_command(label="Focus", command=lambda: self.set_layout_preset("focus"))
 
         # API menu
         api_menu = Menu(self.menu_bar, tearoff=0)
@@ -429,38 +545,46 @@ class OllamaChat:
         self.sidebar_canvas.bind("<Enter>", lambda e: self.sidebar_canvas.focus_set())
         self.sidebar_canvas.bind("<Leave>", lambda e: self.root.focus_set())
 
-        # Models settings frame - now using scrollable_sidebar
-        model_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Models")
-        model_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Models settings frame - using CollapsibleFrame
+        model_frame = CollapsibleFrame(self.scrollable_sidebar, title="Models", expanded=True)
+        model_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        # Developer selector - more compact
-        ttk.Label(model_frame, text="Developer:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        developer_selector = ttk.Combobox(model_frame, textvariable=self.developer,
+        # Developer selector
+        dev_frame = ttk.Frame(model_frame.content_frame)
+        dev_frame.pack(fill=tk.X, padx=3, pady=2)
+        ttk.Label(dev_frame, text="Developer:", font=("Segoe UI", 9)).pack(anchor="w")
+        developer_selector = ttk.Combobox(dev_frame, textvariable=self.developer,
                                          values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly',
-                                         font=("Arial", 9))  # Added 'deepseek'
-        developer_selector.pack(fill=tk.X, padx=3, pady=1)
+                                         font=("Segoe UI", 9))
+        developer_selector.pack(fill=tk.X, pady=(2, 0))
         developer_selector.bind('<<ComboboxSelected>>', self.on_developer_changed)
 
-        # LLM Model selector - more compact
-        ttk.Label(model_frame, text="LLM Model:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        self.model_selector = ttk.Combobox(model_frame, state='readonly', font=("Arial", 9))
-        self.model_selector.pack(fill=tk.X, padx=3, pady=1)
+        # LLM Model selector
+        llm_frame = ttk.Frame(model_frame.content_frame)
+        llm_frame.pack(fill=tk.X, padx=3, pady=2)
+        ttk.Label(llm_frame, text="LLM Model:", font=("Segoe UI", 9)).pack(anchor="w")
+        self.model_selector = ttk.Combobox(llm_frame, state='readonly', font=("Segoe UI", 9))
+        self.model_selector.pack(fill=tk.X, pady=(2, 0))
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
 
-        # Embedding Model selector - more compact
-        ttk.Label(model_frame, text="Embedding:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        self.embedding_selector = ttk.Combobox(model_frame, state='readonly', font=("Arial", 9))
-        self.embedding_selector.pack(fill=tk.X, padx=3, pady=1)
+        # Embedding Model selector
+        emb_frame = ttk.Frame(model_frame.content_frame)
+        emb_frame.pack(fill=tk.X, padx=3, pady=2)
+        ttk.Label(emb_frame, text="Embedding:", font=("Segoe UI", 9)).pack(anchor="w")
+        self.embedding_selector = ttk.Combobox(emb_frame, state='readonly', font=("Segoe UI", 9))
+        self.embedding_selector.pack(fill=tk.X, pady=(2, 0))
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
 
-        # Parameters settings frame - more compact
-        params_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Parameters")
-        params_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Basic Parameters - using CollapsibleFrame
+        basic_params_frame = CollapsibleFrame(self.scrollable_sidebar, title="Basic Parameters", expanded=True)
+        basic_params_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        # Temperature control - more compact
-        ttk.Label(params_frame, text="Temperature:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        temp_frame = ttk.Frame(params_frame)
-        temp_frame.pack(fill=tk.X, padx=3, pady=1)
+        # Temperature control
+        temp_container = ttk.Frame(basic_params_frame.content_frame)
+        temp_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(temp_container, text="Temperature:", font=("Segoe UI", 9)).pack(anchor="w")
+        temp_frame = ttk.Frame(temp_container)
+        temp_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.temp_slider = ttk.Scale(
             temp_frame,
@@ -471,17 +595,16 @@ class OllamaChat:
             command=self.on_temp_change,
             style="Horizontal.TScale"
         )
-
-        # No custom thumb - using the default ttk.Scale thumb
         self.temp_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Segoe UI", 8))
+        self.temp_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Arial", 8))
-        self.temp_label.pack(side=tk.RIGHT, padx=3)
-
-        # Context size control - more compact
-        ttk.Label(params_frame, text="Context Size:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        context_frame = ttk.Frame(params_frame)
-        context_frame.pack(fill=tk.X, padx=3, pady=1)
+        # Context size control
+        context_container = ttk.Frame(basic_params_frame.content_frame)
+        context_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(context_container, text="Context Size:", font=("Segoe UI", 9)).pack(anchor="w")
+        context_frame = ttk.Frame(context_container)
+        context_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.context_slider = ttk.Scale(
             context_frame,
@@ -492,17 +615,20 @@ class OllamaChat:
             command=self.on_context_change,
             style="Horizontal.TScale"
         )
-
-        # No custom thumb - using the default ttk.Scale thumb
         self.context_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()), font=("Segoe UI", 8))
+        self.context_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()))
-        self.context_label.pack(side=tk.RIGHT, padx=5)
+        # Advanced Parameters - using CollapsibleFrame (collapsed by default)
+        advanced_params_frame = CollapsibleFrame(self.scrollable_sidebar, title="Advanced Parameters", expanded=False)
+        advanced_params_frame.pack(fill=tk.X, padx=2, pady=2)
 
         # Top-k control
-        ttk.Label(params_frame, text="Top-k (diversity):").pack(anchor="w", padx=5, pady=2)
-        top_k_frame = ttk.Frame(params_frame)
-        top_k_frame.pack(fill=tk.X, padx=5, pady=2)
+        top_k_container = ttk.Frame(advanced_params_frame.content_frame)
+        top_k_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(top_k_container, text="Top-k (diversity):", font=("Segoe UI", 9)).pack(anchor="w")
+        top_k_frame = ttk.Frame(top_k_container)
+        top_k_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.top_k_slider = ttk.Scale(
             top_k_frame,
@@ -514,14 +640,15 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.top_k_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        self.top_k_label = ttk.Label(top_k_frame, text=str(self.top_k.get()))
-        self.top_k_label.pack(side=tk.RIGHT, padx=5)
+        self.top_k_label = ttk.Label(top_k_frame, text=str(self.top_k.get()), font=("Segoe UI", 8))
+        self.top_k_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Top-p control
-        ttk.Label(params_frame, text="Top-p (nucleus):").pack(anchor="w", padx=5, pady=2)
-        top_p_frame = ttk.Frame(params_frame)
-        top_p_frame.pack(fill=tk.X, padx=5, pady=2)
+        top_p_container = ttk.Frame(advanced_params_frame.content_frame)
+        top_p_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(top_p_container, text="Top-p (nucleus):", font=("Segoe UI", 9)).pack(anchor="w")
+        top_p_frame = ttk.Frame(top_p_container)
+        top_p_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.top_p_slider = ttk.Scale(
             top_p_frame,
@@ -533,14 +660,15 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.top_p_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        self.top_p_label = ttk.Label(top_p_frame, text=f"{self.top_p.get():.2f}")
-        self.top_p_label.pack(side=tk.RIGHT, padx=5)
+        self.top_p_label = ttk.Label(top_p_frame, text=f"{self.top_p.get():.2f}", font=("Segoe UI", 8))
+        self.top_p_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Repeat penalty control
-        ttk.Label(params_frame, text="Repeat Penalty:").pack(anchor="w", padx=5, pady=2)
-        repeat_penalty_frame = ttk.Frame(params_frame)
-        repeat_penalty_frame.pack(fill=tk.X, padx=5, pady=2)
+        repeat_penalty_container = ttk.Frame(advanced_params_frame.content_frame)
+        repeat_penalty_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(repeat_penalty_container, text="Repeat Penalty:", font=("Segoe UI", 9)).pack(anchor="w")
+        repeat_penalty_frame = ttk.Frame(repeat_penalty_container)
+        repeat_penalty_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.repeat_penalty_slider = ttk.Scale(
             repeat_penalty_frame,
@@ -552,14 +680,15 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.repeat_penalty_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-
-        self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}")
-        self.repeat_penalty_label.pack(side=tk.RIGHT, padx=5)
+        self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}", font=("Segoe UI", 8))
+        self.repeat_penalty_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Max tokens control
-        ttk.Label(params_frame, text="Max Tokens:").pack(anchor="w", padx=5, pady=2)
-        max_tokens_frame = ttk.Frame(params_frame)
-        max_tokens_frame.pack(fill=tk.X, padx=5, pady=2)
+        max_tokens_container = ttk.Frame(advanced_params_frame.content_frame)
+        max_tokens_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(max_tokens_container, text="Max Tokens:", font=("Segoe UI", 9)).pack(anchor="w")
+        max_tokens_frame = ttk.Frame(max_tokens_container)
+        max_tokens_frame.pack(fill=tk.X, pady=(2, 0))
 
         self.max_tokens_slider = ttk.Scale(
             max_tokens_frame,
@@ -571,137 +700,232 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.max_tokens_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.max_tokens_label = ttk.Label(max_tokens_frame, text=str(self.max_tokens.get()), font=("Segoe UI", 8))
+        self.max_tokens_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        self.max_tokens_label = ttk.Label(max_tokens_frame, text=str(self.max_tokens.get()))
-        self.max_tokens_label.pack(side=tk.RIGHT, padx=5)
+        # RAG Settings - using CollapsibleFrame (collapsed by default)
+        rag_frame = CollapsibleFrame(self.scrollable_sidebar, title="RAG Settings", expanded=False)
+        rag_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        # RAG settings frame - more compact
-        rag_frame = ttk.LabelFrame(self.scrollable_sidebar, text="RAG Settings")
-        rag_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Chunk size
+        chunk_container = ttk.Frame(rag_frame.content_frame)
+        chunk_container.pack(fill=tk.X, padx=3, pady=3)
+        ttk.Label(chunk_container, text="Chunk Size:", font=("Segoe UI", 9)).pack(anchor="w")
+        self.chunk_entry = ttk.Entry(chunk_container, textvariable=self.chunk_size, width=8, font=("Segoe UI", 9))
+        self.chunk_entry.pack(anchor="w", pady=(2, 0))
 
-        # Chunk size - more compact
-        ttk.Label(rag_frame, text="Chunk Size:", font=("Arial", 9)).pack(anchor="w", padx=3, pady=1)
-        self.chunk_entry = ttk.Entry(rag_frame, textvariable=self.chunk_size, width=5, font=("Arial", 9))
-        self.chunk_entry.pack(anchor="w", padx=3, pady=1)
-
-        # No semantic chunking options - removed for better performance
-
-        # Options frame - more compact
-        options_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Options")
-        options_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Options - using CollapsibleFrame
+        options_frame = CollapsibleFrame(self.scrollable_sidebar, title="Options", expanded=True)
+        options_frame.pack(fill=tk.X, padx=2, pady=2)
 
         # Include chat history
         include_chat_checkbox = ttk.Checkbutton(
-            options_frame,
+            options_frame.content_frame,
             text="Include chat history",
-            variable=self.include_chat_var
+            variable=self.include_chat_var,
+            style="TCheckbutton"
         )
-        include_chat_checkbox.pack(anchor="w", padx=3, pady=1)
+        include_chat_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Generate image checkbox removed - functionality not working
-
-        # Show image preview - more compact
+        # Show image preview
         show_image_checkbox = ttk.Checkbutton(
-            options_frame,
+            options_frame.content_frame,
             text="Show image preview",
             variable=self.show_image_var,
-            command=self.on_show_image_toggle
+            command=self.on_show_image_toggle,
+            style="TCheckbutton"
         )
-        show_image_checkbox.pack(anchor="w", padx=3, pady=1)
+        show_image_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Include file content - more compact
+        # Include file content
         self.include_file_checkbox = ttk.Checkbutton(
-            options_frame,
+            options_frame.content_frame,
             text="Include file content",
-            variable=self.include_file_var
+            variable=self.include_file_var,
+            style="TCheckbutton"
         )
-        self.include_file_checkbox.pack(anchor="w", padx=3, pady=1)
+        self.include_file_checkbox.pack(anchor="w", padx=3, pady=2)
 
         # Intelligent file processing
         intelligent_processing_checkbox = ttk.Checkbutton(
-            options_frame,
+            options_frame.content_frame,
             text="Intelligent File Processing?",
             variable=self.intelligent_processing_var,
-            command=self.on_intelligent_processing_toggle
+            command=self.on_intelligent_processing_toggle,
+            style="TCheckbutton"
         )
-        intelligent_processing_checkbox.pack(anchor="w", padx=5, pady=2)
+        intelligent_processing_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Tools section - more compact
-        tools_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Tools")
-        tools_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Tools section - using CollapsibleFrame
+        tools_frame = CollapsibleFrame(self.scrollable_sidebar, title="Tools", expanded=True)
+        tools_frame.pack(fill=tk.X, padx=2, pady=2)
 
         # Web Search checkbox
         self.advanced_web_access_var = tk.BooleanVar(value=self.settings.get("advanced_web_access", False))
         advanced_web_access_checkbox = ttk.Checkbutton(
-            tools_frame,
+            tools_frame.content_frame,
             text="Web Search",
             variable=self.advanced_web_access_var,
-            command=self.on_advanced_web_access_toggle
+            command=self.on_advanced_web_access_toggle,
+            style="TCheckbutton"
         )
-        advanced_web_access_checkbox.pack(anchor="w", padx=3, pady=1)
+        advanced_web_access_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Write File checkbox - more compact
+        # Write File checkbox
         write_file_checkbox = ttk.Checkbutton(
-            tools_frame,
+            tools_frame.content_frame,
             text="Write File",
             variable=self.write_file_var,
-            command=self.on_write_file_toggle
+            command=self.on_write_file_toggle,
+            style="TCheckbutton"
         )
-        write_file_checkbox.pack(anchor="w", padx=3, pady=1)
+        write_file_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Read File checkbox - more compact
+        # Read File checkbox
         read_file_checkbox = ttk.Checkbutton(
-            tools_frame,
+            tools_frame.content_frame,
             text="Read File",
             variable=self.read_file_var,
-            command=self.on_read_file_toggle
+            command=self.on_read_file_toggle,
+            style="TCheckbutton"
         )
-        read_file_checkbox.pack(anchor="w", padx=3, pady=1)
+        read_file_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Truncate File Display checkbox - more compact
+        # Truncate File Display checkbox
         truncate_file_display_checkbox = ttk.Checkbutton(
-            tools_frame,
+            tools_frame.content_frame,
             text="Truncate file display in chat",
             variable=self.truncate_file_display_var,
-            command=self.on_truncate_file_display_toggle
+            command=self.on_truncate_file_display_toggle,
+            style="TCheckbutton"
         )
-        truncate_file_display_checkbox.pack(anchor="w", padx=3, pady=1)
+        truncate_file_display_checkbox.pack(anchor="w", padx=3, pady=2)
 
-        # Conversations section with enhanced styling - more compact
-        conversations_frame = ttk.LabelFrame(self.scrollable_sidebar, text="Conversations")
-        conversations_frame.pack(fill=tk.X, padx=3, pady=3)
+        # Conversations section - using CollapsibleFrame
+        conversations_frame = CollapsibleFrame(self.scrollable_sidebar, title="Conversations", expanded=True)
+        conversations_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        # Conversation buttons - more compact
-        conv_buttons_frame = ttk.Frame(conversations_frame)
+        # Conversation buttons - arranged in a grid for better space usage
+        conv_buttons_frame = ttk.Frame(conversations_frame.content_frame)
         conv_buttons_frame.pack(fill=tk.X, padx=3, pady=3)
 
-        ttk.Button(conv_buttons_frame, text="New", command=self.new_conversation).pack(side=tk.LEFT, padx=2)
-        ttk.Button(conv_buttons_frame, text="Save", command=self.save_conversation).pack(side=tk.LEFT, padx=2)
-        ttk.Button(conv_buttons_frame, text="Load", command=self.load_conversation).pack(side=tk.LEFT, padx=2)
+        # First row of buttons
+        button_row1 = ttk.Frame(conv_buttons_frame)
+        button_row1.pack(fill=tk.X, pady=(0, 2))
+        ttk.Button(button_row1, text="New", command=self.new_conversation, width=8).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(button_row1, text="Save", command=self.save_conversation, width=8).pack(side=tk.LEFT, padx=2)
 
-        # Prompt History button
-        ttk.Button(conv_buttons_frame, text="Prompt History", command=self.show_prompt_history).pack(side=tk.LEFT, padx=2)
+        # Second row of buttons
+        button_row2 = ttk.Frame(conv_buttons_frame)
+        button_row2.pack(fill=tk.X)
+        ttk.Button(button_row2, text="Load", command=self.load_conversation, width=8).pack(side=tk.LEFT, padx=(0, 2))
+        ttk.Button(button_row2, text="Prompts", command=self.show_prompt_history, width=8).pack(side=tk.LEFT, padx=2)
 
-        # Recent conversations list with enhanced styling
-        ttk.Label(conversations_frame, text="Recent:").pack(anchor="w", padx=5)
+        # Recent conversations list
+        recent_frame = ttk.Frame(conversations_frame.content_frame)
+        recent_frame.pack(fill=tk.X, padx=3, pady=(5, 3))
+        ttk.Label(recent_frame, text="Recent:", font=("Segoe UI", 9)).pack(anchor="w")
+
         self.conversations_listbox = tk.Listbox(
-            conversations_frame,
-            height=5,
+            recent_frame,
+            height=4,  # Reduced height to save space
             bg=self.secondary_bg,
             fg=self.fg_color,
             selectbackground=self.subtle_accent,
             selectforeground="#FFFFFF",
             borderwidth=0,
-            highlightthickness=2,
+            highlightthickness=1,
             highlightcolor=self.highlight_color,
             highlightbackground=self.border_color,
-            font=("Segoe UI", 10)
+            font=("Segoe UI", 9)  # Slightly smaller font
         )
-        self.conversations_listbox.pack(fill=tk.X, padx=5, pady=2)
+        self.conversations_listbox.pack(fill=tk.X, pady=(2, 0))
         self.conversations_listbox.bind("<Double-1>", self.on_conversation_selected)
 
         # Update the conversations list
         self.update_conversations_list()
+
+        # Apply saved layout preset after sidebar is fully created
+        self.root.after(200, self.apply_layout_preset)
+
+    def set_layout_preset(self, preset_name):
+        """Set a layout preset and save the preference."""
+        self.current_layout_preset = preset_name
+
+        # Save the preference
+        self.settings.set("layout_preset", preset_name)
+        self.save_settings()
+
+        # Apply the preset
+        self.apply_layout_preset()
+
+        # Show feedback
+        self.display_message(f"\nLayout preset changed to: {preset_name.title()}\n", "status")
+
+    def apply_layout_preset(self):
+        """Apply the current layout preset."""
+        preset = getattr(self, 'current_layout_preset', self.settings.get("layout_preset", "full"))
+
+        if preset == "compact":
+            self.apply_compact_layout()
+        elif preset == "focus":
+            self.apply_focus_layout()
+        else:  # full
+            self.apply_full_layout()
+
+    def apply_compact_layout(self):
+        """Apply compact layout - collapse advanced sections, smaller sidebar."""
+        try:
+            # Find and collapse advanced sections
+            for widget in self.scrollable_sidebar.winfo_children():
+                if isinstance(widget, CollapsibleFrame):
+                    if widget.title in ["Advanced Parameters", "RAG Settings"]:
+                        widget.collapse()
+                    else:
+                        widget.expand()
+
+            # Set smaller sidebar width
+            window_width = self.root.winfo_width()
+            if window_width > 100:
+                sidebar_width = max(200, min(280, int(window_width * 0.2)))
+                self.main_frame.sashpos(0, sidebar_width)
+        except Exception as e:
+            print(f"Error applying compact layout: {e}")
+
+    def apply_full_layout(self):
+        """Apply full layout - expand all sections, normal sidebar."""
+        try:
+            # Expand all sections
+            for widget in self.scrollable_sidebar.winfo_children():
+                if isinstance(widget, CollapsibleFrame):
+                    widget.expand()
+
+            # Set normal sidebar width
+            window_width = self.root.winfo_width()
+            if window_width > 100:
+                sidebar_width = max(250, min(350, int(window_width * 0.25)))
+                self.main_frame.sashpos(0, sidebar_width)
+        except Exception as e:
+            print(f"Error applying full layout: {e}")
+
+    def apply_focus_layout(self):
+        """Apply focus layout - collapse most sections, minimal sidebar."""
+        try:
+            # Collapse all but essential sections
+            for widget in self.scrollable_sidebar.winfo_children():
+                if isinstance(widget, CollapsibleFrame):
+                    if widget.title in ["Models", "Options"]:
+                        widget.expand()
+                    else:
+                        widget.collapse()
+
+            # Set minimal sidebar width
+            window_width = self.root.winfo_width()
+            if window_width > 100:
+                sidebar_width = max(180, min(250, int(window_width * 0.18)))
+                self.main_frame.sashpos(0, sidebar_width)
+        except Exception as e:
+            print(f"Error applying focus layout: {e}")
 
     def _on_sidebar_canvas_configure(self, event):
         """Handle canvas configuration changes for sidebar scrolling."""
@@ -749,6 +973,73 @@ class OllamaChat:
             self.sidebar_scrollbar.pack_forget()
             self.collapse_button.config(text="▶")
             self.sidebar_collapsed = True
+
+    def get_responsive_spacing(self):
+        """Calculate responsive spacing based on window size."""
+        try:
+            window_width = self.root.winfo_width()
+            window_height = self.root.winfo_height()
+
+            # Base spacing values
+            if window_width < 900:
+                # Compact spacing for small windows
+                return {
+                    'section_padx': 1,
+                    'section_pady': 1,
+                    'item_padx': 2,
+                    'item_pady': 1,
+                    'font_size': 8,
+                    'button_width': 6
+                }
+            elif window_width < 1200:
+                # Medium spacing for medium windows
+                return {
+                    'section_padx': 2,
+                    'section_pady': 2,
+                    'item_padx': 3,
+                    'item_pady': 2,
+                    'font_size': 9,
+                    'button_width': 8
+                }
+            else:
+                # Comfortable spacing for large windows
+                return {
+                    'section_padx': 3,
+                    'section_pady': 3,
+                    'item_padx': 4,
+                    'item_pady': 3,
+                    'font_size': 10,
+                    'button_width': 10
+                }
+        except:
+            # Fallback to medium spacing
+            return {
+                'section_padx': 2,
+                'section_pady': 2,
+                'item_padx': 3,
+                'item_pady': 2,
+                'font_size': 9,
+                'button_width': 8
+            }
+
+    def on_window_resize(self, event):
+        """Handle window resize events for responsive UI updates."""
+        # Only respond to root window resize events
+        if event.widget == self.root:
+            # Debounce resize events to avoid excessive updates
+            if hasattr(self, '_resize_timer'):
+                self.root.after_cancel(self._resize_timer)
+            self._resize_timer = self.root.after(100, self.update_responsive_layout)
+
+    def update_responsive_layout(self):
+        """Update the layout based on current window size."""
+        try:
+            spacing = self.get_responsive_spacing()
+            # The spacing values are now available for future use
+            # For now, we'll just ensure the paned window is properly configured
+            self.configure_paned_window()
+        except Exception as e:
+            print(f"Error updating responsive layout: {e}")
 
     def configure_paned_window(self):
         """Configure the PanedWindow with appropriate initial sizing."""
