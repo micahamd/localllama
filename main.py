@@ -341,28 +341,37 @@ class OllamaChat:
         # Set minimum window size for better usability
         self.root.minsize(800, 600)
 
-        # Set initial window size to 80% of screen if not maximized
-        screen_width = self.root.winfo_screenwidth()
-        screen_height = self.root.winfo_screenheight()
-        initial_width = int(screen_width * 0.8)
-        initial_height = int(screen_height * 0.8)
+        # Restore saved geometry if available; otherwise center to 80% of screen
+        saved_geom = getattr(self, 'saved_geometry', None)
+        saved_max = self.settings.get("window_maximized", False)
+        if saved_geom:
+            try:
+                self.root.geometry(saved_geom)
+                if saved_max:
+                    self.root.state('zoomed')
+            except Exception:
+                pass
+        else:
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+            initial_width = int(screen_width * 0.8)
+            initial_height = int(screen_height * 0.8)
 
-        # Center the window
-        x = (screen_width - initial_width) // 2
-        y = (screen_height - initial_height) // 2
-        self.root.geometry(f"{initial_width}x{initial_height}+{x}+{y}")
+            # Center the window
+            x = (screen_width - initial_width) // 2
+            y = (screen_height - initial_height) // 2
+            self.root.geometry(f"{initial_width}x{initial_height}+{x}+{y}")
 
         # Bind keyboard shortcut for sidebar toggle
         self.root.bind('<Control-b>', lambda e: self.toggle_sidebar())
 
-        # Bind window resize event for responsive spacing
-        self.root.bind('<Configure>', self.on_window_resize)
 
         self.main_frame = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)  # Use PanedWindow
         self.main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Configure PanedWindow for better responsiveness
-        self.root.after(100, self.configure_paned_window)
+        # Configure PanedWindow initial sash only once after render
+        self._sash_initialized = False
+        self.root.after(150, self.configure_paned_window)
 
     def setup_error_handler(self):
         """Configure the error handler with a display callback."""
@@ -410,8 +419,9 @@ class OllamaChat:
         # RAG visualization
         self.rag_visualizer = None
 
-        # Layout preset
-        self.current_layout_preset = self.settings.get("layout_preset", "full")
+        # Restore saved window/layout settings if available
+        self.saved_geometry = self.settings.get("window_geometry", None)
+        self.saved_sash_pos = self.settings.get("sash_pos", None)
 
     def create_menu(self):
         """Create the application menu."""
@@ -449,15 +459,6 @@ class OllamaChat:
         view_menu.add_command(label="Show RAG Visualization", command=self.show_rag_visualization)
         view_menu.add_checkbutton(label="Show Image Preview", variable=self.show_image_var,
                                   command=self.on_show_image_toggle)
-        view_menu.add_separator()
-
-        # Layout presets submenu
-        layout_menu = Menu(view_menu, tearoff=0)
-        view_menu.add_cascade(label="Layout Presets", menu=layout_menu)
-        layout_menu.add_command(label="Compact", command=lambda: self.set_layout_preset("compact"))
-        layout_menu.add_command(label="Full", command=lambda: self.set_layout_preset("full"))
-        layout_menu.add_command(label="Focus", command=lambda: self.set_layout_preset("focus"))
-
         # API menu
         api_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="API", menu=api_menu)
@@ -845,88 +846,6 @@ class OllamaChat:
         # Update the conversations list
         self.update_conversations_list()
 
-        # Apply saved layout preset after sidebar is fully created
-        self.root.after(200, self.apply_layout_preset)
-
-    def set_layout_preset(self, preset_name):
-        """Set a layout preset and save the preference."""
-        self.current_layout_preset = preset_name
-
-        # Save the preference
-        self.settings.set("layout_preset", preset_name)
-        self.save_settings()
-
-        # Apply the preset
-        self.apply_layout_preset()
-
-        # Show feedback
-        self.display_message(f"\nLayout preset changed to: {preset_name.title()}\n", "status")
-
-    def apply_layout_preset(self):
-        """Apply the current layout preset."""
-        preset = getattr(self, 'current_layout_preset', self.settings.get("layout_preset", "full"))
-
-        if preset == "compact":
-            self.apply_compact_layout()
-        elif preset == "focus":
-            self.apply_focus_layout()
-        else:  # full
-            self.apply_full_layout()
-
-    def apply_compact_layout(self):
-        """Apply compact layout - collapse advanced sections, smaller sidebar."""
-        try:
-            # Find and collapse advanced sections
-            for widget in self.scrollable_sidebar.winfo_children():
-                if isinstance(widget, CollapsibleFrame):
-                    if widget.title in ["Advanced Parameters", "RAG Settings"]:
-                        widget.collapse()
-                    else:
-                        widget.expand()
-
-            # Set smaller sidebar width
-            window_width = self.root.winfo_width()
-            if window_width > 100:
-                sidebar_width = max(200, min(280, int(window_width * 0.2)))
-                self.main_frame.sashpos(0, sidebar_width)
-        except Exception as e:
-            print(f"Error applying compact layout: {e}")
-
-    def apply_full_layout(self):
-        """Apply full layout - expand all sections, normal sidebar."""
-        try:
-            # Expand all sections
-            for widget in self.scrollable_sidebar.winfo_children():
-                if isinstance(widget, CollapsibleFrame):
-                    widget.expand()
-
-            # Set normal sidebar width
-            window_width = self.root.winfo_width()
-            if window_width > 100:
-                sidebar_width = max(250, min(350, int(window_width * 0.25)))
-                self.main_frame.sashpos(0, sidebar_width)
-        except Exception as e:
-            print(f"Error applying full layout: {e}")
-
-    def apply_focus_layout(self):
-        """Apply focus layout - collapse most sections, minimal sidebar."""
-        try:
-            # Collapse all but essential sections
-            for widget in self.scrollable_sidebar.winfo_children():
-                if isinstance(widget, CollapsibleFrame):
-                    if widget.title in ["Models", "Options"]:
-                        widget.expand()
-                    else:
-                        widget.collapse()
-
-            # Set minimal sidebar width
-            window_width = self.root.winfo_width()
-            if window_width > 100:
-                sidebar_width = max(180, min(250, int(window_width * 0.18)))
-                self.main_frame.sashpos(0, sidebar_width)
-        except Exception as e:
-            print(f"Error applying focus layout: {e}")
-
     def _on_sidebar_canvas_configure(self, event):
         """Handle canvas configuration changes for sidebar scrolling."""
         # Update the scroll region to encompass the inner frame
@@ -974,88 +893,41 @@ class OllamaChat:
             self.collapse_button.config(text="▶")
             self.sidebar_collapsed = True
 
-    def get_responsive_spacing(self):
-        """Calculate responsive spacing based on window size."""
-        try:
-            window_width = self.root.winfo_width()
-            window_height = self.root.winfo_height()
-
-            # Base spacing values
-            if window_width < 900:
-                # Compact spacing for small windows
-                return {
-                    'section_padx': 1,
-                    'section_pady': 1,
-                    'item_padx': 2,
-                    'item_pady': 1,
-                    'font_size': 8,
-                    'button_width': 6
-                }
-            elif window_width < 1200:
-                # Medium spacing for medium windows
-                return {
-                    'section_padx': 2,
-                    'section_pady': 2,
-                    'item_padx': 3,
-                    'item_pady': 2,
-                    'font_size': 9,
-                    'button_width': 8
-                }
-            else:
-                # Comfortable spacing for large windows
-                return {
-                    'section_padx': 3,
-                    'section_pady': 3,
-                    'item_padx': 4,
-                    'item_pady': 3,
-                    'font_size': 10,
-                    'button_width': 10
-                }
-        except:
-            # Fallback to medium spacing
-            return {
-                'section_padx': 2,
-                'section_pady': 2,
-                'item_padx': 3,
-                'item_pady': 2,
-                'font_size': 9,
-                'button_width': 8
-            }
-
+    # Removed responsive spacing and resize handlers to keep sizes consistent
     def on_window_resize(self, event):
-        """Handle window resize events for responsive UI updates."""
-        # Only respond to root window resize events
-        if event.widget == self.root:
-            # Debounce resize events to avoid excessive updates
-            if hasattr(self, '_resize_timer'):
-                self.root.after_cancel(self._resize_timer)
-            self._resize_timer = self.root.after(100, self.update_responsive_layout)
+        return
 
     def update_responsive_layout(self):
-        """Update the layout based on current window size."""
-        try:
-            spacing = self.get_responsive_spacing()
-            # The spacing values are now available for future use
-            # For now, we'll just ensure the paned window is properly configured
-            self.configure_paned_window()
-        except Exception as e:
-            print(f"Error updating responsive layout: {e}")
+        return
 
     def configure_paned_window(self):
-        """Configure the PanedWindow with appropriate initial sizing."""
+        """Configure the PanedWindow initial sash only once for consistent sizing."""
+        if getattr(self, '_sash_initialized', False):
+            return
         try:
-            # Get current window width
             window_width = self.root.winfo_width()
+            if window_width > 100:
+                # Use saved sash position if available
+                saved_pos = getattr(self, 'saved_sash_pos', None)
+                if isinstance(saved_pos, int) and saved_pos > 0:
+                    sidebar_width = saved_pos
+                else:
+                    # Fixed initial sidebar width with sensible min/max
+                    sidebar_width = max(280, min(320, int(window_width * 0.24)))
 
-            # Set sidebar to take 25% of window width, but with min/max limits
-            if window_width > 100:  # Ensure window is actually rendered
-                sidebar_width = max(250, min(350, int(window_width * 0.25)))
+                # Apply minsize constraints to panes for stability
+                try:
+                    # Set minsize on sidebar and chat panes
+                    self.main_frame.paneconfig(self.sidebar_frame, minsize=260)
+                    self.main_frame.paneconfig(self.chat_input_frame, minsize=400)
+                except Exception:
+                    pass
 
-                # Set the sash position (distance from left edge)
                 self.main_frame.sashpos(0, sidebar_width)
-        except:
-            # If there's any error, try again later
-            self.root.after(100, self.configure_paned_window)
+                self._sash_initialized = True
+        except Exception:
+            # Retry once if initialization fails early in render
+            self.root.after(150, self.configure_paned_window)
 
     def create_chat_display(self):
         """Create the chat display area."""
@@ -4504,6 +4376,21 @@ class OllamaChat:
 
     def on_closing(self):
         """Handle application closing."""
+        # Persist window geometry and sash position
+        try:
+            # Record maximized state and geometry
+            is_max = (self.root.state() == 'zoomed')
+            geom = self.root.winfo_geometry()
+            self.settings.set("window_maximized", is_max)
+            self.settings.set("window_geometry", geom)
+            try:
+                sash = self.main_frame.sashpos(0)
+                self.settings.set("sash_pos", sash)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
         # Save settings before closing
         self.save_settings()
 
