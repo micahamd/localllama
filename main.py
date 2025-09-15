@@ -600,24 +600,40 @@ class OllamaChat:
         self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Segoe UI", 8))
         self.temp_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        # Context size control
+        # Context size control - discrete values: 2k, 4k, 8k, 16k, 32k, 64k, 128k
         context_container = ttk.Frame(basic_params_frame.content_frame)
         context_container.pack(fill=tk.X, padx=3, pady=3)
         ttk.Label(context_container, text="Context Size:", font=("Segoe UI", 9)).pack(anchor="w")
         context_frame = ttk.Frame(context_container)
         context_frame.pack(fill=tk.X, pady=(2, 0))
 
+        # Define discrete context values (in actual token counts)
+        self.context_values = [2000, 4000, 8000, 16000, 32000, 64000, 128000]
+        
+        # Find closest position for current context size
+        current_context = self.context_size.get()
+        closest_pos = 0
+        min_diff = abs(self.context_values[0] - current_context)
+        for i, val in enumerate(self.context_values):
+            diff = abs(val - current_context)
+            if diff < min_diff:
+                min_diff = diff
+                closest_pos = i
+        
+        # Create a separate variable for slider position
+        self.context_position = tk.IntVar(value=closest_pos)
+
         self.context_slider = ttk.Scale(
             context_frame,
-            from_=1000,
-            to=128000,
+            from_=0,
+            to=len(self.context_values)-1,
             orient='horizontal',
-            variable=self.context_size,
+            variable=self.context_position,
             command=self.on_context_change,
             style="Horizontal.TScale"
         )
         self.context_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.context_label = ttk.Label(context_frame, text=str(self.context_size.get()), font=("Segoe UI", 8))
+        self.context_label = ttk.Label(context_frame, text=self.format_context_size(self.context_values[closest_pos]), font=("Segoe UI", 8))
         self.context_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Advanced Parameters - using CollapsibleFrame (collapsed by default)
@@ -634,7 +650,7 @@ class OllamaChat:
         self.top_k_slider = ttk.Scale(
             top_k_frame,
             from_=1,
-            to=100,
+            to=50,
             orient='horizontal',
             variable=self.top_k,
             command=self.on_top_k_change,
@@ -684,36 +700,81 @@ class OllamaChat:
         self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}", font=("Segoe UI", 8))
         self.repeat_penalty_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        # Max tokens control
+        # Max tokens control - discrete values: 256, 512, 1k, 2k, 4k, 8k
         max_tokens_container = ttk.Frame(advanced_params_frame.content_frame)
         max_tokens_container.pack(fill=tk.X, padx=3, pady=3)
         ttk.Label(max_tokens_container, text="Max Tokens:", font=("Segoe UI", 9)).pack(anchor="w")
         max_tokens_frame = ttk.Frame(max_tokens_container)
         max_tokens_frame.pack(fill=tk.X, pady=(2, 0))
 
+        # Define discrete max tokens values
+        self.max_tokens_values = [256, 512, 1000, 2000, 4000, 8000]
+        
+        # Find closest position for current max tokens
+        current_max_tokens = self.max_tokens.get()
+        closest_pos = 0
+        min_diff = abs(self.max_tokens_values[0] - current_max_tokens)
+        for i, val in enumerate(self.max_tokens_values):
+            diff = abs(val - current_max_tokens)
+            if diff < min_diff:
+                min_diff = diff
+                closest_pos = i
+        
+        # Create a separate variable for slider position
+        self.max_tokens_position = tk.IntVar(value=closest_pos)
+
         self.max_tokens_slider = ttk.Scale(
             max_tokens_frame,
-            from_=256,
-            to=8192,
+            from_=0,
+            to=len(self.max_tokens_values)-1,
             orient='horizontal',
-            variable=self.max_tokens,
+            variable=self.max_tokens_position,
             command=self.on_max_tokens_change,
             style="Horizontal.TScale"
         )
         self.max_tokens_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.max_tokens_label = ttk.Label(max_tokens_frame, text=str(self.max_tokens.get()), font=("Segoe UI", 8))
+        self.max_tokens_label = ttk.Label(max_tokens_frame, text=self.format_tokens(self.max_tokens_values[closest_pos]), font=("Segoe UI", 8))
         self.max_tokens_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # RAG Settings - using CollapsibleFrame (collapsed by default)
         rag_frame = CollapsibleFrame(self.scrollable_sidebar, title="RAG Settings", expanded=False)
         rag_frame.pack(fill=tk.X, padx=2, pady=2)
 
-        # Chunk size
+        # Chunk size - discrete values: 64, 128, 256, 512, 1k, 2k
         chunk_container = ttk.Frame(rag_frame.content_frame)
         chunk_container.pack(fill=tk.X, padx=3, pady=3)
         ttk.Label(chunk_container, text="Chunk Size:", font=("Segoe UI", 9)).pack(anchor="w")
-        self.chunk_entry = ttk.Entry(chunk_container, textvariable=self.chunk_size, width=8, font=("Segoe UI", 9))
-        self.chunk_entry.pack(anchor="w", pady=(2, 0))
+        chunk_frame = ttk.Frame(chunk_container)
+        chunk_frame.pack(fill=tk.X, pady=(2, 0))
+
+        # Define discrete chunk size values
+        self.chunk_values = [64, 128, 256, 512, 1000, 2000]
+        
+        # Find closest position for current chunk size
+        current_chunk = self.chunk_size.get()
+        closest_pos = 1  # Default to 128
+        min_diff = abs(self.chunk_values[1] - current_chunk)
+        for i, val in enumerate(self.chunk_values):
+            diff = abs(val - current_chunk)
+            if diff < min_diff:
+                min_diff = diff
+                closest_pos = i
+        
+        # Create a separate variable for slider position
+        self.chunk_position = tk.IntVar(value=closest_pos)
+
+        self.chunk_slider = ttk.Scale(
+            chunk_frame,
+            from_=0,
+            to=len(self.chunk_values)-1,
+            orient='horizontal',
+            variable=self.chunk_position,
+            command=self.on_chunk_change,
+            style="Horizontal.TScale"
+        )
+        self.chunk_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
+        self.chunk_label = ttk.Label(chunk_frame, text=self.format_chunk_size(self.chunk_values[closest_pos]), font=("Segoe UI", 8))
+        self.chunk_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Options - using CollapsibleFrame
         options_frame = CollapsibleFrame(self.scrollable_sidebar, title="Options", expanded=True)
@@ -1550,7 +1611,16 @@ class OllamaChat:
 
     def on_context_change(self, value):
         """Update context window label when slider moves."""
-        self.context_label.config(text=f"{int(float(value))}")
+        pos = int(float(value))
+        context_value = self.context_values[pos]
+        self.context_size.set(context_value)  # Update the actual context size variable
+        self.context_label.config(text=self.format_context_size(context_value))
+
+    def format_context_size(self, value):
+        """Format context size for display (e.g., 8000 -> '8k')."""
+        if value >= 1000:
+            return f"{value // 1000}k"
+        return str(value)
 
     def on_top_k_change(self, value):
         """Update top-k label when slider moves."""
@@ -1566,7 +1636,29 @@ class OllamaChat:
 
     def on_max_tokens_change(self, value):
         """Update max tokens label when slider moves."""
-        self.max_tokens_label.config(text=f"{int(float(value))}")
+        pos = int(float(value))
+        tokens_value = self.max_tokens_values[pos]
+        self.max_tokens.set(tokens_value)  # Update the actual max tokens variable
+        self.max_tokens_label.config(text=self.format_tokens(tokens_value))
+
+    def format_tokens(self, value):
+        """Format token count for display (e.g., 2000 -> '2k')."""
+        if value >= 1000:
+            return f"{value // 1000}k"
+        return str(value)
+
+    def on_chunk_change(self, value):
+        """Update chunk size label when slider moves."""
+        pos = int(float(value))
+        chunk_value = self.chunk_values[pos]
+        self.chunk_size.set(chunk_value)  # Update the actual chunk size variable
+        self.chunk_label.config(text=self.format_chunk_size(chunk_value))
+
+    def format_chunk_size(self, value):
+        """Format chunk size for display (e.g., 1000 -> '1k')."""
+        if value >= 1000:
+            return f"{value // 1000}k"
+        return str(value)
 
     # Custom thumb methods removed
 
