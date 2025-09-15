@@ -10,9 +10,9 @@ class Settings:
         "llm_model": "",
         "embedding_model": "",
         "temperature": 0.7,
-        "context_size": 4096,
+        "context_size": 8000,  # Default to 8k context window
         "chunk_size": 128,
-        "top_k": 40,
+        "top_k": 20,  # Optimized default for better balance
         "top_p": 0.9,
         "repeat_penalty": 1.1,
         "max_tokens": 2048,
