@@ -35,6 +35,17 @@ from error_handler import error_handler, safe_execute
 from mcp_server import MCPManager
 from mcp_ui import MCPPanel
 
+# Enhanced tools system imports
+from tools_manager import ToolsManager, ToolTask, ToolStatus
+from tool_status_panel import ToolStatusPanel
+from enhanced_tools import (
+    EnhancedWebSearchTool, 
+    EnhancedFileTools, 
+    EnhancedDependencyManager,
+    with_retry,
+    RetryConfig
+)
+
 class CollapsibleFrame(ttk.Frame):
     """A collapsible frame widget that can expand/collapse its content."""
 
@@ -321,6 +332,7 @@ class OllamaChat:
         self.create_sidebar()
         self.create_input_area()
         self.create_status_bar()
+        
         self.configure_tags()
         self.setup_rag()
         self.setup_mcp()
@@ -416,12 +428,27 @@ class OllamaChat:
         self.rag_files = []
         self._advanced_web_search_failures = 0  # Counter for advanced web search failures
 
+        # Initialize enhanced tools system
+        self.tools_manager = ToolsManager(max_concurrent_tools=3)
+        self.tool_status_panel = None  # Will be created after UI is ready
+        
+        # Enhanced tool instances
+        self.enhanced_web_search = EnhancedWebSearchTool(self.tools_manager)
+        self.enhanced_file_tools = EnhancedFileTools(self.tools_manager)
+        self.enhanced_dependency_manager = EnhancedDependencyManager(self.tools_manager)
+        
+        # Tool task tracking
+        self.active_tasks = {}  # Maps task_id to description
+
         # RAG visualization
         self.rag_visualizer = None
 
         # Restore saved window/layout settings if available
         self.saved_geometry = self.settings.get("window_geometry", None)
         self.saved_sash_pos = self.settings.get("sash_pos", None)
+
+        # Create tool status panel now that tools_manager is ready
+        self.tool_status_panel = ToolStatusPanel(self.root, self.tools_manager)
 
     def create_menu(self):
         """Create the application menu."""
@@ -1668,62 +1695,29 @@ class OllamaChat:
             self.display_uploaded_image()
 
     def on_advanced_web_access_toggle(self):
-        """Handle web search toggle."""
+        """Handle web search toggle with enhanced dependency management."""
         advanced_web_access = self.advanced_web_access_var.get()
         self.settings.set("advanced_web_access", advanced_web_access)
 
         if advanced_web_access:
-            # Check if crawl4ai is installed
-            try:
-                import crawl4ai
+            # Use enhanced dependency management for non-blocking installation
+            dependencies = ["crawl4ai", "playwright"]
+            
+            def on_success():
                 self.display_message("\nAdvanced web search enabled. The chatbot can now crawl websites for detailed information.\n", "status")
-
-                # Check if Playwright needs to be installed
-                self.display_message("\nChecking Playwright installation...\n", 'status')
-                try:
-                    import subprocess
-                    import sys
-
-                    # Get the Python executable path
-                    python_exe = sys.executable
-
-                    # Run playwright install command with the full Python path
-                    self.display_message("\nInstalling Playwright browsers (this may take a few minutes)...\n", 'status')
-                    subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
-                    self.display_message("\nPlaywright browsers installed successfully.\n", "status")
-                except Exception as e:
-                    error_msg = error_handler.handle_error(e, "Installing Playwright browsers")
-                    self.display_message(f"\nWarning: Playwright browsers installation failed: {error_msg}\n", 'warning')
-                    self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
-                    self.display_message("python -m playwright install --with-deps\n\n", 'warning')
-                    # Continue anyway as the main package is installed
-
-            except ImportError:
-                self.display_message("\nInstalling crawl4ai for advanced web search...\n", 'status')
-                try:
-                    import subprocess
-                    subprocess.check_call(["pip", "install", "crawl4ai"])
-                    self.display_message("\nAdvanced web search enabled. The chatbot can now crawl websites for detailed information.\n", "status")
-
-                    # Also install Playwright browsers
-                    self.display_message("\nInstalling Playwright browsers (this may take a few minutes)...\n", 'status')
-                    try:
-                        import sys
-                        python_exe = sys.executable
-                        subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
-                        self.display_message("\nPlaywright browsers installed successfully.\n", "status")
-                    except Exception as e:
-                        error_msg = error_handler.handle_error(e, "Installing Playwright browsers")
-                        self.display_message(f"\nWarning: Playwright browsers installation failed: {error_msg}\n", 'warning')
-                        self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
-                        self.display_message("python -m playwright install --with-deps\n\n", 'warning')
-                        # Continue anyway as the main package is installed
-
-                except Exception as e:
-                    error_msg = error_handler.handle_error(e, "Installing crawl4ai")
-                    self.display_message(f"\nError installing crawl4ai: {error_msg}\n", 'error')
-                    self.advanced_web_access_var.set(False)
-                    self.settings.set("advanced_web_access", False)
+            
+            def on_error(error_msg):
+                self.display_message(f"\nError setting up web search: {error_msg}\n", 'error')
+                self.advanced_web_access_var.set(False)
+                self.settings.set("advanced_web_access", False)
+            
+            # Submit dependency management task to enhanced tools manager
+            task_id = self.enhanced_file_tools.manage_dependencies(
+                dependencies, 
+                on_success, 
+                on_error
+            )
+            self.active_tasks[task_id] = "Installing web search dependencies"
         else:
             self.display_message("\nAdvanced web search disabled.\n", "status")
 
@@ -2183,7 +2177,7 @@ class OllamaChat:
 
         # Process file read requests if Read File tool is enabled
         if self.read_file_var.get():
-            user_input = self.process_file_read_requests(user_input)
+            user_input = self.process_file_read_requests_sync(user_input)
 
         # Check if input is a URL
         url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
@@ -2226,7 +2220,7 @@ class OllamaChat:
             self.display_message("\nSearching the web for information (advanced)...\n", 'status')
             try:
                 # Perform advanced web search using crawl4ai
-                search_results = self.perform_advanced_web_search(user_input)
+                search_results = self.perform_advanced_web_search_sync(user_input)
                 if search_results:
                     content += f"\n\nAdvanced web search results:\n{search_results}"
                     self.display_message("\nAdvanced web search completed.\n", 'status')
@@ -2851,7 +2845,37 @@ class OllamaChat:
         return text
 
     def write_file_safely(self, file_path, content):
-        """Write content to a file with safety checks.
+        """Write content to a file using enhanced async tools.
+
+        Args:
+            file_path: The path where to write the file
+            content: The content to write
+
+        Returns:
+            str: Task ID for tracking the write operation
+        """
+        if not self.write_file_var.get():
+            self.display_message("\nFile writing is disabled. Enable it in Tools section.\n", 'warning')
+            return None
+
+        def on_success(result):
+            success, message = result
+            if success:
+                self.display_message(f"✅ {message}\n", 'status')
+            else:
+                self.display_message(f"❌ Write failed: {message}\n", 'error')
+        
+        def on_error(error_msg):
+            self.display_message(f"❌ File write failed: {error_msg}\n", 'error')
+        
+        # Submit write task to enhanced tools manager
+        task_id = self.enhanced_file_tools.write_file(file_path, content, on_success, on_error)
+        self.active_tasks[task_id] = f"Writing to {os.path.basename(file_path)}"
+        
+        return task_id
+
+    def write_file_safely_sync(self, file_path, content):
+        """Legacy synchronous file write (deprecated - use write_file_safely instead).
 
         Args:
             file_path: The path where to write the file
@@ -2947,7 +2971,7 @@ class OllamaChat:
                 self.display_message(f"\n⚠️ Skipping '{file_path}': No content to write\n", 'warning')
                 continue
 
-            success, message = self.write_file_safely(file_path, content)
+            success, message = self.write_file_safely_sync(file_path, content)
 
             if success:
                 successful_writes += 1
@@ -3035,7 +3059,75 @@ class OllamaChat:
         return display_message
 
     def process_file_read_requests(self, user_input):
-        """Process file read requests in user input and replace with file content.
+        """Process file read requests in user input using enhanced async tools.
+
+        Args:
+            user_input: The user's input message
+
+        Returns:
+            str: Task ID for tracking the read operation
+        """
+        if not self.read_file_var.get():
+            return user_input
+
+        # Pattern 1: <<"path">> format (with quotes)
+        pattern1 = r'<<\"([^\"]+)\">>'
+        # Pattern 2: <<path>> format (without quotes)
+        pattern2 = r'<<([^>\"]+)>>'
+
+        # Find all file read requests
+        matches1 = re.findall(pattern1, user_input)
+        matches2 = re.findall(pattern2, user_input)
+
+        # Combine and deduplicate matches
+        all_paths = list(set(matches1 + matches2))
+
+        if not all_paths:
+            return user_input
+
+        self.display_message(f"\n📖 Processing {len(all_paths)} file read request(s)...\n", 'status')
+
+        def on_success(results):
+            """Handle successful file reads"""
+            processed_input = user_input
+            files_read = 0
+            
+            for path, file_content in results.items():
+                if file_content:
+                    files_read += 1
+                    # Replace the file reference with the content
+                    for pattern in [f'<<"{path}">>', f"<<'{path}'>>", f'<<{path}>>']:
+                        if pattern in processed_input:
+                            replacement = f"\n\n--- Content from {path} ---\n{file_content}\n--- End of {path} ---\n\n"
+                            processed_input = processed_input.replace(pattern, replacement)
+                            break
+                    
+                    if self.truncate_file_display_var.get():
+                        filename = os.path.basename(path)
+                        self.display_message(f"{filename} read\n", 'status')
+                    else:
+                        self.display_message(f"✅ Read file: {path} ({len(file_content)} characters)\n", 'status')
+                else:
+                    self.display_message(f"❌ Failed to read file: {path}\n", 'error')
+            
+            if files_read > 0:
+                self.display_message(f"📚 Successfully read {files_read} file(s) and included in your message.\n", 'status')
+            
+            # Continue with processed input if this was part of a larger operation
+            return processed_input
+        
+        def on_error(error_msg):
+            self.display_message(f"❌ File read operation failed: {error_msg}\n", 'error')
+            return user_input
+        
+        # Submit batch read task to enhanced tools manager
+        task_id = self.enhanced_file_tools.read_files_batch(all_paths, on_success, on_error)
+        self.active_tasks[task_id] = f"Reading {len(all_paths)} file(s)"
+        
+        return task_id
+
+    def process_file_read_requests_sync(self, user_input):
+        """Legacy synchronous file reading for backward compatibility.
 
         Args:
             user_input: The user's input message
@@ -3071,7 +3163,7 @@ class OllamaChat:
             clean_path = path.strip().strip('"').strip("'")
 
             # Try to read the file
-            file_content = self.read_file_safely(clean_path)
+            file_content = self.read_file_safely_sync(clean_path)
 
             if file_content:
                 files_read += 1
@@ -3100,7 +3192,29 @@ class OllamaChat:
         return processed_input
 
     def read_file_safely(self, file_path):
-        """Safely read a file using MarkItDown.
+        """Read a file using enhanced async tools.
+
+        Args:
+            file_path: The path to the file to read
+
+        Returns:
+            str: Task ID for tracking the read operation
+        """
+        def on_success(content):
+            return content
+        
+        def on_error(error_msg):
+            self.display_message(f"❌ File read failed: {error_msg}\n", 'error')
+            return None
+        
+        # Submit read task to enhanced tools manager
+        task_id = self.enhanced_file_tools.read_file(file_path, on_success, on_error)
+        self.active_tasks[task_id] = f"Reading {os.path.basename(file_path)}"
+        
+        return task_id
+
+    def read_file_safely_sync(self, file_path):
+        """Legacy synchronous file read (deprecated - use read_file_safely instead).
 
         Args:
             file_path: The path to the file to read
@@ -3168,14 +3282,51 @@ class OllamaChat:
             return None
 
     def perform_advanced_web_search(self, query):
-        """Perform an advanced web search using crawl4ai.
+        """Perform an advanced web search using enhanced async tools.
 
         Args:
             query: The search query
 
         Returns:
-            str: Extracted content in markdown format or None if search failed
+            str: Task ID for tracking the search operation
         """
+        if not self.advanced_web_access_var.get():
+            self.display_message("\nAdvanced web search is disabled. Please enable it in the Tools section.\n", 'warning')
+            return None
+
+        self.display_message(f"\nStarting advanced web search for: '{query}'\n", 'status')
+        
+        def on_success(result):
+            if result:
+                self.display_message(result, 'tool_result')
+            else:
+                self.display_message("\nWeb search completed but no results were found.\n", 'warning')
+        
+        def on_error(error_msg):
+            self.display_message(f"\nAdvanced web search failed: {error_msg}\n", 'error')
+            # Consider disabling if persistent errors
+            if "Playwright" in error_msg or "browser" in error_msg.lower():
+                self.display_message("\nTo fix this, run: python -m playwright install --with-deps\n", 'warning')
+        
+        # Submit search task to enhanced tools manager
+        task_id = self.enhanced_web_search.search(query, on_success, on_error)
+        self.active_tasks[task_id] = f"Web search: {query[:50]}..."
+        
+        return task_id
+
+    def perform_advanced_web_search_sync(self, query):
+        """Legacy synchronous web search for backward compatibility.
+        
+        Args:
+            query: The search query
+
+        Returns:
+            str: Search results or None if failed
+        """
+        if not self.advanced_web_access_var.get():
+            self.display_message("\nAdvanced web search is disabled. Please enable it in the Tools section.\n", 'warning')
+            return None
+
         try:
             import asyncio
             import crawl4ai
@@ -3249,49 +3400,15 @@ class OllamaChat:
             return asyncio.run(run_crawler())
 
         except ImportError:
-            # If crawl4ai is not available, try to install it
-            self.display_message("\nInstalling crawl4ai for advanced web search...\n", 'status')
-            try:
-                import subprocess
-                subprocess.check_call(["pip", "install", "crawl4ai"])
-                # Try again after installation
-                return self.perform_advanced_web_search(query)
-            except Exception as e:
-                error_msg = error_handler.handle_error(e, "Installing crawl4ai")
-                self.display_message(f"\nError installing crawl4ai: {error_msg}\n", 'error')
-                # Disable advanced web access
-                self.advanced_web_access_var.set(False)
-                self.settings.set("advanced_web_access", False)
-                return None
-
+            self.display_message("\nCrawl4ai not available. Please enable advanced web search in Tools section.\n", 'warning')
+            return None
         except Exception as e:
-            error_msg = error_handler.handle_error(e, "Advanced web search")
-
+            error_msg = str(e)
+            self.display_message(f"\nError during advanced web search: {error_msg}\n", 'error')
             # Check if the error is related to missing Playwright browsers
-            if "Executable doesn't exist" in str(e) and "chrome-win" in str(e):
-                self.display_message("\nPlaywright browsers are not installed properly.\n", 'error')
-                self.display_message("\nTo use advanced web search, please run the following command in your terminal:\n\n", 'warning')
-                self.display_message("python -m playwright install --with-deps\n\n", 'warning')
-
-                # Try to install Playwright browsers automatically
-                try:
-                    import sys
-                    import subprocess
-                    python_exe = sys.executable
-                    self.display_message("\nAttempting to install Playwright browsers automatically...\n", 'status')
-                    subprocess.check_call([python_exe, "-m", "playwright", "install", "--with-deps"])
-                    self.display_message("\nPlaywright browsers installed successfully. Please try your search again.\n", 'status')
-                    return None
-                except Exception as install_error:
-                    install_error_msg = error_handler.handle_error(install_error, "Installing Playwright browsers")
-                    self.display_message(f"\nAutomatic installation failed: {install_error_msg}\n", 'error')
-                    # Disable advanced web access to prevent further errors
-                    self.advanced_web_access_var.set(False)
-                    self.settings.set("advanced_web_access", False)
-                    return None
-            else:
-                self.display_message(f"\nError during advanced web search: {error_msg}\n", 'error')
-                return None
+            if "Executable doesn't exist" in error_msg and "chrome-win" in error_msg:
+                self.display_message("\nTo fix this, run: python -m playwright install --with-deps\n", 'warning')
+            return None
 
     def save_settings(self):
         """Save current settings to the settings file."""
