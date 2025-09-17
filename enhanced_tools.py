@@ -380,6 +380,87 @@ class EnhancedDependencyManager:
         )
         
         return task_id
+
+    def manage_dependencies(self, dependencies: List[str], on_success=None, on_error=None) -> str:
+        """Install multiple dependencies asynchronously with callbacks."""
+        
+        def install_dependencies_task():
+            """Task to install all dependencies."""
+            results = []
+            failed_packages = []
+            
+            for package in dependencies:
+                try:
+                    if package == "playwright":
+                        # Special handling for playwright - install both package and browsers
+                        if not self._is_package_installed("playwright"):
+                            result = self._install_package("playwright", [])
+                            results.append(result)
+                        
+                        # Install playwright browsers
+                        browser_result = self._install_playwright_browsers()
+                        results.append(browser_result)
+                    else:
+                        if not self._is_package_installed(package):
+                            result = self._install_package(package, [])
+                            results.append(result)
+                        else:
+                            results.append(f"Package {package} already installed")
+                            
+                except Exception as e:
+                    failed_packages.append(f"{package}: {str(e)}")
+            
+            if failed_packages:
+                error_msg = "Failed to install: " + ", ".join(failed_packages)
+                if on_error:
+                    # Call error callback (will be called in background thread)
+                    try:
+                        on_error(error_msg)
+                    except Exception:
+                        pass  # Ignore callback errors
+                raise Exception(error_msg)
+            else:
+                # All succeeded
+                if on_success:
+                    # Call success callback (will be called in background thread)
+                    try:
+                        on_success()
+                    except Exception:
+                        pass  # Ignore callback errors
+                return "All dependencies installed successfully"
+        
+        # Submit batch installation task
+        task_id = self.tools_manager.submit_tool_task(
+            tool_name="Dependency Manager",
+            operation=f"Installing {len(dependencies)} dependencies",
+            func=install_dependencies_task,
+            timeout=600.0,  # 10 minutes for multiple packages
+            cancellable=False
+        )
+        
+        return task_id
+
+    def _install_playwright_browsers(self) -> str:
+        """Install playwright browsers."""
+        cmd = [sys.executable, "-m", "playwright", "install", "--with-deps"]
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=600  # 10 minute timeout for browser installation
+            )
+            
+            if result.returncode == 0:
+                return "Successfully installed Playwright browsers"
+            else:
+                raise Exception(f"Playwright browser installation failed: {result.stderr}")
+                
+        except subprocess.TimeoutExpired:
+            raise Exception("Playwright browser installation timeout")
+        except Exception as e:
+            raise Exception(f"Playwright browser installation error: {str(e)}")
     
     def _is_package_installed(self, package_name: str) -> bool:
         """Check if a package is already installed."""

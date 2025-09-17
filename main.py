@@ -1712,7 +1712,7 @@ class OllamaChat:
                 self.settings.set("advanced_web_access", False)
             
             # Submit dependency management task to enhanced tools manager
-            task_id = self.enhanced_file_tools.manage_dependencies(
+            task_id = self.enhanced_dependency_manager.manage_dependencies(
                 dependencies, 
                 on_success, 
                 on_error
