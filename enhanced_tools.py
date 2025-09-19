@@ -292,13 +292,40 @@ class EnhancedFileTools:
             result = self.markitdown.convert(file_path)
             return result.text_content
         except Exception as e:
-            # Fallback to simple text reading
+            # Check if it's an encoding error
+            error_str = str(e)
+            if "UnicodeDecodeError" in error_str or "ascii" in error_str.lower() or "codec can't decode" in error_str.lower():
+                return self._fallback_file_read(file_path)
+            else:
+                # Fallback to simple text reading for other errors
+                return self._fallback_file_read(file_path)
+    
+    def _fallback_file_read(self, file_path: str) -> str:
+        """Fallback file reading with multiple encoding strategies."""
+        # Try different encodings in order of preference
+        encodings_to_try = [
+            ('utf-8', 'replace'),
+            ('utf-8', 'ignore'), 
+            ('latin1', 'replace'),
+            ('cp1252', 'replace'),  # Windows default
+            ('iso-8859-1', 'replace')
+        ]
+        
+        for encoding, error_handling in encodings_to_try:
             try:
-                with open(file_path, 'r', encoding='utf-8') as f:
+                with open(file_path, 'r', encoding=encoding, errors=error_handling) as f:
                     return f.read()
-            except UnicodeDecodeError:
-                with open(file_path, 'r', encoding='latin-1') as f:
-                    return f.read()
+            except Exception:
+                continue
+        
+        # If all encodings fail, try binary read and decode with error replacement
+        try:
+            with open(file_path, 'rb') as f:
+                raw_content = f.read()
+                # Try to decode as UTF-8 with replacement
+                return raw_content.decode('utf-8', errors='replace')
+        except Exception as final_error:
+            raise Exception(f"All fallback reading methods failed for {file_path}: {str(final_error)}")
     
     def _write_file_content(self, file_path: str, content: str) -> str:
         """Write file content safely."""
