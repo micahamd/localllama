@@ -627,7 +627,7 @@ class OllamaChat:
         self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Segoe UI", 8))
         self.temp_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        # Context size control - discrete values: 2k, 4k, 8k, 16k, 32k, 64k, 128k
+        # Context size control - discrete values: 2k, 4k, 8k, 16k, 32k, 64k, 128k, 256k, 512k
         context_container = ttk.Frame(basic_params_frame.content_frame)
         context_container.pack(fill=tk.X, padx=3, pady=3)
         ttk.Label(context_container, text="Context Size:", font=("Segoe UI", 9)).pack(anchor="w")
@@ -635,7 +635,7 @@ class OllamaChat:
         context_frame.pack(fill=tk.X, pady=(2, 0))
 
         # Define discrete context values (in actual token counts)
-        self.context_values = [2000, 4000, 8000, 16000, 32000, 64000, 128000]
+        self.context_values = [2000, 4000, 8000, 16000, 32000, 64000, 128000, 256000, 512000]
         
         # Find closest position for current context size
         current_context = self.context_size.get()
