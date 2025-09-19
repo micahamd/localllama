@@ -3262,23 +3262,50 @@ class OllamaChat:
 
         except UnicodeDecodeError as e:
             # If MarkItDown fails with Unicode error, try manual UTF-8 reading for text files
-            try:
-                if file_path.lower().endswith(('.txt', '.md', '.py', '.js', '.html', '.css', '.json', '.xml', '.csv')):
-                    with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                        content = f.read()
-                        self.display_message(f"⚠️ Used fallback UTF-8 reading for {file_path} due to encoding issue\n", 'warning')
-                        return content
-                else:
-                    self.display_message(f"⚠️ Unicode error reading file {file_path}: {str(e)}\n", 'warning')
-                    return None
-            except Exception as fallback_e:
-                self.display_message(f"⚠️ Fallback reading failed for {file_path}: {str(fallback_e)}\n", 'warning')
-                return None
-        except PermissionError:
-            self.display_message(f"⚠️ Permission denied: {file_path}\n", 'warning')
-            return None
+            return self._fallback_file_read(file_path, e)
         except Exception as e:
-            self.display_message(f"⚠️ Error reading file {file_path}: {str(e)}\n", 'warning')
+            # Check if it's a MarkItDown encoding error
+            error_str = str(e)
+            if "UnicodeDecodeError" in error_str or "ascii" in error_str.lower() or "codec can't decode" in error_str.lower():
+                return self._fallback_file_read(file_path, e)
+            elif "PermissionError" in error_str or "Permission denied" in error_str:
+                self.display_message(f"⚠️ Permission denied: {file_path}\n", 'warning')
+                return None
+            else:
+                self.display_message(f"⚠️ Error reading file {file_path}: {str(e)}\n", 'warning')
+                return None
+
+    def _fallback_file_read(self, file_path, original_error):
+        """Fallback file reading with multiple encoding strategies."""
+        # Try different encodings in order of preference
+        encodings_to_try = [
+            ('utf-8', 'replace'),
+            ('utf-8', 'ignore'), 
+            ('latin1', 'replace'),
+            ('cp1252', 'replace'),  # Windows default
+            ('iso-8859-1', 'replace')
+        ]
+        
+        for encoding, error_handling in encodings_to_try:
+            try:
+                with open(file_path, 'r', encoding=encoding, errors=error_handling) as f:
+                    content = f.read()
+                    if encoding != 'utf-8' or error_handling != 'strict':
+                        self.display_message(f"⚠️ Used fallback reading ({encoding}/{error_handling}) for {file_path} due to encoding issue\n", 'warning')
+                    return content
+            except Exception:
+                continue
+        
+        # If all encodings fail, try binary read and decode with error replacement
+        try:
+            with open(file_path, 'rb') as f:
+                raw_content = f.read()
+                # Try to decode as UTF-8 with replacement
+                content = raw_content.decode('utf-8', errors='replace')
+                self.display_message(f"⚠️ Used binary fallback reading for {file_path} - some characters may be replaced\n", 'warning')
+                return content
+        except Exception as final_error:
+            self.display_message(f"⚠️ All fallback reading methods failed for {file_path}. Original error: {str(original_error)}, Final error: {str(final_error)}\n", 'warning')
             return None
 
     def perform_advanced_web_search(self, query):
