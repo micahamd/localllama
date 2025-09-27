@@ -32,8 +32,8 @@ from models_manager import create_model_manager, OllamaManager, GeminiManager
 from error_handler import error_handler, safe_execute
 
 # Import MCP modules
-from mcp_server import MCPManager
-from mcp_ui import MCPPanel
+from mcp_manager_enhanced import MCPManagerEnhanced as MCPManager
+from mcp_ui_enhanced import MCPPanelEnhanced as MCPPanel
 
 # Enhanced tools system imports
 from tools_manager import ToolsManager, ToolTask, ToolStatus
