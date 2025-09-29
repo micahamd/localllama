@@ -2277,7 +2277,7 @@ class OllamaChat:
             conversation.append({"role": "user", "content": resolved_message})
 
             # Get response from the model
-            response = agent_model_manager.get_response(
+            response_generator = agent_model_manager.get_response(
                 messages=conversation,
                 model=model,
                 temperature=parameters.get('temperature', 0.7),
@@ -2286,6 +2286,30 @@ class OllamaChat:
                 top_k=parameters.get('top_k', 20),
                 repeat_penalty=parameters.get('repeat_penalty', 1.1)
             )
+
+            # Handle streaming response - collect all chunks
+            if hasattr(response_generator, '__iter__') and not isinstance(response_generator, str):
+                # It's a generator/iterator - collect all chunks
+                response_chunks = []
+                try:
+                    for chunk in response_generator:
+                        if isinstance(chunk, str):
+                            response_chunks.append(chunk)
+                        elif hasattr(chunk, 'get') and 'content' in chunk:
+                            # Handle structured response chunks
+                            content = chunk.get('content', '')
+                            if content:
+                                response_chunks.append(content)
+                    response = ''.join(response_chunks)
+                except Exception as e:
+                    response = f"Error processing streaming response: {str(e)}"
+            else:
+                # It's already a string
+                response = str(response_generator)
+
+            # Ensure we have a valid response
+            if not response or response.strip() == "":
+                response = "No response generated"
 
             # Display the response in the chat
             agent_title = agent.get('title', 'Agent')
