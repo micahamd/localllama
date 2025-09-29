@@ -2168,8 +2168,12 @@ class OllamaChat:
                     # Update status
                     self.root.after(0, lambda t=agent_title: self.display_message(f"\nExecuting {t}...\n", 'status'))
 
+                    print(f"Debug: About to execute {agent_title}")
+
                     # Execute the agent
                     result = self._execute_single_agent(agent, resolved_outputs)
+
+                    print(f"Debug: {agent_title} execution completed, result length: {len(str(result))}")
 
                     # Store result for future agents
                     resolved_outputs[agent_title] = result
@@ -2234,21 +2238,32 @@ class OllamaChat:
     def _execute_single_agent(self, agent, resolved_outputs):
         """Execute a single agent and return its result."""
         try:
+            agent_title = agent.get('title', 'Unknown')
+            print(f"Debug: Starting execution of {agent_title}")
+
             # Set up the model manager for this agent
             developer = agent.get('developer', 'ollama')
             model = agent.get('model', '')
 
+            print(f"Debug: {agent_title} - Developer: {developer}, Model: {model}")
+
             # Validate model is specified
             if not model:
-                return f"Error: No model specified for agent {agent.get('title', 'Unknown')}"
+                error_msg = f"Error: No model specified for agent {agent_title}"
+                print(f"Debug: {error_msg}")
+                return error_msg
 
             # Create appropriate model manager
             from models_manager import create_model_manager
             agent_model_manager = create_model_manager(developer)
 
+            print(f"Debug: {agent_title} - Model manager created: {type(agent_model_manager)}")
+
             # Validate model manager was created successfully
             if not agent_model_manager:
-                return f"Error: Could not create model manager for {developer}"
+                error_msg = f"Error: Could not create model manager for {developer}"
+                print(f"Debug: {error_msg}")
+                return error_msg
 
             # Prepare the message
             messages = agent.get('messages', [])
@@ -2276,43 +2291,75 @@ class OllamaChat:
             # Add resolved user message
             conversation.append({"role": "user", "content": resolved_message})
 
-            # Get response from the model
-            response_generator = agent_model_manager.get_response(
-                messages=conversation,
-                model=model,
-                temperature=parameters.get('temperature', 0.7),
-                max_tokens=parameters.get('max_tokens', 2048),
-                top_p=parameters.get('top_p', 0.9),
-                top_k=parameters.get('top_k', 20),
-                repeat_penalty=parameters.get('repeat_penalty', 1.1)
-            )
+            # Get response from the model (using same parameters as regular send_message)
+            try:
+                response_generator = agent_model_manager.get_response(
+                    messages=conversation,
+                    model=model,
+                    temperature=parameters.get('temperature', 0.7),
+                    context_size=parameters.get('context_size', 8000),  # Added missing context_size
+                    top_k=parameters.get('top_k', 20),
+                    top_p=parameters.get('top_p', 0.9),
+                    repeat_penalty=parameters.get('repeat_penalty', 1.1),
+                    max_tokens=parameters.get('max_tokens', 2048)
+                )
+            except Exception as e:
+                return f"Error calling model manager: {str(e)}"
 
             # Handle streaming response - collect all chunks
             if hasattr(response_generator, '__iter__') and not isinstance(response_generator, str):
                 # It's a generator/iterator - collect all chunks
                 response_chunks = []
+                chunk_count = 0
                 try:
                     for chunk in response_generator:
-                        if isinstance(chunk, str):
-                            response_chunks.append(chunk)
-                        elif hasattr(chunk, 'get') and 'content' in chunk:
-                            # Handle structured response chunks
-                            content = chunk.get('content', '')
+                        chunk_count += 1
+
+                        # Handle the standard format: {'message': {'content': 'text'}}
+                        if chunk and 'message' in chunk and 'content' in chunk['message']:
+                            content = chunk['message']['content']
                             if content:
                                 response_chunks.append(content)
+
+                        # Handle direct string chunks
+                        elif isinstance(chunk, str):
+                            response_chunks.append(chunk)
+
+                        # Handle other possible formats
+                        elif hasattr(chunk, 'get'):
+                            # Try different possible content fields
+                            content = None
+                            if 'content' in chunk:
+                                content = chunk.get('content', '')
+                            elif 'text' in chunk:
+                                content = chunk.get('text', '')
+                            elif 'response' in chunk:
+                                content = chunk.get('response', '')
+
+                            if content:
+                                response_chunks.append(str(content))
+
                     response = ''.join(response_chunks)
+                    print(f"Debug: Agent {agent_title} - Collected {chunk_count} chunks, total length: {len(response)}")
+
                 except Exception as e:
                     response = f"Error processing streaming response: {str(e)}"
+                    print(f"Debug: Streaming error for {agent_title}: {e}")
             else:
                 # It's already a string
                 response = str(response_generator)
+                print(f"Debug: Agent {agent_title} - Direct response length: {len(response)}")
 
             # Ensure we have a valid response
             if not response or response.strip() == "":
-                response = "No response generated"
+                response = f"No response generated (model: {model}, developer: {developer})"
+                print(f"Debug: Empty response for {agent_title} - model: {model}, developer: {developer}")
 
             # Display the response in the chat
             agent_title = agent.get('title', 'Agent')
+            print(f"Debug: About to display response for {agent_title}, response length: {len(response)}")
+            print(f"Debug: Response content preview: {response[:200]}...")
+
             self.root.after(0, lambda t=agent_title, r=response: self._display_agent_response(t, r))
 
             return response
@@ -2342,7 +2389,10 @@ class OllamaChat:
 
     def _display_agent_response(self, agent_title, response):
         """Display agent response in the chat (called from main thread)."""
-        self.display_message(f"\n{agent_title} Response:\n", 'assistant')
+        print(f"Debug: Displaying response for {agent_title}, length: {len(response)}")
+        print(f"Debug: Response preview: {response[:100]}...")
+
+        self.display_message(f"\n🤖 {agent_title} Response:\n", 'assistant')
         self.display_message(f"{response}\n", 'assistant')
 
     def _re_enable_agent_controls(self):
