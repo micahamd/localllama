@@ -7,6 +7,7 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 - **Multiple Developers**: Switch between  Ollama, Google Gemini, Deepseek, or Anthropic models within a single session.
 - **RAG (Retrieval-Augmented Generation)**: Use local/remote embedding models, with customizable chunk sizes, to retrieve document context.
 - **Conversation Management**: Chat sessions can be saved and loaded as JSON files.
+- **Agent Mode Sequencing**: Stage, review, and execute multi-step agent workflows with per-agent models, tools, and loop limits.
 - **Temperature and Context customization**: Sliders manage these parameters directly in the UI for all models.
 - **File Processing with MarkItDown**: Utilizes Microsoft's @markitdown package to process nearly all files into ML-readable markdown.
 - **MultiMedia Support**: Process images, audio files, and YouTube videos.
@@ -21,6 +22,7 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 ## Getting Started
 
 ### Prerequisites
+
 - Python 3.8+
 - [Ollama](https://ollama.ai/) for local models
 - (Optional) Google API key for Gemini models
@@ -31,17 +33,20 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 ### Installation
 
 1. Clone this repository:
+
 ```
 git clone https://github.com/micahamd/localllama.git
 cd localllama
 ```
 
 2. Install required dependencies:
+
 ```
 pip install -r requirements.txt
 ```
 
 3. Run the application:
+
 ```
 python main.py
 ```
@@ -49,11 +54,23 @@ python main.py
 ## Usage Guide
 
 ### Basic Chat
+
 1. Select a model provider and an associated LLM model
 2. Type your message in the input field, and click 'Send' or press Enter.
 3. Enable the Memory Control Program (MCP) to enhance responses with relevant memories.
 
+### Agent Mode (Staged Multi-Agent Workflows)
+
+1. In the sidebar Options panel, tick **Agent Tool** to start staging agents—the chat log will display `Agent Sequence: Begin`.
+2. Enter agent-specific instructions and press **Send** for each step; the UI captures the full agent definition (model, tools, parameters) instead of querying the model immediately.
+3. Untick **Agent Tool** once you have at least one agent staged; the chat will confirm how many agents were defined and enable the **Configure Agents** button.
+4. Click **Configure Agents** to open the management window. Review or reorder agents, rename them, edit their JSON schemas, adjust the numeric **Loop limit** (default `0` = no loops), or delete entries.
+5. Use **Save Agent** to persist the sequence to the `agents/` directory, or **Load Agent** to reuse prior configurations. Active sequences are also cached temporarily so you can resume later in the same session.
+6. Press **Run Agent** to execute the sequence; progress updates stream into the chat log, and the UI prevents concurrent runs. Loop directives respect the configured limit and fall back to linear execution when the cap is reached.
+7. Use **Clear Chat** or exit the application to clear the temporary agent cache. Saved sequences remain available under the `agents/` folder for future sessions.
+
 ### Working with Files
+
 - **Drop Files**: Drag and drop files directly into the chat window
 - **Batch Process**: Process multiple files with the same prompt
 - **File Types Supported**:
@@ -68,30 +85,35 @@ python main.py
 - **YouTube Integration**: Paste a YouTube URL to extract video transcription
 
 ### Using RAG
+
 1. Select an embedding model from the dropdown
 2. Click "Select RAG Files" to choose reference documents
-4. Ask questions related to your documents
-5. Click "Show RAG Visualization" to see which chunks were used to inform the response
+3. Ask questions related to your documents
+4. Click "Show RAG Visualization" to see which chunks were used to inform the response
 
 ### Working with Media and Web Content
 
 #### Audio Files
+
 1. Drag and drop an audio file (MP3, WAV, etc.) into the chat window to automatically transcribe the audio content
 2. A preview of the transcription will be displayed in the chat
 3. Ask questions about the transcribed content
 
 #### YouTube Videos
+
 1. Paste a YouTube URL directly into the chat input field and press Enter
 2. The application will fetch the video's transcription
 3. A preview with title, URL, and transcription excerpt will be displayed
 4. Ask questions about the video content
 
 #### Web Search
+
 1. Enable the Web Search option in the Tools section
 2. Ask questions that require up-to-date information
 3. The application will search the web using crawl4ai and include relevant results in the response
 
 #### Write File Tool
+
 1. Enable the Write File option in the Tools section
 2. Ask the AI to create files by specifying paths like: `[["C:\path\to\file.txt"]]`
 3. Examples:
@@ -103,6 +125,7 @@ python main.py
 6. Files are created with safety checks, backups, and error handling
 
 #### Read File Tool
+
 1. Enable the Read File option in the Tools section
 2. Reference files in your messages using: `<<"C:\path\to\file.ext">>`
 3. Examples:
@@ -112,18 +135,22 @@ python main.py
 4. Supported formats: All MarkItDown formats (DOCX, PDF, images, audio, etc.)
 5. Files are automatically read and content included in your message
 6. Works seamlessly with Write File tool for complete file workflows
+
 #### Web Content
+
 1. Paste any URL into the chat input field and press Enter
 2. The application will extract the content from the webpage
 3. Ask questions about the extracted content
 
 ### Managing Conversations
+
 - **New Conversation**: Start a fresh chat session
 - **Save Conversation**: Save the current conversation to a file
 - **Load Conversation**: Load a previously saved conversation
 - **Recent Conversations**: Double-click on recent conversations in the sidebar
 
 ### Customization
+
 - **Temperature**: Control model creativity (higher = more creative)
 - **Context Size**: Adjust the context window size for the model
 - **System Instructions**: Set custom instructions for the model's behavior
@@ -131,20 +158,24 @@ python main.py
 ### Memory Control Program (MCP)
 
 #### Overview
+
 The Memory Control Program (MCP) provides a persistent knowledge base for your chatbot. It stores information that can be retrieved and included in conversations when relevant.
 
 #### Getting Started with MCP
+
 1. Open the MCP panel from the Tools menu
 2. Click "Start Server" to activate the memory system
 3. Add memories manually or import from files
 4. Ask questions related to your stored memories
 
 #### Adding Memories
+
 - **Manual Entry**: Click "Add Memory" to enter text directly
 - **File Import**: Click "Import File" to convert various file types to memories
 - **Automatic**: Conversations are automatically saved as memories when the MCP server is running
 
 #### Importing Files as Memories
+
 1. Click "Import File" in the MCP panel
 2. Select any supported file type (documents, code, images, audio, etc.)
 3. The file will be converted to markdown using MarkItDown
@@ -152,11 +183,13 @@ The Memory Control Program (MCP) provides a persistent knowledge base for your c
 5. For large files, you can split them into multiple memories
 
 #### Memory Organization
+
 - **Tags**: Add tags to categorize and organize memories
 - **Search**: Use the search box to find specific memories
 - **Edit/Delete**: Manage existing memories as needed
 
 #### How Memories Are Used
+
 - When you ask a question, the MCP searches for relevant memories
 - Up to 3 most relevant memories are included in the context sent to the model
 - This happens automatically when the MCP server is running
@@ -177,6 +210,9 @@ The application is built with a modular architecture for maintainability:
 - **mcp_file_import.py**: Handles file import for the MCP
 - **error_handler.py**: Provides robust error management
 - **html_text.py**: Handles HTML and Markdown rendering in the UI
+- **agent_sequence_store.py**: Persists reusable agent sequences (`agents/*.agent.json`) and tracks loop-limit metadata.
+- **agent_cache.py**: Maintains the temporary cache used while staging agents so work survives until cleared.
+- **agents/**: Directory where saved agent sequences live (created automatically on first save).
 
 ### File Processing Architecture
 
@@ -191,6 +227,7 @@ The application uses the MarkItDown library to process various file types:
 ## Requirements
 
 ### Core Dependencies
+
 - **GUI**: tkinter, tkinterdnd2 (for drag-and-drop functionality)
 - **LLM Integration**: ollama, google-generativeai, anthropic
 - **RAG**: chromadb, sentence-transformers, nltk
@@ -198,6 +235,7 @@ The application uses the MarkItDown library to process various file types:
 - **File Processing**: markitdown with optional extensions
 
 ### MarkItDown Optional Dependencies
+
 - **Document Processing**: [markitdown[pdf,docx,pptx,xlsx,xls]]
 - **Audio Processing**: [markitdown[audio-transcription]]
 - **YouTube Integration**: [markitdown[youtube-transcription]]
