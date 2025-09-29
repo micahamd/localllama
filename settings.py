@@ -24,7 +24,13 @@ class Settings:
         "write_file": False,
         "read_file": False,
         "intelligent_processing": True,
-        "system_prompt": "Respond honestly and factually at all times."
+        "system_prompt": "Respond honestly and factually at all times.",
+        # Agent Mode settings
+        "agent_mode_enabled": False,
+        "agent_mode_beta": True,  # Feature flag for beta testing
+        "agent_loop_limit": 0,  # Default: no loops allowed
+        "agent_max_count": 10,  # Maximum agents per sequence
+        "agent_auto_save": True,  # Auto-save sequences on toggle off
     }
 
     def __init__(self, settings_file: str = "chat_settings.json"):

@@ -317,6 +317,13 @@ class OllamaChat:
 
         # Initialize MCP manager
         self.mcp_manager = MCPManager()
+        
+        # Enable enhanced MCP features
+        if hasattr(self.mcp_manager, 'enable_feature'):
+            self.mcp_manager.enable_feature("auto_categorization")
+            self.mcp_manager.enable_feature("enhanced_analytics")
+            print("🚀 Enhanced MCP features enabled!")
+        
         self.mcp_panel = None
 
         # Create minimal UI elements required for error display
@@ -439,6 +446,24 @@ class OllamaChat:
         
         # Tool task tracking
         self.active_tasks = {}  # Maps task_id to description
+
+        # Agent Mode variables
+        self.agent_mode_var = tk.BooleanVar(value=self.settings.get("agent_mode_enabled", False))
+        self.agent_loop_limit = tk.IntVar(value=self.settings.get("agent_loop_limit", 0))
+        self.armed_agents = []  # List of staged agent definitions
+        self.active_agent_sequence_name = None  # Current sequence name when loading/saving
+        self.configure_agents_button = None  # Will be set when creating sidebar
+
+        # Agent cache and store
+        from agent_cache import AgentCache
+        from agent_sequence_store import AgentSequenceStore
+        self.agent_cache = AgentCache()
+        self.agent_store = AgentSequenceStore()
+
+        # Load cached agents if available
+        cached_agents = self.agent_cache.load_cached_agents()
+        if cached_agents:
+            self.armed_agents = cached_agents
 
         # RAG visualization
         self.rag_visualizer = None
@@ -844,6 +869,31 @@ class OllamaChat:
             style="TCheckbutton"
         )
         intelligent_processing_checkbox.pack(anchor="w", padx=3, pady=2)
+
+        # Agent Mode controls (initially hidden behind feature flag)
+        if self.settings.get("agent_mode_beta", False):
+            # Agent Tool checkbox
+            agent_mode_checkbox = ttk.Checkbutton(
+                options_frame.content_frame,
+                text="Agent Tool",
+                variable=self.agent_mode_var,
+                command=self.on_agent_mode_toggle,
+                style="TCheckbutton"
+            )
+            agent_mode_checkbox.pack(anchor="w", padx=3, pady=2)
+
+            # Configure Agents button
+            self.configure_agents_button = ttk.Button(
+                options_frame.content_frame,
+                text="Configure Agents",
+                command=self.open_configure_agents_window,
+                state="disabled"  # Initially disabled
+            )
+            self.configure_agents_button.pack(anchor="w", padx=3, pady=2, fill="x")
+
+            # Check if we should enable the Configure button based on cached agents
+            if len(self.armed_agents) > 0 and not self.agent_mode_var.get():
+                self.configure_agents_button.config(state="normal")
 
         # Tools section - using CollapsibleFrame
         tools_frame = CollapsibleFrame(self.scrollable_sidebar, title="Tools", expanded=True)
@@ -1585,6 +1635,14 @@ class OllamaChat:
         # Update chunk size trace
         self.chunk_size.trace_add("write", self.update_rag_chunk_size)
 
+        # Apply agent mode settings
+        self.agent_mode_var.set(self.settings.get("agent_mode_enabled", False))
+        self.agent_loop_limit.set(self.settings.get("agent_loop_limit", 0))
+
+        # Set up agent mode variable traces to save settings when changed
+        self.agent_mode_var.trace_add("write", self.save_agent_settings)
+        self.agent_loop_limit.trace_add("write", self.save_agent_settings)
+
     def update_rag_chunk_size(self, *args):
         """Update RAG chunk size when the setting changes."""
         if hasattr(self, 'rag'):
@@ -1597,6 +1655,848 @@ class OllamaChat:
                 self.rag.chunk_size = 128
 
     # Semantic chunking methods removed for better performance
+
+    def save_agent_settings(self, *args):
+        """Save agent mode settings when they change."""
+        try:
+            self.settings.set("agent_mode_enabled", self.agent_mode_var.get())
+            self.settings.set("agent_loop_limit", self.agent_loop_limit.get())
+            self.settings.save_settings()
+        except Exception as e:
+            print(f"Error saving agent settings: {e}")
+
+    def on_agent_mode_toggle(self):
+        """Handle Agent Mode checkbox toggle."""
+        try:
+            is_enabled = self.agent_mode_var.get()
+
+            if is_enabled:
+                # Agent Mode turned ON - start staging
+                self.display_message("\nAgent Sequence: Begin\n", 'status')
+                self.armed_agents = []  # Clear any existing agents
+                self.active_agent_sequence_name = None
+
+                # Disable Configure button while staging
+                if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+                    self.configure_agents_button.config(state="disabled")
+
+                # Clear cache
+                self.agent_cache.clear_agent_cache()
+
+            else:
+                # Agent Mode turned OFF - finish staging
+                if len(self.armed_agents) > 0:
+                    # Save staged agents to cache
+                    self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+                    # Show completion message
+                    agent_count = len(self.armed_agents)
+                    self.display_message(f"\n{agent_count} Agents Defined. View Configuration Window to Begin...\n", 'status')
+
+                    # Enable Configure button
+                    if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+                        self.configure_agents_button.config(state="normal")
+                else:
+                    # No agents staged - just return to normal
+                    self.display_message("\nAgent Mode disabled. No agents were staged.\n", 'status')
+
+                    # Keep Configure button disabled
+                    if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+                        self.configure_agents_button.config(state="disabled")
+
+            # Save the setting
+            self.save_agent_settings()
+
+        except Exception as e:
+            self.display_message(f"\nError toggling Agent Mode: {e}\n", 'error')
+
+    def open_configure_agents_window(self):
+        """Open the Configure Agents window."""
+        try:
+            # Create the configuration window
+            config_window = tk.Toplevel(self.root)
+            config_window.title("Configure Agent Sequence")
+            config_window.geometry("800x600")
+            config_window.minsize(600, 400)
+
+            # Make it modal
+            config_window.transient(self.root)
+            config_window.grab_set()
+
+            # Center the window
+            config_window.update_idletasks()
+            x = (config_window.winfo_screenwidth() // 2) - (800 // 2)
+            y = (config_window.winfo_screenheight() // 2) - (600 // 2)
+            config_window.geometry(f"800x600+{x}+{y}")
+
+            # Create main frame
+            main_frame = ttk.Frame(config_window, padding="10")
+            main_frame.pack(fill=tk.BOTH, expand=True)
+
+            # Title
+            title_label = ttk.Label(main_frame, text="Agent Sequence Configuration",
+                                  font=("Arial", 14, "bold"))
+            title_label.pack(pady=(0, 10))
+
+            # Loop limit control
+            loop_frame = ttk.Frame(main_frame)
+            loop_frame.pack(fill=tk.X, pady=(0, 10))
+
+            ttk.Label(loop_frame, text="Loop Limit:").pack(side=tk.LEFT)
+            loop_spinbox = ttk.Spinbox(loop_frame, from_=0, to=10, width=5,
+                                     textvariable=self.agent_loop_limit)
+            loop_spinbox.pack(side=tk.LEFT, padx=(5, 0))
+            ttk.Label(loop_frame, text="(0 = no loops allowed)").pack(side=tk.LEFT, padx=(5, 0))
+
+            # Agent list frame
+            list_frame = ttk.LabelFrame(main_frame, text="Staged Agents", padding="5")
+            list_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
+
+            # Create container for listbox and buttons
+            list_main_container = ttk.Frame(list_frame)
+            list_main_container.pack(fill=tk.BOTH, expand=True)
+
+            # Create listbox with scrollbar
+            list_container = ttk.Frame(list_main_container)
+            list_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+            agent_listbox = tk.Listbox(list_container, font=("Consolas", 10))
+            scrollbar = ttk.Scrollbar(list_container, orient=tk.VERTICAL, command=agent_listbox.yview)
+            agent_listbox.config(yscrollcommand=scrollbar.set)
+
+            agent_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Reorder buttons
+            reorder_frame = ttk.Frame(list_main_container)
+            reorder_frame.pack(side=tk.RIGHT, fill=tk.Y, padx=(5, 0))
+
+            up_btn = ttk.Button(reorder_frame, text="↑", width=3,
+                              command=lambda: self.move_agent_up(agent_listbox))
+            up_btn.pack(pady=(0, 2))
+
+            down_btn = ttk.Button(reorder_frame, text="↓", width=3,
+                                command=lambda: self.move_agent_down(agent_listbox))
+            down_btn.pack(pady=(0, 2))
+
+            delete_btn = ttk.Button(reorder_frame, text="✕", width=3,
+                                  command=lambda: self.delete_agent(agent_listbox))
+            delete_btn.pack(pady=(10, 2))
+
+            edit_btn = ttk.Button(reorder_frame, text="✎", width=3,
+                                command=lambda: self.edit_agent(agent_listbox, config_window))
+            edit_btn.pack(pady=(0, 2))
+
+            # Populate agent list
+            self.populate_agent_list(agent_listbox)
+
+            # Preview frame
+            preview_frame = ttk.LabelFrame(main_frame, text="Agent Preview", padding="5")
+            preview_frame.pack(fill=tk.X, pady=(0, 10))
+
+            preview_text = tk.Text(preview_frame, height=8, font=("Consolas", 9),
+                                 wrap=tk.WORD, state=tk.DISABLED)
+            preview_scrollbar = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=preview_text.yview)
+            preview_text.config(yscrollcommand=preview_scrollbar.set)
+
+            preview_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+            preview_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+
+            # Bind selection event
+            def on_agent_select(event):
+                selection = agent_listbox.curselection()
+                if selection:
+                    idx = selection[0]
+                    if idx < len(self.armed_agents):
+                        self.show_agent_preview(preview_text, self.armed_agents[idx])
+
+            agent_listbox.bind('<<ListboxSelect>>', on_agent_select)
+
+            # Button frame
+            button_frame = ttk.Frame(main_frame)
+            button_frame.pack(fill=tk.X)
+
+            # Load button
+            load_btn = ttk.Button(button_frame, text="Load Sequence",
+                                command=lambda: self.load_agent_sequence_dialog(config_window, agent_listbox))
+            load_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+            # Save button
+            save_btn = ttk.Button(button_frame, text="Save Sequence",
+                                command=lambda: self.save_agent_sequence_dialog(config_window))
+            save_btn.pack(side=tk.LEFT, padx=(0, 5))
+
+            # Run button
+            run_btn = ttk.Button(button_frame, text="Run Sequence",
+                               command=lambda: self.run_agent_sequence_from_config(config_window),
+                               style="Accent.TButton")
+            run_btn.pack(side=tk.RIGHT)
+
+            # Enable/disable run button based on agent count
+            if len(self.armed_agents) == 0:
+                run_btn.config(state="disabled")
+
+            # Show initial preview if agents exist
+            if len(self.armed_agents) > 0:
+                agent_listbox.selection_set(0)
+                self.show_agent_preview(preview_text, self.armed_agents[0])
+
+        except Exception as e:
+            self.display_message(f"\nError opening Configure Agents window: {e}\n", 'error')
+
+    def stage_agent(self, user_input):
+        """Stage an agent definition when Agent Mode is active."""
+        try:
+            from agent_cache import create_agent_definition
+
+            # Check maximum agent limit
+            max_agents = self.settings.get("agent_max_count", 10)
+            if len(self.armed_agents) >= max_agents:
+                self.display_message(f"\nMaximum agent limit ({max_agents}) reached. Cannot stage more agents.\n", 'error')
+                return
+
+            # Generate agent title
+            agent_count = len(self.armed_agents) + 1
+            agent_title = f"Agent-{agent_count}"
+
+            # Capture current system prompt
+            system_prompt = self.system_text.get("1.0", tk.END).strip()
+            if not system_prompt:
+                system_prompt = "You are a helpful assistant."
+
+            # Capture current model and developer
+            current_model = self.model_selector.get() if hasattr(self, 'model_selector') else ""
+            current_developer = self.developer.get() if hasattr(self, 'developer') else "ollama"
+
+            # Create messages list
+            messages = [{"role": "user", "content": user_input}]
+
+            # Capture current parameters
+            parameters = {
+                "temperature": self.temperature.get(),
+                "top_p": self.top_p.get(),
+                "top_k": self.top_k.get(),
+                "repeat_penalty": self.repeat_penalty.get(),
+                "max_tokens": self.max_tokens.get(),
+                "context_size": self.context_size.get(),
+                "include_chat": self.include_chat_var.get(),
+                "include_file": self.include_file_var.get(),
+            }
+
+            # Capture current tool settings
+            tools = {
+                "web_access": getattr(self, 'advanced_web_access_var', tk.BooleanVar()).get(),
+                "write_file": self.write_file_var.get(),
+                "read_file": self.read_file_var.get(),
+                "intelligent_processing": self.intelligent_processing_var.get(),
+            }
+
+            # Capture file attachments if any
+            file_attachments = []
+            if hasattr(self, 'file_content') and self.file_content:
+                file_attachments.append({
+                    "content": self.file_content,
+                    "type": getattr(self, 'file_type', 'text'),
+                    "path": getattr(self, 'current_file_path', 'unknown')
+                })
+
+            # Capture RAG files if any
+            rag_file_list = []
+            if hasattr(self, 'rag_files') and self.rag_files:
+                rag_file_list = [str(f) for f in self.rag_files]
+
+            # Create metadata
+            metadata = {
+                "index": agent_count,
+                "file_attachments": file_attachments,
+                "rag_files": rag_file_list,
+                "references": []  # Will be populated later if needed
+            }
+
+            # Create agent definition
+            agent_def = create_agent_definition(
+                title=agent_title,
+                model=current_model,
+                developer=current_developer,
+                system=system_prompt,
+                messages=messages,
+                parameters=parameters,
+                tools=tools,
+                metadata=metadata
+            )
+
+            # Add to armed agents list
+            self.armed_agents.append(agent_def)
+
+            # Save to cache
+            self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+            # Show feedback
+            ordinal_names = ["First", "Second", "Third", "Fourth", "Fifth", "Sixth", "Seventh", "Eighth", "Ninth", "Tenth"]
+            if agent_count <= len(ordinal_names):
+                ordinal = ordinal_names[agent_count - 1]
+            else:
+                ordinal = f"{agent_count}th"
+
+            self.display_message(f"\n{ordinal} Agent Defined\n", 'status')
+
+            # Clear input field
+            self.input_field.delete("1.0", tk.END)
+            self.input_field.insert("1.0", "Type your message here...")
+            self.input_placeholder_visible = True
+
+            # Update status bar if it exists
+            if hasattr(self, 'status_bar'):
+                self.status_bar.config(text=f"Defining Agent {agent_count + 1}...")
+
+        except Exception as e:
+            self.display_message(f"\nError staging agent: {e}\n", 'error')
+
+    def populate_agent_list(self, listbox):
+        """Populate the agent listbox with current agents."""
+        listbox.delete(0, tk.END)
+        for i, agent in enumerate(self.armed_agents):
+            title = agent.get('title', f'Agent-{i+1}')
+            model = agent.get('model', 'Unknown')
+            developer = agent.get('developer', 'Unknown')
+            message_count = len(agent.get('messages', []))
+
+            display_text = f"{title} | {developer}:{model} | {message_count} msg(s)"
+            listbox.insert(tk.END, display_text)
+
+    def show_agent_preview(self, text_widget, agent):
+        """Show agent details in the preview text widget."""
+        text_widget.config(state=tk.NORMAL)
+        text_widget.delete(1.0, tk.END)
+
+        # Format agent information
+        preview = f"Title: {agent.get('title', 'Unknown')}\n"
+        preview += f"Model: {agent.get('model', 'Unknown')}\n"
+        preview += f"Developer: {agent.get('developer', 'Unknown')}\n"
+        preview += f"System: {agent.get('system', 'None')[:100]}...\n\n"
+
+        # Show messages
+        messages = agent.get('messages', [])
+        preview += f"Messages ({len(messages)}):\n"
+        for i, msg in enumerate(messages):
+            role = msg.get('role', 'unknown')
+            content = msg.get('content', '')[:200]
+            preview += f"  {i+1}. {role}: {content}...\n"
+
+        # Show parameters
+        params = agent.get('parameters', {})
+        preview += f"\nParameters:\n"
+        for key, value in params.items():
+            preview += f"  {key}: {value}\n"
+
+        # Show tools
+        tools = agent.get('tools', {})
+        enabled_tools = [k for k, v in tools.items() if v]
+        preview += f"\nEnabled Tools: {', '.join(enabled_tools) if enabled_tools else 'None'}\n"
+
+        text_widget.insert(1.0, preview)
+        text_widget.config(state=tk.DISABLED)
+
+    def load_agent_sequence_dialog(self, parent_window, listbox):
+        """Show dialog to load an agent sequence."""
+        try:
+            sequences = self.agent_store.list_agent_sequences()
+            if not sequences:
+                tk.messagebox.showinfo("No Sequences", "No saved agent sequences found.", parent=parent_window)
+                return
+
+            # Create selection dialog
+            dialog = tk.Toplevel(parent_window)
+            dialog.title("Load Agent Sequence")
+            dialog.geometry("500x300")
+            dialog.transient(parent_window)
+            dialog.grab_set()
+
+            # Center dialog
+            dialog.update_idletasks()
+            x = parent_window.winfo_x() + (parent_window.winfo_width() // 2) - 250
+            y = parent_window.winfo_y() + (parent_window.winfo_height() // 2) - 150
+            dialog.geometry(f"500x300+{x}+{y}")
+
+            # Create listbox for sequences
+            frame = ttk.Frame(dialog, padding="10")
+            frame.pack(fill=tk.BOTH, expand=True)
+
+            ttk.Label(frame, text="Select a sequence to load:").pack(anchor="w")
+
+            seq_listbox = tk.Listbox(frame, font=("Consolas", 10))
+            seq_scrollbar = ttk.Scrollbar(frame, orient=tk.VERTICAL, command=seq_listbox.yview)
+            seq_listbox.config(yscrollcommand=seq_scrollbar.set)
+
+            seq_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=(5, 10))
+            seq_scrollbar.pack(side=tk.RIGHT, fill=tk.Y, pady=(5, 10))
+
+            # Populate sequences
+            for title, metadata in sequences:
+                agent_count = metadata.get('agent_count', 0)
+                last_updated = metadata.get('last_updated', 'Unknown')[:10]  # Just date part
+                display_text = f"{title} ({agent_count} agents) - {last_updated}"
+                seq_listbox.insert(tk.END, display_text)
+
+            # Buttons
+            btn_frame = ttk.Frame(frame)
+            btn_frame.pack(fill=tk.X)
+
+            def load_selected():
+                selection = seq_listbox.curselection()
+                if selection:
+                    idx = selection[0]
+                    title = sequences[idx][0]
+                    sequence = self.agent_store.load_agent_sequence(title)
+                    if sequence:
+                        self.armed_agents = sequence.agents
+                        self.agent_loop_limit.set(sequence.loop_limit)
+                        self.active_agent_sequence_name = sequence.title
+
+                        # Update cache
+                        self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+                        # Refresh the main listbox
+                        self.populate_agent_list(listbox)
+
+                        self.display_message(f"\nLoaded sequence '{title}' ({len(sequence.agents)} agents)\n", 'status')
+                        dialog.destroy()
+                    else:
+                        tk.messagebox.showerror("Error", f"Failed to load sequence '{title}'", parent=dialog)
+
+            ttk.Button(btn_frame, text="Load", command=load_selected).pack(side=tk.LEFT)
+            ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT)
+
+        except Exception as e:
+            self.display_message(f"\nError loading sequence: {e}\n", 'error')
+
+    def save_agent_sequence_dialog(self, parent_window):
+        """Show dialog to save the current agent sequence."""
+        try:
+            if not self.armed_agents:
+                tk.messagebox.showwarning("No Agents", "No agents to save.", parent=parent_window)
+                return
+
+            # Get title from user
+            title = tk.simpledialog.askstring(
+                "Save Agent Sequence",
+                "Enter a name for this agent sequence:",
+                parent=parent_window,
+                initialvalue=self.active_agent_sequence_name or "My Agent Sequence"
+            )
+
+            if title:
+                from agent_sequence_store import AgentSequence
+
+                # Create sequence object
+                sequence = AgentSequence(
+                    title=title,
+                    agents=self.armed_agents,
+                    loop_limit=self.agent_loop_limit.get()
+                )
+
+                # Save to store
+                if self.agent_store.save_agent_sequence(sequence):
+                    self.active_agent_sequence_name = title
+                    self.display_message(f"\nSaved agent sequence '{title}' ({len(self.armed_agents)} agents)\n", 'status')
+                else:
+                    tk.messagebox.showerror("Save Error", f"Failed to save sequence '{title}'", parent=parent_window)
+
+        except Exception as e:
+            self.display_message(f"\nError saving sequence: {e}\n", 'error')
+
+    def run_agent_sequence_from_config(self, config_window):
+        """Run the agent sequence from the configuration window."""
+        try:
+            if not self.armed_agents:
+                tk.messagebox.showwarning("No Agents", "No agents to run.", parent=config_window)
+                return
+
+            # Auto-save if we have a name
+            if self.active_agent_sequence_name:
+                from agent_sequence_store import AgentSequence
+                sequence = AgentSequence(
+                    title=self.active_agent_sequence_name,
+                    agents=self.armed_agents,
+                    loop_limit=self.agent_loop_limit.get()
+                )
+                self.agent_store.save_agent_sequence(sequence)
+
+            # Close config window
+            config_window.destroy()
+
+            # Start agent sequence execution
+            self.display_message(f"\nStarting agent sequence with {len(self.armed_agents)} agents...\n", 'status')
+
+            # Disable controls during execution
+            self.agent_mode_var.set(False)  # Turn off agent mode
+            if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+                self.configure_agents_button.config(state="disabled")
+
+            # Run sequence in background thread
+            import threading
+            execution_thread = threading.Thread(target=self._run_agent_sequence, daemon=True)
+            execution_thread.start()
+
+        except Exception as e:
+            self.display_message(f"\nError running sequence: {e}\n", 'error')
+
+    def _run_agent_sequence(self):
+        """Execute the agent sequence in background thread with branching support."""
+        try:
+            resolved_outputs = {}  # Store outputs from completed agents
+            loop_count = 0
+            max_loops = self.agent_loop_limit.get()
+            visited_agents = set()  # Track visited agents for loop detection
+
+            # Use index-based iteration to allow jumping
+            current_index = 0
+
+            while current_index < len(self.armed_agents):
+                try:
+                    agent = self.armed_agents[current_index]
+                    agent_title = agent.get('title', f'Agent-{current_index+1}')
+
+                    # Check for infinite loops
+                    agent_key = f"{agent_title}_{current_index}"
+                    if agent_key in visited_agents and loop_count >= max_loops:
+                        self.root.after(0, lambda: self.display_message(f"\nLoop limit reached for {agent_title}\n", 'status'))
+                        break
+
+                    visited_agents.add(agent_key)
+
+                    # Update status
+                    self.root.after(0, lambda t=agent_title: self.display_message(f"\nExecuting {t}...\n", 'status'))
+
+                    # Execute the agent
+                    result = self._execute_single_agent(agent, resolved_outputs)
+
+                    # Store result for future agents
+                    resolved_outputs[agent_title] = result
+
+                    # Check for branching directives in the result
+                    next_index = self._check_branching_directives(result, current_index)
+
+                    if next_index != current_index + 1:
+                        # Branching occurred
+                        loop_count += 1
+                        if loop_count > max_loops:
+                            self.root.after(0, lambda: self.display_message(f"\nBranch limit reached, continuing linearly\n", 'status'))
+                            current_index += 1
+                        else:
+                            current_index = next_index
+                            self.root.after(0, lambda t=agent_title, ni=next_index:
+                                          self.display_message(f"{t} branching to Agent-{ni+1}\n", 'status'))
+                    else:
+                        # Normal progression
+                        current_index += 1
+
+                    # Update completion status
+                    self.root.after(0, lambda t=agent_title: self.display_message(f"{t} Task Complete\n", 'status'))
+
+                except Exception as e:
+                    error_msg = f"Agent {agent.get('title', f'Agent-{current_index+1}')} failed: {str(e)}"
+                    self.root.after(0, lambda msg=error_msg: self.display_message(f"\n{msg}\n", 'error'))
+                    break
+
+            # Completion message
+            self.root.after(0, lambda: self.display_message("\nAll Agents Finished\n", 'status'))
+
+        except Exception as e:
+            error_msg = f"Agent sequence execution failed: {str(e)}"
+            self.root.after(0, lambda msg=error_msg: self.display_message(f"\n{msg}\n", 'error'))
+
+        finally:
+            # Re-enable controls
+            self.root.after(0, self._re_enable_agent_controls)
+
+    def _check_branching_directives(self, result, current_index):
+        """Check for branching directives in agent output."""
+        import re
+
+        # Look for PROCEED: Agent-X or RETRY: Agent-X patterns
+        proceed_match = re.search(r'PROCEED:\s*Agent-(\d+)', result, re.IGNORECASE)
+        retry_match = re.search(r'RETRY:\s*Agent-(\d+)', result, re.IGNORECASE)
+
+        if proceed_match:
+            target_agent = int(proceed_match.group(1)) - 1  # Convert to 0-based index
+            if 0 <= target_agent < len(self.armed_agents):
+                return target_agent
+
+        if retry_match:
+            target_agent = int(retry_match.group(1)) - 1  # Convert to 0-based index
+            if 0 <= target_agent < len(self.armed_agents):
+                return target_agent
+
+        # No branching directive found, proceed normally
+        return current_index + 1
+
+    def _execute_single_agent(self, agent, resolved_outputs):
+        """Execute a single agent and return its result."""
+        try:
+            # Set up the model manager for this agent
+            developer = agent.get('developer', 'ollama')
+            model = agent.get('model', '')
+
+            # Validate model is specified
+            if not model:
+                return f"Error: No model specified for agent {agent.get('title', 'Unknown')}"
+
+            # Create appropriate model manager
+            from models_manager import create_model_manager
+            agent_model_manager = create_model_manager(developer)
+
+            # Validate model manager was created successfully
+            if not agent_model_manager:
+                return f"Error: Could not create model manager for {developer}"
+
+            # Prepare the message
+            messages = agent.get('messages', [])
+            if not messages:
+                return "No message to process"
+
+            user_message = messages[0].get('content', '')
+
+            # Resolve placeholders in the message
+            resolved_message = self._resolve_placeholders(user_message, resolved_outputs)
+
+            # Prepare system prompt
+            system_prompt = agent.get('system', 'You are a helpful assistant.')
+
+            # Prepare parameters
+            parameters = agent.get('parameters', {})
+
+            # Build the conversation context
+            conversation = []
+
+            # Add system message
+            if system_prompt:
+                conversation.append({"role": "system", "content": system_prompt})
+
+            # Add resolved user message
+            conversation.append({"role": "user", "content": resolved_message})
+
+            # Get response from the model
+            response = agent_model_manager.get_response(
+                messages=conversation,
+                model=model,
+                temperature=parameters.get('temperature', 0.7),
+                max_tokens=parameters.get('max_tokens', 2048),
+                top_p=parameters.get('top_p', 0.9),
+                top_k=parameters.get('top_k', 20),
+                repeat_penalty=parameters.get('repeat_penalty', 1.1)
+            )
+
+            # Display the response in the chat
+            agent_title = agent.get('title', 'Agent')
+            self.root.after(0, lambda t=agent_title, r=response: self._display_agent_response(t, r))
+
+            return response
+
+        except Exception as e:
+            return f"Error executing agent: {str(e)}"
+
+    def _resolve_placeholders(self, message, resolved_outputs):
+        """Resolve {{Agent-X}} placeholders in the message."""
+        import re
+
+        def replace_placeholder(match):
+            agent_ref = match.group(1)  # e.g., "Agent-1"
+            if agent_ref in resolved_outputs:
+                output = resolved_outputs[agent_ref]
+                # Truncate if too long
+                if len(output) > 500:
+                    return f"[Output from {agent_ref}]: {output[:500]}..."
+                else:
+                    return f"[Output from {agent_ref}]: {output}"
+            else:
+                return f"[{agent_ref} output not available]"
+
+        # Replace {{Agent-X}} patterns
+        resolved = re.sub(r'\{\{(Agent-\d+)\}\}', replace_placeholder, message)
+        return resolved
+
+    def _display_agent_response(self, agent_title, response):
+        """Display agent response in the chat (called from main thread)."""
+        self.display_message(f"\n{agent_title} Response:\n", 'assistant')
+        self.display_message(f"{response}\n", 'assistant')
+
+    def _re_enable_agent_controls(self):
+        """Re-enable agent controls after sequence completion (called from main thread)."""
+        if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+            if len(self.armed_agents) > 0:
+                self.configure_agents_button.config(state="normal")
+
+    def move_agent_up(self, listbox):
+        """Move selected agent up in the sequence."""
+        try:
+            selection = listbox.curselection()
+            if not selection or selection[0] == 0:
+                return  # Nothing selected or already at top
+
+            idx = selection[0]
+            # Swap agents
+            self.armed_agents[idx], self.armed_agents[idx-1] = self.armed_agents[idx-1], self.armed_agents[idx]
+
+            # Update titles to maintain order
+            self._update_agent_titles()
+
+            # Refresh listbox and maintain selection
+            self.populate_agent_list(listbox)
+            listbox.selection_set(idx-1)
+
+            # Update cache
+            self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+        except Exception as e:
+            self.display_message(f"\nError moving agent up: {e}\n", 'error')
+
+    def move_agent_down(self, listbox):
+        """Move selected agent down in the sequence."""
+        try:
+            selection = listbox.curselection()
+            if not selection or selection[0] >= len(self.armed_agents) - 1:
+                return  # Nothing selected or already at bottom
+
+            idx = selection[0]
+            # Swap agents
+            self.armed_agents[idx], self.armed_agents[idx+1] = self.armed_agents[idx+1], self.armed_agents[idx]
+
+            # Update titles to maintain order
+            self._update_agent_titles()
+
+            # Refresh listbox and maintain selection
+            self.populate_agent_list(listbox)
+            listbox.selection_set(idx+1)
+
+            # Update cache
+            self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+        except Exception as e:
+            self.display_message(f"\nError moving agent down: {e}\n", 'error')
+
+    def delete_agent(self, listbox):
+        """Delete selected agent from the sequence."""
+        try:
+            selection = listbox.curselection()
+            if not selection:
+                return  # Nothing selected
+
+            idx = selection[0]
+            agent_title = self.armed_agents[idx].get('title', f'Agent-{idx+1}')
+
+            # Confirm deletion
+            import tkinter.messagebox as msgbox
+            if msgbox.askyesno("Confirm Delete", f"Delete {agent_title}?"):
+                # Remove agent
+                del self.armed_agents[idx]
+
+                # Update titles to maintain order
+                self._update_agent_titles()
+
+                # Refresh listbox
+                self.populate_agent_list(listbox)
+
+                # Select next item if available
+                if idx < len(self.armed_agents):
+                    listbox.selection_set(idx)
+                elif len(self.armed_agents) > 0:
+                    listbox.selection_set(len(self.armed_agents) - 1)
+
+                # Update cache
+                self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+                self.display_message(f"\nDeleted {agent_title}\n", 'status')
+
+        except Exception as e:
+            self.display_message(f"\nError deleting agent: {e}\n", 'error')
+
+    def edit_agent(self, listbox, parent_window):
+        """Edit selected agent's properties."""
+        try:
+            selection = listbox.curselection()
+            if not selection:
+                return  # Nothing selected
+
+            idx = selection[0]
+            agent = self.armed_agents[idx]
+
+            # Create edit dialog
+            edit_window = tk.Toplevel(parent_window)
+            edit_window.title(f"Edit {agent.get('title', 'Agent')}")
+            edit_window.geometry("600x500")
+            edit_window.transient(parent_window)
+            edit_window.grab_set()
+
+            # Center dialog
+            edit_window.update_idletasks()
+            x = parent_window.winfo_x() + (parent_window.winfo_width() // 2) - 300
+            y = parent_window.winfo_y() + (parent_window.winfo_height() // 2) - 250
+            edit_window.geometry(f"600x500+{x}+{y}")
+
+            # Create form
+            form_frame = ttk.Frame(edit_window, padding="10")
+            form_frame.pack(fill=tk.BOTH, expand=True)
+
+            # Title field
+            ttk.Label(form_frame, text="Title:").pack(anchor="w")
+            title_var = tk.StringVar(value=agent.get('title', ''))
+            title_entry = ttk.Entry(form_frame, textvariable=title_var, width=50)
+            title_entry.pack(fill=tk.X, pady=(0, 10))
+
+            # System prompt field
+            ttk.Label(form_frame, text="System Prompt:").pack(anchor="w")
+            system_text = tk.Text(form_frame, height=5, wrap=tk.WORD)
+            system_text.insert(1.0, agent.get('system', ''))
+            system_text.pack(fill=tk.X, pady=(0, 10))
+
+            # User message field
+            ttk.Label(form_frame, text="User Message:").pack(anchor="w")
+            message_text = tk.Text(form_frame, height=8, wrap=tk.WORD)
+            messages = agent.get('messages', [])
+            if messages:
+                message_text.insert(1.0, messages[0].get('content', ''))
+            message_text.pack(fill=tk.X, pady=(0, 10))
+
+            # Buttons
+            btn_frame = ttk.Frame(form_frame)
+            btn_frame.pack(fill=tk.X)
+
+            def save_changes():
+                # Update agent
+                agent['title'] = title_var.get() or f"Agent-{idx+1}"
+                agent['system'] = system_text.get(1.0, tk.END).strip()
+
+                # Update message
+                new_message = message_text.get(1.0, tk.END).strip()
+                if new_message:
+                    agent['messages'] = [{"role": "user", "content": new_message}]
+
+                # Update timestamp
+                from datetime import datetime
+                agent['metadata']['timestamp'] = datetime.now().isoformat()
+
+                # Refresh listbox
+                self.populate_agent_list(listbox)
+                listbox.selection_set(idx)
+
+                # Update cache
+                self.agent_cache.save_agents_to_cache(self.armed_agents)
+
+                self.display_message(f"\nUpdated {agent['title']}\n", 'status')
+                edit_window.destroy()
+
+            ttk.Button(btn_frame, text="Save", command=save_changes).pack(side=tk.LEFT)
+            ttk.Button(btn_frame, text="Cancel", command=edit_window.destroy).pack(side=tk.RIGHT)
+
+        except Exception as e:
+            self.display_message(f"\nError editing agent: {e}\n", 'error')
+
+    def _update_agent_titles(self):
+        """Update agent titles to maintain sequential numbering."""
+        for i, agent in enumerate(self.armed_agents):
+            agent['title'] = f"Agent-{i+1}"
+            agent['metadata']['index'] = i+1
 
     def on_developer_changed(self, event):
         """Handle developer selection change."""
@@ -2174,6 +3074,11 @@ class OllamaChat:
 
         # Store original input for display purposes
         original_input = user_input
+
+        # Check if Agent Mode is active - if so, stage the agent instead of sending
+        if self.agent_mode_var.get():
+            self.stage_agent(original_input)
+            return
 
         # Process file read requests if Read File tool is enabled
         if self.read_file_var.get():
@@ -4248,6 +5153,23 @@ class OllamaChat:
 
         # Create a new conversation to clear history
         self.conversation_manager.new_conversation(model=self.selected_model)
+
+        # Clear agent cache and reset agent mode
+        if hasattr(self, 'agent_cache'):
+            self.agent_cache.clear_agent_cache()
+
+        if hasattr(self, 'armed_agents'):
+            self.armed_agents = []
+
+        if hasattr(self, 'agent_mode_var'):
+            self.agent_mode_var.set(False)
+
+        if hasattr(self, 'active_agent_sequence_name'):
+            self.active_agent_sequence_name = None
+
+        # Update Configure Agents button state
+        if hasattr(self, 'configure_agents_button') and self.configure_agents_button:
+            self.configure_agents_button.config(state="disabled")
 
         # Clear the model context using our helper method
         self.clear_model_context()
