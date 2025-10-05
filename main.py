@@ -2291,6 +2291,38 @@ class OllamaChat:
             # Resolve placeholders in the message
             resolved_message = self._resolve_placeholders(user_message, resolved_outputs)
 
+            # Get tool settings from agent definition
+            tools = agent.get('tools', {})
+            
+            # Process Read File requests if tool is enabled
+            if tools.get('read_file', False):
+                try:
+                    resolved_message = self.process_file_read_requests_sync(resolved_message)
+                    if resolved_message != user_message:
+                        self.root.after(0, lambda t=agent_title: 
+                            self.display_message(f"[{t}] File read operations completed\n", 'status'))
+                except Exception as e:
+                    self.root.after(0, lambda t=agent_title, err=str(e): 
+                        self.display_message(f"[{t}] File read error: {err}\n", 'error'))
+
+            # Process Web Search if tool is enabled
+            if tools.get('web_access', False):
+                try:
+                    self.root.after(0, lambda t=agent_title: 
+                        self.display_message(f"[{t}] Searching the web...\n", 'status'))
+                    
+                    search_results = self.perform_advanced_web_search_sync(resolved_message)
+                    if search_results:
+                        resolved_message += f"\n\nWeb search results:\n{search_results}"
+                        self.root.after(0, lambda t=agent_title: 
+                            self.display_message(f"[{t}] Web search completed\n", 'status'))
+                    else:
+                        self.root.after(0, lambda t=agent_title: 
+                            self.display_message(f"[{t}] No web results found\n", 'status'))
+                except Exception as e:
+                    self.root.after(0, lambda t=agent_title, err=str(e): 
+                        self.display_message(f"[{t}] Web search error: {err}\n", 'error'))
+
             # Prepare system prompt
             system_prompt = agent.get('system', 'You are a helpful assistant.')
 
@@ -2370,6 +2402,17 @@ class OllamaChat:
             if not response or response.strip() == "":
                 response = f"No response generated (model: {model}, developer: {developer})"
                 print(f"Debug: Empty response for {agent_title} - model: {model}, developer: {developer}")
+
+            # Process Write File requests if tool is enabled
+            if tools.get('write_file', False):
+                try:
+                    files_written = self.process_file_write_requests(response)
+                    if files_written > 0:
+                        self.root.after(0, lambda t=agent_title, count=files_written: 
+                            self.display_message(f"[{t}] {count} file(s) written successfully\n", 'status'))
+                except Exception as e:
+                    self.root.after(0, lambda t=agent_title, err=str(e): 
+                        self.display_message(f"[{t}] File write error: {err}\n", 'error'))
 
             # Display the response in the chat
             agent_title = agent.get('title', 'Agent')
