@@ -7,6 +7,7 @@ A modular, feature-rich Python-based chat interface for interacting with local (
 - **Multiple Developers**: Switch between  Ollama, Google Gemini, Deepseek, or Anthropic models within a single session.
 - **RAG (Retrieval-Augmented Generation)**: Use local/remote embedding models, with customizable chunk sizes, to retrieve document context.
 - **Conversation Management**: Chat sessions can be saved and loaded as JSON files.
+- **Agent Mode Sequencing**: Stage, review, and execute multi-step agent workflows with per-agent models, tools, and loop limits.
 - **Temperature and Context customization**: Sliders manage these parameters directly in the UI for all models.
 - **File Processing with MarkItDown**: Utilizes Microsoft's @markitdown package to process nearly all files into ML-readable markdown.
 - **MultiMedia Support**: Process images, audio files, and YouTube videos.
@@ -52,6 +53,15 @@ python main.py
 1. Select a model provider and an associated LLM model
 2. Type your message in the input field, and click 'Send' or press Enter.
 3. Enable the Memory Control Program (MCP) to enhance responses with relevant memories.
+
+### Agent Mode (Staged Multi-Agent Workflows)
+1. In the sidebar Options panel, tick **Agent Tool** to start staging agents—the chat log will display `Agent Sequence: Begin`.
+2. Enter agent-specific instructions and press **Send** for each step; the UI captures the full agent definition (model, tools, parameters) instead of querying the model immediately.
+3. Untick **Agent Tool** once you have at least one agent staged; the chat will confirm how many agents were defined and enable the **Configure Agents** button.
+4. Click **Configure Agents** to open the management window. Review or reorder agents, rename them, edit their JSON schemas, adjust the numeric **Loop limit** (default `0` = no loops), or delete entries.
+5. Use **Save Agent** to persist the sequence to the `agents/` directory, or **Load Agent** to reuse prior configurations. Active sequences are also cached temporarily so you can resume later in the same session.
+6. Press **Run Agent** to execute the sequence; progress updates stream into the chat log, and the UI prevents concurrent runs. Loop directives respect the configured limit and fall back to linear execution when the cap is reached.
+7. Use **Clear Chat** or exit the application to clear the temporary agent cache. Saved sequences remain available under the `agents/` folder for future sessions.
 
 ### Working with Files
 - **Drop Files**: Drag and drop files directly into the chat window
@@ -177,6 +187,9 @@ The application is built with a modular architecture for maintainability:
 - **mcp_file_import.py**: Handles file import for the MCP
 - **error_handler.py**: Provides robust error management
 - **html_text.py**: Handles HTML and Markdown rendering in the UI
+- **agent_sequence_store.py**: Persists reusable agent sequences (`agents/*.agent.json`) and tracks loop-limit metadata.
+- **agent_cache.py**: Maintains the temporary cache used while staging agents so work survives until cleared.
+- **agents/**: Directory where saved agent sequences live (created automatically on first save).
 
 ### File Processing Architecture
 
