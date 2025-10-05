@@ -38,6 +38,7 @@ from mcp_ui_enhanced import MCPPanelEnhanced as MCPPanel
 # Enhanced tools system imports
 from tools_manager import ToolsManager, ToolTask, ToolStatus
 from tool_status_panel import ToolStatusPanel
+from panda_csv_tool import PandaCSVAnalysisTool
 from enhanced_tools import (
     EnhancedWebSearchTool, 
     EnhancedFileTools, 
@@ -427,6 +428,7 @@ class OllamaChat:
         self.read_file_var = tk.BooleanVar(value=self.settings.get("read_file", False))
         self.intelligent_processing_var = tk.BooleanVar(value=self.settings.get("intelligent_processing", True))
         self.truncate_file_display_var = tk.BooleanVar(value=self.settings.get("truncate_file_display", True))
+        self.panda_csv_var = tk.BooleanVar(value=False)  # Always starts disabled
 
         # Processing control
         self.is_processing = False
@@ -443,6 +445,10 @@ class OllamaChat:
         self.enhanced_web_search = EnhancedWebSearchTool(self.tools_manager)
         self.enhanced_file_tools = EnhancedFileTools(self.tools_manager)
         self.enhanced_dependency_manager = EnhancedDependencyManager(self.tools_manager)
+        
+        # Panda CSV Analysis Tool
+        self.panda_csv_tool = PandaCSVAnalysisTool()
+        self.panda_csv_preview_prompt = None  # Store prompt during preview
         
         # Tool task tracking
         self.active_tasks = {}  # Maps task_id to description
@@ -939,6 +945,16 @@ class OllamaChat:
             style="TCheckbutton"
         )
         truncate_file_display_checkbox.pack(anchor="w", padx=3, pady=2)
+
+        # Panda CSV Analysis Tool checkbox
+        panda_csv_checkbox = ttk.Checkbutton(
+            tools_frame.content_frame,
+            text="Panda CSV Analysis Tool",
+            variable=self.panda_csv_var,
+            command=self.on_panda_csv_toggle,
+            style="TCheckbutton"
+        )
+        panda_csv_checkbox.pack(anchor="w", padx=3, pady=2)
 
         # Conversations section - using CollapsibleFrame
         conversations_frame = CollapsibleFrame(self.scrollable_sidebar, title="Conversations", expanded=True)
@@ -1850,7 +1866,7 @@ class OllamaChat:
             from agent_cache import create_agent_definition
 
             # Check maximum agent limit
-            max_agents = self.settings.get("agent_max_count", 10)
+            max_agents = self.settings.get("agent_max_count", 999)
             if len(self.armed_agents) >= max_agents:
                 self.display_message(f"\nMaximum agent limit ({max_agents}) reached. Cannot stage more agents.\n", 'error')
                 return
@@ -2740,6 +2756,236 @@ class OllamaChat:
         truncate_enabled = self.truncate_file_display_var.get()
         self.settings.set("truncate_file_display", truncate_enabled)
 
+    def on_panda_csv_toggle(self):
+        """Handle Panda CSV Analysis Tool toggle."""
+        try:
+            if self.panda_csv_var.get():
+                # Tool enabled - prompt for CSV file
+                file_path = filedialog.askopenfilename(
+                    title="Select CSV File for Analysis",
+                    filetypes=[("CSV Files", "*.csv"), ("All Files", "*.*")]
+                )
+                
+                if not file_path:
+                    # User canceled - disable checkbox
+                    self.panda_csv_var.set(False)
+                    return
+                
+                # Load the CSV
+                try:
+                    self.panda_csv_tool.load_csv(file_path)
+                    metadata = self.panda_csv_tool.get_metadata()
+                    
+                    # Display success message with metadata and helper text
+                    msg = f"\n[CSV Tool Enabled]\n"
+                    msg += f"File: {metadata['file_path']}\n"
+                    msg += f"Rows: {metadata['rows']}, Columns: {metadata['columns']}\n"
+                    msg += f"Original Headers: {', '.join(metadata['original_headers'])}\n\n"
+                    msg += "Helper Text:\n"
+                    msg += "  {{CX}} - Double braces = Output Column (write result to column X)\n"
+                    msg += "  {CX} - Single braces = Input Column (read value from column X)\n"
+                    msg += "  {RX} - Row specification (optional)\n"
+                    msg += "    {R1}      - Process only row 1\n"
+                    msg += "    {R1-5}    - Process rows 1 through 5\n"
+                    msg += "    {R1,3,5}  - Process rows 1, 3, and 5\n"
+                    msg += "    {R5-}     - Process rows 5 to end\n"
+                    msg += "    No {R...} - Process all rows\n"
+                    msg += "  Example: '{R1-10} Grade this answer: {C1}. Write score to {{C5}}'\n\n"
+                    msg += "Enter your prompt using column/row references, then I'll show you a preview.\n"
+                    
+                    self.display_message(msg, 'status')
+                    
+                    # Warn about chat history
+                    self.display_message("\n⚠️ WARNING: When CSV Tool is active, chat history is NOT included in prompts.\n", 'error')
+                    
+                except Exception as e:
+                    self.display_message(f"\n[CSV Tool Error]\nFailed to load CSV: {e}\n", 'error')
+                    self.panda_csv_var.set(False)
+                    return
+            
+            else:
+                # Tool disabled - clear state
+                self.panda_csv_tool.clear()
+                self.panda_csv_preview_prompt = None
+                self.display_message("\n[CSV Tool Disabled]\n", 'status')
+                
+        except Exception as e:
+            self.display_message(f"\n[CSV Tool Error]\n{e}\n", 'error')
+            self.panda_csv_var.set(False)
+
+    def process_csv_rows(self, prompt: str, preview_only: bool = False):
+        """Process CSV rows with the given prompt.
+        
+        Args:
+            prompt: The prompt template with {CX}, {{CX}}, and optional {R...} placeholders
+            preview_only: If True, only process first 3 rows for preview
+        """
+        try:
+            if not self.panda_csv_tool.has_data():
+                self.display_message("\n[CSV Tool Error]\nNo CSV loaded.\n", 'error')
+                return
+            
+            # Import here to access utility function
+            from panda_csv_tool import parse_row_specification
+            
+            metadata = self.panda_csv_tool.get_metadata()
+            total_rows = metadata['rows']
+            
+            # Extract row specification from prompt
+            row_spec, cleaned_prompt = self.panda_csv_tool.extract_row_specification(prompt)
+            
+            # Determine which rows to process
+            if row_spec:
+                try:
+                    # Parse the row specification
+                    row_indices = parse_row_specification(row_spec, total_rows)
+                    
+                    # In preview mode, limit to first 3 of specified rows
+                    if preview_only:
+                        rows_to_process = row_indices[:3]
+                    else:
+                        rows_to_process = row_indices
+                    
+                    spec_description = f"rows {row_spec}"
+                except ValueError as e:
+                    self.display_message(f"\n[CSV Tool Error]\nInvalid row specification: {e}\n", 'error')
+                    return
+            else:
+                # No row specification - process all rows or first 3 for preview
+                if preview_only:
+                    rows_to_process = list(range(min(3, total_rows)))
+                    spec_description = "all rows"
+                else:
+                    rows_to_process = list(range(total_rows))
+                    spec_description = "all rows"
+            
+            # Display start message
+            if preview_only:
+                mode_str = f"PREVIEW MODE - First {len(rows_to_process)} rows of {spec_description}"
+            else:
+                mode_str = f"Processing {len(rows_to_process)} rows ({spec_description})"
+            
+            self.display_message(f"\n[CSV Processing Started - {mode_str}]\n", 'status')
+            
+            # Process each row
+            for idx, row_idx in enumerate(rows_to_process):
+                if self.stop_event.is_set():
+                    self.display_message(f"\n[CSV Processing Stopped]\nProcessed {idx}/{len(rows_to_process)} rows.\n", 'status')
+                    break
+                
+                # Show progress
+                self.display_message(f"\n--- Row {row_idx + 1} ({idx + 1}/{len(rows_to_process)}) ---\n", 'status')
+                
+                # Process the prompt for this row (use cleaned_prompt without {R...})
+                processed_prompt, output_columns, substitution_log = self.panda_csv_tool.process_prompt_for_row(
+                    row_idx, cleaned_prompt
+                )
+                
+                # Display what we're sending
+                self.display_message(f"Prompt: {processed_prompt[:200]}{'...' if len(processed_prompt) > 200 else ''}\n", 'info')
+                self.display_message(f"Expected outputs: {', '.join([f'COLUMN_{col}' for col in output_columns])}\n", 'info')
+                
+                # Call the model (using current chat settings but NO chat history)
+                try:
+                    # Save original chat history
+                    original_history = self.conversation_manager.current_conversation.messages.copy()
+                    
+                    # Temporarily clear history for this request
+                    self.conversation_manager.current_conversation.messages = []
+                    
+                    # Get response
+                    response_text = self._get_model_response_sync(processed_prompt)
+                    
+                    # Restore history
+                    self.conversation_manager.current_conversation.messages = original_history
+                    
+                    # Parse the response
+                    parsed_results = self.panda_csv_tool.parse_model_response(response_text, output_columns)
+                    
+                    # Display results
+                    if parsed_results:
+                        self.display_message("Results:\n", 'info')
+                        for col_num, value in parsed_results.items():
+                            self.display_message(f"  COLUMN_{col_num}: {value[:100]}{'...' if len(value) > 100 else ''}\n", 'info')
+                        
+                        # Update cells (only if not preview mode)
+                        if not preview_only:
+                            for col_num, value in parsed_results.items():
+                                self.panda_csv_tool.update_cell(row_idx, col_num, value)
+                    else:
+                        self.display_message("No valid outputs found in response.\n", 'error')
+                    
+                except Exception as e:
+                    self.display_message(f"Error processing row {row_idx + 1}: {e}\n", 'error')
+                    continue
+                
+                # Save after each row (only if not preview mode)
+                if not preview_only:
+                    try:
+                        self.panda_csv_tool.save_csv()
+                        self.display_message(f"✓ Saved after row {row_idx + 1}\n", 'status')
+                    except Exception as e:
+                        self.display_message(f"Warning: Failed to save after row {row_idx + 1}: {e}\n", 'error')
+            
+            # Final message
+            if preview_only:
+                self.display_message("\n[Preview Complete]\n", 'status')
+                if row_spec:
+                    self.display_message(f"Type 'ok' to continue processing {spec_description}, or enter a new prompt to modify.\n", 'info')
+                else:
+                    self.display_message("Type 'ok' to continue processing all rows, or enter a new prompt to modify.\n", 'info')
+                # Store the prompt for later
+                self.panda_csv_preview_prompt = prompt
+            else:
+                self.display_message(f"\n[CSV Processing Complete]\nProcessed {len(rows_to_process)} rows.\n", 'status')
+                self.display_message(f"Results saved to: {metadata['file_path']}\n", 'info')
+                # Clear preview prompt
+                self.panda_csv_preview_prompt = None
+                
+        except Exception as e:
+            self.display_message(f"\n[CSV Processing Error]\n{e}\n", 'error')
+            import traceback
+            traceback.print_exc()
+
+    def _get_model_response_sync(self, prompt: str) -> str:
+        """Get a synchronous response from the model for CSV processing.
+        
+        Args:
+            prompt: The prompt to send
+            
+        Returns:
+            The model's response text
+        """
+        try:
+            # Use the current model manager
+            model_manager = self.model_manager
+            
+            # Prepare messages (just the prompt, no history)
+            messages = [{"role": "user", "content": prompt}]
+            
+            # Get response based on model type
+            if hasattr(model_manager, 'stream_chat'):
+                # Ollama or similar - collect streaming response
+                full_response = ""
+                for chunk in model_manager.stream_chat(messages, model_manager.current_model):
+                    if isinstance(chunk, dict) and 'message' in chunk:
+                        content = chunk['message'].get('content', '')
+                        full_response += content
+                    elif isinstance(chunk, str):
+                        full_response += chunk
+                return full_response
+            
+            elif hasattr(model_manager, 'send_message'):
+                # Gemini or Anthropic - direct response
+                response = model_manager.send_message(prompt)
+                return response
+            
+            else:
+                raise ValueError(f"Unsupported model manager type: {type(model_manager)}")
+                
+        except Exception as e:
+            raise Exception(f"Failed to get model response: {e}")
+
     # OpenAI Example
     # def create_intelligent_markitdown(self):
     #     """Create a MarkItDown instance with OpenAI integration for intelligent processing."""
@@ -3152,6 +3398,23 @@ class OllamaChat:
         # Check if Agent Mode is active - if so, stage the agent instead of sending
         if self.agent_mode_var.get():
             self.stage_agent(original_input)
+            return
+
+        # Check if Panda CSV Tool is active
+        if self.panda_csv_var.get() and self.panda_csv_tool.has_data():
+            # Display user input
+            self.display_message("\n", 'user')
+            self.display_message(f"{original_input}\n", 'user')
+            self.input_field.delete("1.0", tk.END)
+            
+            # Check if user typed 'ok' to continue from preview
+            if self.panda_csv_preview_prompt and original_input.lower().strip() == 'ok':
+                # Continue with full processing using stored prompt
+                self.process_csv_rows(self.panda_csv_preview_prompt, preview_only=False)
+                return
+            
+            # Otherwise, treat as new prompt and start preview
+            self.process_csv_rows(original_input, preview_only=True)
             return
 
         # Process file read requests if Read File tool is enabled
