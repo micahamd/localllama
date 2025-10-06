@@ -1306,6 +1306,21 @@ class OllamaChat:
         # Configure link tag for clickable links with enhanced styling
         self.chat_display.tag_configure('link', foreground=self.highlight_color, underline=1)
         self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
+        
+        # Configure code block tags for enhanced markdown support
+        self.chat_display.tag_configure('code',
+            background='#0D0E14',  # Dark code background
+            foreground='#E0E0E0',  # Light text
+            font=('Consolas', 10),
+            spacing1=4,
+            spacing3=4,
+            lmargin1=10,
+            lmargin2=10,
+            rmargin=10)
+        
+        self.chat_display.tag_configure('code_language',
+            foreground=self.warning_color,  # Yellow/amber for language label
+            font=('Consolas', 9, 'bold'))
 
     def create_context_menu(self):
         """Create context menu for right-click actions."""
@@ -3841,7 +3856,7 @@ class OllamaChat:
         return list(sources.values())
 
     def display_message(self, message, tag=None):
-        """Display a message in the chat window with optional tags and markdown rendering."""
+        """Display a message in the chat window with optional tags and enhanced markdown rendering."""
         self.chat_display["state"] = "normal"
 
         # Add role label if it's a new message
@@ -3865,39 +3880,66 @@ class OllamaChat:
 
         # Process the message based on the tag
         if tag == 'assistant':
-            # Use markdown rendering for assistant messages
+            # Use enhanced markdown rendering for assistant messages
             try:
-                # Save the current position to insert markdown content
-                current_pos = self.chat_display.index(tk.END)
-
-                # Process potential code blocks and render markdown
-                # We don't call clear() on chat_display because we want to append, not replace
-                html = markdown.markdown(
-                    message,
-                    extensions=['extra', 'codehilite', 'nl2br', 'sane_lists']
-                )
-
-                # Create a parser and feed the HTML
-                parser = HTMLTextParser(self.chat_display)
-                parser.feed(html)
-
+                self._render_markdown_safe(message)
             except Exception as e:
-                print(f"Error rendering markdown: {e}")
-                # Fallback to original method if markdown rendering fails
-                parts = message.split('```')
-                for i, part in enumerate(parts):
-                    if i % 2 == 0:  # Regular text
-                        self.chat_display.insert(tk.END, part, 'assistant')
-                    else:  # Code block
-                        self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline before code
-                        self.chat_display.insert(tk.END, part.strip(), 'code')  # Code with code tag
-                        self.chat_display.insert(tk.END, '\n', 'assistant')  # Newline after code
+                print(f"Error in markdown rendering: {e}")
+                # Fallback to basic display
+                self._display_message_fallback(message, tag)
         else:
             # For other message types, just insert with the tag
             self.chat_display.insert(tk.END, message, tag)
 
         self.chat_display["state"] = "disabled"
         self.chat_display.see(tk.END)
+    
+    def _render_markdown_safe(self, message):
+        """Safely render markdown with improved error handling."""
+        try:
+            # Convert markdown to HTML with enhanced extensions
+            html = markdown.markdown(
+                message,
+                extensions=[
+                    'extra',           # Tables, code blocks, etc.
+                    'codehilite',      # Syntax highlighting support
+                    'nl2br',           # Convert newlines to <br>
+                    'sane_lists',      # Better list handling
+                    'fenced_code'      # Support for ``` code blocks
+                ]
+            )
+            
+            # Create parser with current color scheme
+            parser = HTMLTextParser(self.chat_display)
+            parser.feed(html)
+            
+        except Exception as e:
+            print(f"Markdown parse error: {e}")
+            # Fall back to basic display
+            raise  # Re-raise to trigger fallback in display_message
+    
+    def _display_message_fallback(self, message, tag):
+        """Fallback display method for when markdown rendering fails."""
+        parts = message.split('```')
+        for i, part in enumerate(parts):
+            if i % 2 == 0:  # Regular text
+                self.chat_display.insert(tk.END, part, tag)
+            else:  # Code block
+                # Try to extract language from first line
+                lines = part.strip().split('\n', 1)
+                if len(lines) > 1:
+                    language = lines[0].strip()
+                    code = lines[1] if len(lines) > 1 else ''
+                else:
+                    language = ''
+                    code = part.strip()
+                
+                # Display code block with basic formatting
+                self.chat_display.insert(tk.END, '\n', tag)
+                if language:
+                    self.chat_display.insert(tk.END, f'[{language}]\n', 'code_language')
+                self.chat_display.insert(tk.END, code, 'code')
+                self.chat_display.insert(tk.END, '\n', tag)
 
     def open_url_from_text(self):
         """Open URL from clicked text."""

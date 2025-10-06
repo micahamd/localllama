@@ -6,9 +6,9 @@ from io import StringIO
 from html.parser import HTMLParser
 
 class HTMLTextParser(HTMLParser):
-    """HTML Parser for converting HTML to Tkinter Text widget content with tags."""
+    """HTML Parser for converting HTML to Tkinter Text widget content with tags and cyberpunk styling."""
 
-    def __init__(self, text_widget):
+    def __init__(self, text_widget, color_scheme=None):
         super().__init__()
         self.text_widget = text_widget
         self.current_tags = []
@@ -17,6 +17,111 @@ class HTMLTextParser(HTMLParser):
         self.in_code_block = False
         self.code_language = ""
         self.code_content = ""
+        
+        # Color scheme for cyberpunk theme
+        self.colors = color_scheme or self._default_colors()
+        self._configure_tags()
+    
+    def _default_colors(self):
+        """Return default cyberpunk color scheme matching main UI."""
+        return {
+            'bg': '#1A1B26',
+            'fg': '#C0CAF5',
+            'accent': '#7AA2F7',
+            'purple': '#BB9AF7',
+            'cyan': '#2AC3DE',
+            'green': '#9ECE6A',
+            'red': '#F7768E',
+            'yellow': '#E0AF68',
+            'code_bg': '#0D0E14',
+            'code_fg': '#E0E0E0',
+            'link': '#7AA2F7',
+            'quote_border': '#414868',
+            'hr': '#414868'
+        }
+    
+    def _configure_tags(self):
+        """Configure text widget tags with cyberpunk styling."""
+        # Headers with gradient effect (using different shades)
+        self.text_widget.tag_configure('h1',
+            font=('Segoe UI', 18, 'bold'),
+            foreground=self.colors['purple'],
+            spacing1=12,
+            spacing3=12)
+        
+        self.text_widget.tag_configure('h2',
+            font=('Segoe UI', 16, 'bold'),
+            foreground=self.colors['cyan'],
+            spacing1=10,
+            spacing3=10)
+        
+        self.text_widget.tag_configure('h3',
+            font=('Segoe UI', 14, 'bold'),
+            foreground=self.colors['accent'],
+            spacing1=8,
+            spacing3=8)
+        
+        self.text_widget.tag_configure('h4',
+            font=('Segoe UI', 12, 'bold'),
+            foreground=self.colors['green'],
+            spacing1=6,
+            spacing3=6)
+        
+        # Text formatting
+        self.text_widget.tag_configure('bold',
+            font=('Segoe UI', 10, 'bold'))
+        
+        self.text_widget.tag_configure('italic',
+            font=('Segoe UI', 10, 'italic'))
+        
+        self.text_widget.tag_configure('underline',
+            underline=1)
+        
+        # Links with hover effect
+        self.text_widget.tag_configure('link',
+            foreground=self.colors['link'],
+            underline=1)
+        
+        # Code blocks
+        self.text_widget.tag_configure('code',
+            background=self.colors['code_bg'],
+            foreground=self.colors['code_fg'],
+            font=('Consolas', 10),
+            spacing1=4,
+            spacing3=4,
+            lmargin1=10,
+            lmargin2=10,
+            rmargin=10)
+        
+        self.text_widget.tag_configure('code_language',
+            foreground=self.colors['yellow'],
+            font=('Consolas', 9, 'bold'))
+        
+        self.text_widget.tag_configure('pre',
+            background=self.colors['code_bg'],
+            font=('Consolas', 10))
+        
+        # Lists
+        self.text_widget.tag_configure('list_item',
+            lmargin1=20,
+            lmargin2=30)
+        
+        # Blockquotes
+        self.text_widget.tag_configure('blockquote',
+            background='#24283B',  # Slightly lighter than bg
+            foreground=self.colors['fg'],
+            lmargin1=20,
+            lmargin2=20,
+            rmargin=20,
+            spacing1=5,
+            spacing3=5)
+        
+        self.text_widget.tag_configure('blockquote_marker',
+            foreground=self.colors['quote_border'])
+        
+        # Horizontal rule
+        self.text_widget.tag_configure('hr',
+            foreground=self.colors['hr'])
 
     def handle_starttag(self, tag, attrs):
         attrs_dict = dict(attrs)
@@ -61,39 +166,61 @@ class HTMLTextParser(HTMLParser):
 
     def handle_endtag(self, tag):
         if tag == 'b' or tag == 'strong':
-            self.current_tags.remove('bold')
+            if 'bold' in self.current_tags:
+                self.current_tags.remove('bold')
         elif tag == 'i' or tag == 'em':
-            self.current_tags.remove('italic')
+            if 'italic' in self.current_tags:
+                self.current_tags.remove('italic')
         elif tag == 'u':
-            self.current_tags.remove('underline')
+            if 'underline' in self.current_tags:
+                self.current_tags.remove('underline')
         elif tag == 'a':
-            self.current_tags.remove('link')
+            if 'link' in self.current_tags:
+                self.current_tags.remove('link')
         elif tag == 'h1':
-            self.current_tags.remove('h1')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            if 'h1' in self.current_tags:
+                self.current_tags.remove('h1')
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'h2':
-            self.current_tags.remove('h2')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            if 'h2' in self.current_tags:
+                self.current_tags.remove('h2')
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'h3':
-            self.current_tags.remove('h3')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            if 'h3' in self.current_tags:
+                self.current_tags.remove('h3')
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'h4':
-            self.current_tags.remove('h4')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            if 'h4' in self.current_tags:
+                self.current_tags.remove('h4')
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'p':
-            self.text_widget.insert(tk.END, "\n\n", self.current_tags)
+            self.text_widget.insert(tk.END, "\n\n", tuple(self.current_tags))
         elif tag == 'li':
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'blockquote':
-            self.current_tags.remove('blockquote')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            if 'blockquote' in self.current_tags:
+                self.current_tags.remove('blockquote')
+            self.text_widget.insert(tk.END, "\n", tuple(self.current_tags))
         elif tag == 'code' and self.in_code_block:
             self.in_code_block = False
             self.skip_data = False
-            self.text_widget.insert(tk.END, self.code_content, 'code')
-            self.text_widget.insert(tk.END, "\n", self.current_tags)
+            
+            # Display code with language label if available
+            if self.code_language:
+                self.text_widget.insert(tk.END, f'\n[{self.code_language}]\n', 'code_language')
+            else:
+                self.text_widget.insert(tk.END, '\n', tuple(self.current_tags))
+            
+            # Insert code content with proper formatting
+            self.text_widget.insert(tk.END, self.code_content.strip(), 'code')
+            self.text_widget.insert(tk.END, '\n\n', tuple(self.current_tags))
+            
+            # Reset code tracking
+            self.code_language = ""
+            self.code_content = ""
         elif tag == 'pre':
-            self.current_tags.remove('pre')
+            if 'pre' in self.current_tags:
+                self.current_tags.remove('pre')
 
     def handle_data(self, data):
         if self.skip_data:
