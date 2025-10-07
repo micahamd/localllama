@@ -2421,10 +2421,18 @@ class OllamaChat:
             # Process Write File requests if tool is enabled
             if tools.get('write_file', False):
                 try:
+                    self.root.after(0, lambda t=agent_title: 
+                        self.display_message(f"[{t}] Checking for file write requests...\n", 'status'))
+                    
                     files_written = self.process_file_write_requests(response)
                     if files_written > 0:
                         self.root.after(0, lambda t=agent_title, count=files_written: 
                             self.display_message(f"[{t}] {count} file(s) written successfully\n", 'status'))
+                    else:
+                        # Check if response contains file path patterns but no content was extracted
+                        if '[[' in response and ']]' in response:
+                            self.root.after(0, lambda t=agent_title: 
+                                self.display_message(f"[{t}] ⚠️ File path found but no valid content extracted\n", 'warning'))
                 except Exception as e:
                     self.root.after(0, lambda t=agent_title, err=str(e): 
                         self.display_message(f"[{t}] File write error: {err}\n", 'error'))
@@ -4053,8 +4061,14 @@ class OllamaChat:
         if content_after_path:
             return content_after_path
 
-        # Fallback: use the entire response (cleaned)
-        return self.clean_response_for_file(response_text)
+        # NEW: Try to find content BEFORE the file path (common pattern)
+        content_before_path = self.extract_content_before_path(response_text, file_path)
+        if content_before_path:
+            return content_before_path
+
+        # CHANGED: Don't fall back to entire response - return empty string instead
+        # The calling function will handle empty content appropriately
+        return ""
 
     def extract_from_code_blocks(self, response_text, file_path):
         """Extract content from code blocks in the response.
@@ -4096,6 +4110,71 @@ class OllamaChat:
 
             # If no language match, return the first code block
             return matches[0][1].strip()
+
+        return None
+
+    def extract_content_before_path(self, response_text, file_path):
+        """Extract content that appears BEFORE the file path mention.
+
+        This handles the common pattern where AI writes:
+        "Here's the content:
+        [actual content here]
+        [[file.txt]]"
+
+        Args:
+            response_text: The AI response text
+            file_path: The file path mentioned
+
+        Returns:
+            str: Extracted content or None
+        """
+        # Find the position of the file path in the response
+        path_patterns = [
+            f'[["{file_path}"]]',
+            f'[[\'{file_path}\']]',
+            f'[[{file_path}]]'
+        ]
+
+        for pattern in path_patterns:
+            if pattern in response_text:
+                # Find content BEFORE this pattern
+                end_pos = response_text.find(pattern)
+                preceding_text = response_text[:end_pos].strip()
+
+                # Look for common content delimiters
+                # Try to find the last code block before the file path
+                code_block_match = re.findall(r'```(?:\w+)?\s*(.*?)\s*```', preceding_text, re.DOTALL)
+                if code_block_match:
+                    # Return the last code block
+                    return code_block_match[-1].strip()
+
+                # Try to find content after common phrases like "here's", "content:", etc.
+                content_markers = [
+                    r'(?:here\'?s?\s+(?:the\s+)?content:?|content:?|file\s+content:?)\s*\n+(.*)',
+                    r'(?:I\'ll\s+(?:create|write)|creating|writing).*?:\s*\n+(.*)',
+                    r'(?:save|saving)\s+(?:this|the\s+following).*?:\s*\n+(.*)'
+                ]
+
+                for marker_pattern in content_markers:
+                    match = re.search(marker_pattern, preceding_text, re.IGNORECASE | re.DOTALL)
+                    if match:
+                        content = match.group(1).strip()
+                        # Stop at common ending phrases
+                        for ending in ['I hope', 'Let me know', 'Would you like', 'This will', 'This should']:
+                            if ending in content:
+                                content = content[:content.find(ending)].strip()
+                        if len(content) > 10:
+                            return content
+
+                # If no markers found but there's substantial content, use the last paragraph
+                if len(preceding_text) > 50:
+                    # Split by double newlines (paragraphs)
+                    paragraphs = [p.strip() for p in preceding_text.split('\n\n') if p.strip()]
+                    if paragraphs:
+                        last_paragraph = paragraphs[-1]
+                        # Check if it looks like actual content (not just explanation)
+                        if len(last_paragraph) > 30 and not last_paragraph.lower().startswith(('i ', 'here', 'this', 'let', 'would')):
+                            return last_paragraph
 
         return None
 
@@ -4287,6 +4366,7 @@ class OllamaChat:
             return 0
 
         successful_writes = 0
+        skipped_empty = 0
 
         self.display_message(f"\n📝 Processing {len(write_requests)} file write request(s)...\n", 'status')
 
@@ -4294,9 +4374,28 @@ class OllamaChat:
             file_path = request['path']
             content = request['content']
 
+            # Improved validation
             if not content or len(content.strip()) == 0:
-                self.display_message(f"\n⚠️ Skipping '{file_path}': No content to write\n", 'warning')
+                skipped_empty += 1
+                self.display_message(f"\n⚠️ Skipping '{file_path}': No content extracted\n", 'warning')
+                self.display_message(f"💡 Tip: Ensure content is in a code block or clearly delimited before/after the file path\n", 'status')
                 continue
+
+            # Additional check: don't write if content is suspiciously short
+            if len(content.strip()) < 5:
+                skipped_empty += 1
+                self.display_message(f"\n⚠️ Skipping '{file_path}': Content too short ({len(content)} chars)\n", 'warning')
+                continue
+
+            # Additional check: don't write if content looks like AI explanation
+            lower_content = content.lower()[:100]
+            explanation_indicators = ['i will', 'i have', 'here is how', 'let me', 'i can', 'this will', 'i\'ll']
+            if any(indicator in lower_content for indicator in explanation_indicators):
+                # Be cautious but don't skip if it's substantial content
+                if len(content) < 100:
+                    skipped_empty += 1
+                    self.display_message(f"\n⚠️ Skipping '{file_path}': Content appears to be explanation, not file data\n", 'warning')
+                    continue
 
             success, message = self.write_file_safely_sync(file_path, content)
 
@@ -4315,8 +4414,13 @@ class OllamaChat:
             else:
                 self.display_message(f"\n❌ Failed to write '{file_path}': {message}\n", 'error')
 
+        # Summary message
         if successful_writes > 0:
             self.display_message(f"\n🎉 Successfully wrote {successful_writes} file(s)!\n", 'status')
+
+        if skipped_empty > 0:
+            self.display_message(f"\n⚠️ Skipped {skipped_empty} file(s) due to empty or invalid content\n", 'warning')
+            self.display_message(f"💡 Tip: Ask the AI to include content in code blocks or clearly mark content boundaries\n", 'status')
 
         return successful_writes
 
@@ -4927,6 +5031,10 @@ class OllamaChat:
             if files_mentioned:
                 file_info = f"Files processed: {', '.join(files_mentioned)}"
                 clean_conversation.insert(0, {"Files": file_info})
+
+            # Validate that we have actual content to save
+            if not clean_conversation:
+                return "Error: No valid conversation content to save (all messages were filtered out)"
 
             # Ensure filename has .json extension
             if not filename.endswith('.json'):
