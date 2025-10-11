@@ -537,6 +537,7 @@ class OllamaChat:
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="View Help", command=self.show_help_window)
 
     def create_sidebar(self):
         """Create the sidebar with settings and model selection."""
@@ -1570,6 +1571,195 @@ class OllamaChat:
             self.secondary_bg
         )
         mcp_panel.show()
+
+    def show_help_window(self):
+        """Show the comprehensive help documentation window."""
+        # Create help window
+        help_window = tk.Toplevel(self.root)
+        help_window.title("Local(o)llama Chatbot - Help & Documentation")
+        help_window.geometry("1200x800")
+        help_window.minsize(900, 600)
+        help_window.configure(background=self.bg_color)
+        
+        # Load HELP.md content
+        help_file_path = os.path.join(os.path.dirname(__file__), 'HELP.md')
+        try:
+            with open(help_file_path, 'r', encoding='utf-8') as f:
+                help_content = f.read()
+        except FileNotFoundError:
+            messagebox.showerror("Help File Not Found", 
+                                "HELP.md file not found. Please ensure it exists in the application directory.")
+            help_window.destroy()
+            return
+        except Exception as e:
+            messagebox.showerror("Error Loading Help", 
+                                f"Error loading help file: {e}")
+            help_window.destroy()
+            return
+        
+        # Parse table of contents
+        toc_sections = self._extract_toc_from_markdown(help_content)
+        
+        # Create PanedWindow for two-panel layout
+        paned_window = ttk.PanedWindow(help_window, orient=tk.HORIZONTAL)
+        paned_window.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        # Left panel: Table of Contents
+        toc_frame = ttk.Frame(paned_window, relief=tk.SOLID, borderwidth=1)
+        paned_window.add(toc_frame, weight=1)
+        
+        # TOC header
+        toc_header = ttk.Label(toc_frame, text="Table of Contents", 
+                               font=('Segoe UI', 12, 'bold'),
+                               foreground=self.highlight_color,
+                               background=self.bg_color)
+        toc_header.pack(fill=tk.X, padx=10, pady=10)
+        
+        # TOC list with scrollbar
+        toc_scroll_frame = ttk.Frame(toc_frame)
+        toc_scroll_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+        
+        toc_scrollbar = ttk.Scrollbar(toc_scroll_frame)
+        toc_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        toc_listbox = tk.Listbox(
+            toc_scroll_frame,
+            yscrollcommand=toc_scrollbar.set,
+            bg=self.secondary_bg,
+            fg=self.fg_color,
+            selectbackground=self.highlight_color,
+            selectforeground=self.bg_color,
+            font=('Segoe UI', 10),
+            relief=tk.FLAT,
+            highlightthickness=0,
+            activestyle='none',
+            cursor='hand2'
+        )
+        toc_listbox.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        toc_scrollbar.config(command=toc_listbox.yview)
+        
+        # Populate TOC
+        for section in toc_sections:
+            indent = '  ' * (section['level'] - 1)
+            display_text = f"{indent}{section['title']}"
+            toc_listbox.insert(tk.END, display_text)
+        
+        # Right panel: Content viewer
+        content_frame = ttk.Frame(paned_window, relief=tk.SOLID, borderwidth=1)
+        paned_window.add(content_frame, weight=3)
+        
+        # Content text widget with scrollbar
+        content_scroll_frame = ttk.Frame(content_frame)
+        content_scroll_frame.pack(fill=tk.BOTH, expand=True)
+        
+        content_scrollbar = ttk.Scrollbar(content_scroll_frame)
+        content_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        content_text = tk.Text(
+            content_scroll_frame,
+            yscrollcommand=content_scrollbar.set,
+            wrap=tk.WORD,
+            bg=self.bg_color,
+            fg=self.fg_color,
+            font=('Segoe UI', 10),
+            relief=tk.FLAT,
+            padx=15,
+            pady=15,
+            highlightthickness=0,
+            cursor='',
+            state='disabled'
+        )
+        content_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        content_scrollbar.config(command=content_text.yview)
+        
+        # Render initial content
+        self.parse_markdown_to_text_widget(content_text, help_content, 
+                                          lambda url: self._navigate_help_section(url, content_text, help_content, toc_sections, toc_listbox))
+        
+        # TOC click handler
+        def on_toc_click(event):
+            selection = toc_listbox.curselection()
+            if selection:
+                index = selection[0]
+                section = toc_sections[index]
+                self._scroll_to_section(content_text, help_content, section['anchor'])
+        
+        toc_listbox.bind('<<ListboxSelect>>', on_toc_click)
+        
+        # Enable mousewheel scrolling for content
+        def on_content_mousewheel(event):
+            content_text.yview_scroll(int(-1 * (event.delta / 120)), "units")
+        content_text.bind("<MouseWheel>", on_content_mousewheel)
+    
+    def _extract_toc_from_markdown(self, markdown_content):
+        """Extract table of contents sections from markdown content."""
+        sections = []
+        lines = markdown_content.split('\n')
+        
+        for line in lines:
+            # Match markdown headers (## or ### at start of line)
+            if line.startswith('##') and not line.startswith('###'):
+                # Level 2 header
+                title = line.strip('#').strip()
+                # Create anchor from title (lowercase, replace spaces with hyphens)
+                anchor = title.lower().replace(' ', '-').replace('&', '').replace('(', '').replace(')', '').replace(',', '').replace('.', '')
+                sections.append({
+                    'title': title,
+                    'anchor': anchor,
+                    'level': 2
+                })
+            elif line.startswith('###') and not line.startswith('####'):
+                # Level 3 header (sub-sections) - optional, can be added if needed
+                title = line.strip('#').strip()
+                anchor = title.lower().replace(' ', '-').replace('&', '').replace('(', '').replace(')', '').replace(',', '').replace('.', '')
+                sections.append({
+                    'title': title,
+                    'anchor': anchor,
+                    'level': 3
+                })
+        
+        return sections
+    
+    def _scroll_to_section(self, text_widget, markdown_content, anchor):
+        """Scroll to a specific section in the help content."""
+        # Find the section by searching for the header text
+        lines = markdown_content.split('\n')
+        line_number = 0
+        
+        for i, line in enumerate(lines):
+            if line.startswith('#'):
+                # Extract title from header
+                title = line.strip('#').strip()
+                line_anchor = title.lower().replace(' ', '-').replace('&', '').replace('(', '').replace(')', '').replace(',', '').replace('.', '')
+                if line_anchor == anchor:
+                    line_number = i
+                    break
+        
+        # Calculate approximate text position
+        # Each line in markdown roughly corresponds to a line in the Text widget
+        text_widget.see(f'{line_number + 1}.0')
+        text_widget.mark_set('insert', f'{line_number + 1}.0')
+    
+    def _navigate_help_section(self, url, content_text, help_content, toc_sections, toc_listbox):
+        """Navigate to a section from a markdown link."""
+        # Internal links start with #
+        if url.startswith('#'):
+            anchor = url[1:]  # Remove the #
+            self._scroll_to_section(content_text, help_content, anchor)
+            
+            # Highlight corresponding TOC item
+            for i, section in enumerate(toc_sections):
+                if section['anchor'] == anchor:
+                    toc_listbox.selection_clear(0, tk.END)
+                    toc_listbox.selection_set(i)
+                    toc_listbox.see(i)
+                    break
+        else:
+            # External link - open in browser
+            try:
+                webbrowser.open(url)
+            except Exception as e:
+                messagebox.showerror("Error", f"Could not open URL: {e}")
 
     def _ensure_rag_initialized(self):
         """Ensure RAG is initialized when needed."""
@@ -3948,6 +4138,214 @@ class OllamaChat:
                     self.chat_display.insert(tk.END, f'[{language}]\n', 'code_language')
                 self.chat_display.insert(tk.END, code, 'code')
                 self.chat_display.insert(tk.END, '\n', tag)
+
+    def parse_markdown_to_text_widget(self, text_widget, markdown_content, link_callback=None):
+        """Parse markdown and render it in a Text widget with proper formatting.
+        
+        Args:
+            text_widget: Tkinter Text widget to render into
+            markdown_content: Markdown string to parse
+            link_callback: Optional function to call when links are clicked (receives URL)
+        """
+        # Configure text widget tags for markdown elements
+        text_widget.tag_configure('h1', font=('Segoe UI', 18, 'bold'), foreground=self.highlight_color, spacing1=15, spacing3=10)
+        text_widget.tag_configure('h2', font=('Segoe UI', 16, 'bold'), foreground=self.accent_color, spacing1=12, spacing3=8)
+        text_widget.tag_configure('h3', font=('Segoe UI', 14, 'bold'), foreground=self.subtle_accent, spacing1=10, spacing3=6)
+        text_widget.tag_configure('h4', font=('Segoe UI', 12, 'bold'), foreground=self.fg_color, spacing1=8, spacing3=4)
+        text_widget.tag_configure('h5', font=('Segoe UI', 11, 'bold'), foreground=self.fg_color, spacing1=6, spacing3=3)
+        text_widget.tag_configure('h6', font=('Segoe UI', 10, 'bold'), foreground=self.muted_text, spacing1=4, spacing3=2)
+        
+        text_widget.tag_configure('bold', font=('Segoe UI', 10, 'bold'))
+        text_widget.tag_configure('italic', font=('Segoe UI', 10, 'italic'))
+        text_widget.tag_configure('bold_italic', font=('Segoe UI', 10, 'bold italic'))
+        text_widget.tag_configure('code', font=('Consolas', 9), background=self.secondary_bg, foreground=self.success_color)
+        text_widget.tag_configure('code_block', font=('Consolas', 9), background=self.secondary_bg, foreground=self.fg_color, spacing1=5, spacing3=5, lmargin1=20, lmargin2=20)
+        text_widget.tag_configure('link', foreground=self.highlight_color, underline=True)
+        text_widget.tag_configure('list_item', lmargin1=20, lmargin2=40)
+        text_widget.tag_configure('blockquote', lmargin1=20, lmargin2=20, foreground=self.muted_text, background=self.tertiary_bg)
+        text_widget.tag_configure('separator', foreground=self.border_color)
+        
+        # Make links clickable if callback provided
+        if link_callback:
+            text_widget.tag_bind('link', '<Button-1>', lambda e: self._handle_help_link_click(e, link_callback))
+            text_widget.tag_bind('link', '<Enter>', lambda e: text_widget.config(cursor='hand2'))
+            text_widget.tag_bind('link', '<Leave>', lambda e: text_widget.config(cursor=''))
+        
+        # Enable widget for insertion
+        text_widget['state'] = 'normal'
+        text_widget.delete('1.0', tk.END)
+        
+        # Parse markdown line by line
+        lines = markdown_content.split('\n')
+        i = 0
+        in_code_block = False
+        code_block_content = []
+        code_block_language = ''
+        
+        while i < len(lines):
+            line = lines[i]
+            
+            # Code block detection
+            if line.strip().startswith('```'):
+                if not in_code_block:
+                    # Start of code block
+                    in_code_block = True
+                    code_block_language = line.strip()[3:].strip()
+                    code_block_content = []
+                else:
+                    # End of code block
+                    in_code_block = False
+                    if code_block_language:
+                        text_widget.insert(tk.END, f'[{code_block_language}]\n', 'code')
+                    text_widget.insert(tk.END, '\n'.join(code_block_content) + '\n', 'code_block')
+                    text_widget.insert(tk.END, '\n')
+                    code_block_content = []
+                    code_block_language = ''
+                i += 1
+                continue
+            
+            # If in code block, collect lines
+            if in_code_block:
+                code_block_content.append(line)
+                i += 1
+                continue
+            
+            # Headers
+            if line.startswith('# '):
+                text_widget.insert(tk.END, line[2:] + '\n', 'h1')
+            elif line.startswith('## '):
+                text_widget.insert(tk.END, line[3:] + '\n', 'h2')
+            elif line.startswith('### '):
+                text_widget.insert(tk.END, line[4:] + '\n', 'h3')
+            elif line.startswith('#### '):
+                text_widget.insert(tk.END, line[5:] + '\n', 'h4')
+            elif line.startswith('##### '):
+                text_widget.insert(tk.END, line[6:] + '\n', 'h5')
+            elif line.startswith('###### '):
+                text_widget.insert(tk.END, line[7:] + '\n', 'h6')
+            
+            # Horizontal rule
+            elif line.strip() in ['---', '___', '***']:
+                text_widget.insert(tk.END, '─' * 80 + '\n', 'separator')
+            
+            # List items
+            elif line.strip().startswith('- ') or line.strip().startswith('* '):
+                self._parse_inline_formatting(text_widget, '• ' + line.strip()[2:], 'list_item')
+                text_widget.insert(tk.END, '\n')
+            elif re.match(r'^\d+\.\s', line.strip()):
+                # Numbered list
+                match = re.match(r'^(\d+)\.\s(.*)$', line.strip())
+                if match:
+                    num, content = match.groups()
+                    self._parse_inline_formatting(text_widget, f'{num}. {content}', 'list_item')
+                    text_widget.insert(tk.END, '\n')
+            
+            # Blockquote
+            elif line.strip().startswith('>'):
+                text_widget.insert(tk.END, line.strip()[1:].strip() + '\n', 'blockquote')
+            
+            # Regular paragraph
+            elif line.strip():
+                self._parse_inline_formatting(text_widget, line)
+                text_widget.insert(tk.END, '\n')
+            
+            # Empty line
+            else:
+                text_widget.insert(tk.END, '\n')
+            
+            i += 1
+        
+        # Disable widget after rendering
+        text_widget['state'] = 'disabled'
+    
+    def _parse_inline_formatting(self, text_widget, line, base_tag=''):
+        """Parse inline markdown formatting (bold, italic, code, links)."""
+        # Regular expressions for inline elements
+        patterns = [
+            (r'\[([^\]]+)\]\(([^)]+)\)', 'link'),  # [text](url)
+            (r'`([^`]+)`', 'code'),                  # `code`
+            (r'\*\*\*([^*]+)\*\*\*', 'bold_italic'), # ***text***
+            (r'\*\*([^*]+)\*\*', 'bold'),           # **text**
+            (r'\*([^*]+)\*', 'italic'),             # *text*
+            (r'___([^_]+)___', 'bold_italic'),      # ___text___
+            (r'__([^_]+)__', 'bold'),               # __text__
+            (r'_([^_]+)_', 'italic'),               # _text_
+        ]
+        
+        # Store link targets for later retrieval
+        if not hasattr(self, '_help_links'):
+            self._help_links = {}
+        
+        remaining = line
+        while remaining:
+            earliest_match = None
+            earliest_pos = len(remaining)
+            earliest_pattern_info = None
+            
+            # Find earliest match among all patterns
+            for pattern, tag_type in patterns:
+                match = re.search(pattern, remaining)
+                if match and match.start() < earliest_pos:
+                    earliest_match = match
+                    earliest_pos = match.start()
+                    earliest_pattern_info = (pattern, tag_type)
+            
+            if earliest_match:
+                # Insert text before match
+                if earliest_pos > 0:
+                    if base_tag:
+                        text_widget.insert(tk.END, remaining[:earliest_pos], base_tag)
+                    else:
+                        text_widget.insert(tk.END, remaining[:earliest_pos])
+                
+                # Insert formatted text
+                pattern, tag_type = earliest_pattern_info
+                if tag_type == 'link':
+                    link_text = earliest_match.group(1)
+                    link_url = earliest_match.group(2)
+                    
+                    # Store link info
+                    link_mark = f'link_{len(self._help_links)}'
+                    self._help_links[link_mark] = link_url
+                    
+                    # Insert link with mark
+                    start_idx = text_widget.index(tk.END)
+                    tags = ('link', link_mark, base_tag) if base_tag else ('link', link_mark)
+                    text_widget.insert(tk.END, link_text, tags)
+                else:
+                    formatted_text = earliest_match.group(1)
+                    tags = (tag_type, base_tag) if base_tag else (tag_type,)
+                    text_widget.insert(tk.END, formatted_text, tags)
+                
+                # Continue with remaining text
+                remaining = remaining[earliest_match.end():]
+            else:
+                # No more matches, insert remaining text
+                if base_tag:
+                    text_widget.insert(tk.END, remaining, base_tag)
+                else:
+                    text_widget.insert(tk.END, remaining)
+                break
+    
+    def _handle_help_link_click(self, event, link_callback):
+        """Handle clicking on a link in the help viewer."""
+        try:
+            # Get the link mark at click position
+            text_widget = event.widget
+            index = text_widget.index(f'@{event.x},{event.y}')
+            
+            # Get all tags at this position
+            tags = text_widget.tag_names(index)
+            
+            # Find link mark
+            for tag in tags:
+                if tag.startswith('link_'):
+                    url = self._help_links.get(tag)
+                    if url:
+                        link_callback(url)
+                    break
+        except Exception as e:
+            print(f"Error handling link click: {e}")
 
     def open_url_from_text(self):
         """Open URL from clicked text."""
