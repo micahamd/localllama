@@ -5,6 +5,9 @@
 \generated_images
 \prompts
 \memories
+\path
+\docs
+\agents
 .env
 error_log.txt
 gemini_template.py

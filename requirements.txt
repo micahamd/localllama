@@ -35,6 +35,7 @@ tqdm
 rich
 pillow
 pydantic
+pyperclip  # Clipboard operations for code copying
 
 # Audio and speech
 librosa

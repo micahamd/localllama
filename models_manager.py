@@ -36,6 +36,9 @@ class OllamaManager(ModelManager):
     @safe_execute("Fetching Ollama models")
     def __init__(self):
         super().__init__()
+        # Initialize attributes with empty lists to prevent AttributeError
+        self.llm_models = []
+        self.embedding_models = []
         self.refresh_models()
 
     @safe_execute("Refreshing Ollama models")
@@ -48,11 +51,11 @@ class OllamaManager(ModelManager):
 
     def get_llm_models(self) -> List[str]:
         """Get list of LLM models (excluding embedding models)."""
-        return self.llm_models
+        return self.llm_models if hasattr(self, 'llm_models') else []
 
     def get_embedding_models(self) -> List[str]:
         """Get list of embedding models."""
-        return self.embedding_models
+        return self.embedding_models if hasattr(self, 'embedding_models') else []
 
     @safe_execute("Getting Ollama response")
     def get_response(self, messages: List[Dict[str, Any]], **kwargs) -> Iterator[Dict[str, Any]]:

@@ -1,23 +1,43 @@
 # Local(o)llama chatbot
 
-A modular, feature-rich Python-based chat interface for interacting with local (Ollama) and proprietary (Google, Deepseek, Anthropic) large language models.
+A modular, feature-rich Python-based chat interface for interacting with local (Ollama) and proprietary (Google, Gemini, Deepseek, Anthropic) large language models.
 
 ## Features
 
-- **Multiple Developers**: Switch between  Ollama, Google Gemini, Deepseek, or Anthropic models within a single session.
-- **RAG (Retrieval-Augmented Generation)**: Use local/remote embedding models, with customizable chunk sizes, to retrieve document context.
-- **Conversation Management**: Chat sessions can be saved and loaded as JSON files.
-- **Agent Mode Sequencing**: Stage, review, and execute multi-step agent workflows with per-agent models, tools, and loop limits.
-- **Temperature and Context customization**: Sliders manage these parameters directly in the UI for all models.
-- **File Processing with MarkItDown**: Utilizes Microsoft's @markitdown package to process nearly all files into ML-readable markdown.
-- **MultiMedia Support**: Process images, audio files, and YouTube videos.
-- **System Instructions**: Customize model behavior with system prompts.
-- **Batch Processing**: Process multiple files with the same prompt.
-- **ZIP File Processing**: Extract content from ZIP archives directly.
-- **URL Content Extraction**: Process web content from URLs using @crawlAI.
-- **Memory Control Program (MCP)**: Store and retrieve knowledge with persistent memory system.
-- **File Import for Memories**: Convert various file types to memories using MarkItDown.
-- **Automatic Dependency Management**: Dynamically install required dependencies
+### Core Capabilities
+- **Multiple LLM Providers**: Switch between Ollama, Google Gemini, Deepseek, or Anthropic models within a single session
+- **RAG (Retrieval-Augmented Generation)**: Use local/remote embedding models with customizable chunk sizes to retrieve document context
+- **Conversation Management**: Save and load chat sessions as JSON files with full history preservation
+- **Temperature and Context Customization**: Real-time sliders to manage model parameters directly in the UI
+
+### Agent Mode (Multi-Agent Workflows)
+- **Sequential Agent Execution**: Stage multiple agents with different models, prompts, and tools
+- **Agent-to-Agent Communication**: Use `{{Agent-X}}` placeholders to pass outputs between agents
+- **Per-Agent Tool Configuration**: Each agent can have independent Read File, Write File, and Web Search tools
+- **Loop Control**: Configure loop limits for iterative agent sequences
+- **Save/Load Agent Sequences**: Persist reusable workflows to `agents/` directory
+- **Real-Time Execution Monitoring**: Live status updates for each agent in the sequence
+
+### File Processing Tools
+- **Panda CSV Analysis Tool**: Row-by-row CSV processing with dynamic column referencing and LLM-powered analysis
+- **MarkItDown Integration**: Process documents, images, audio, and more into ML-readable markdown
+- **Batch Processing**: Process multiple files with the same prompt
+- **ZIP File Processing**: Extract and process content from ZIP archives
+- **Drag-and-Drop Support**: Simply drop files into the chat for instant processing
+
+### Advanced Tools
+- **Read File Tool**: Reference files in prompts using `<<filename>>` syntax - content automatically injected
+- **Write File Tool**: AI can create files with `[[filename]]` syntax - content automatically saved
+- **Web Search Integration**: Real-time web search using crawl4ai for up-to-date information
+- **Memory Control Program (MCP)**: Persistent knowledge base with automatic memory retrieval
+- **URL Content Extraction**: Process web pages and YouTube videos directly from URLs
+
+### Media Support
+- **Images**: JPG, PNG, GIF, BMP with preview display
+- **Audio**: MP3, WAV, FLAC, M4A with automatic transcription
+- **Video**: YouTube transcription support
+- **Documents**: PDF, Word, Excel, PowerPoint, EPUB, and more
+- **Text Formats**: TXT, MD, JSON, CSV, XML, HTML
 
 ## Getting Started
 
@@ -50,178 +70,390 @@ python main.py
 ## Usage Guide
 
 ### Basic Chat
-1. Select a model provider and an associated LLM model
-2. Type your message in the input field, and click 'Send' or press Enter.
-3. Enable the Memory Control Program (MCP) to enhance responses with relevant memories.
+1. Select a model provider (Ollama, Google, Deepseek, or Anthropic)
+2. Choose a specific model from the dropdown
+3. Type your message and press Send or Enter
+4. Optionally enable MCP for enhanced responses with relevant memories
 
-### Agent Mode (Staged Multi-Agent Workflows)
-1. In the sidebar Options panel, tick **Agent Tool** to start staging agents—the chat log will display `Agent Sequence: Begin`.
-2. Enter agent-specific instructions and press **Send** for each step; the UI captures the full agent definition (model, tools, parameters) instead of querying the model immediately.
-3. Untick **Agent Tool** once you have at least one agent staged; the chat will confirm how many agents were defined and enable the **Configure Agents** button.
-4. Click **Configure Agents** to open the management window. Review or reorder agents, rename them, edit their JSON schemas, adjust the numeric **Loop limit** (default `0` = no loops), or delete entries.
-5. Use **Save Agent** to persist the sequence to the `agents/` directory, or **Load Agent** to reuse prior configurations. Active sequences are also cached temporarily so you can resume later in the same session.
-6. Press **Run Agent** to execute the sequence; progress updates stream into the chat log, and the UI prevents concurrent runs. Loop directives respect the configured limit and fall back to linear execution when the cap is reached.
-7. Use **Clear Chat** or exit the application to clear the temporary agent cache. Saved sequences remain available under the `agents/` folder for future sessions.
+### Agent Mode - Multi-Agent Workflows
+
+Agent Mode allows you to create sophisticated multi-step workflows where each agent can have different models, tools, and prompts. Agents execute sequentially and can pass data to each other.
+
+#### Staging Agents
+1. **Enable Agent Mode**: Check the **"Agent Tool"** checkbox in the sidebar
+2. **Enter Agent Prompts**: Type each agent's instructions and press Send
+   - The system captures the agent definition instead of executing immediately
+   - Each agent saves the current model, temperature, and tool settings
+3. **Stage Multiple Agents**: Repeat step 2 for each agent in your workflow
+4. **Disable Agent Mode**: Uncheck **"Agent Tool"** when done staging
+
+#### Configuring Agents
+1. Click **"Configure Agents"** to open the management window
+2. **Review Agents**: See all staged agents with their settings
+3. **Reorder**: Drag agents to change execution order
+4. **Edit**: Modify agent prompts, models, or tool settings
+5. **Set Loop Limits**: Configure how many times an agent can loop (default: 0 = no loops)
+6. **Delete**: Remove unwanted agents
+7. **Save/Load**: Persist sequences to `agents/` directory for reuse
+
+#### Agent-to-Agent Communication
+- Use `{{Agent-1}}`, `{{Agent-2}}`, etc. to reference previous agent outputs
+- Example workflow:
+  ```
+  Agent 1: "Summarize this document: <<report.pdf>>"
+  Agent 2: "Based on {{Agent-1}}, identify key recommendations"
+  Agent 3: "Create action items from {{Agent-2}} and save to [[action_items.txt]]"
+  ```
+
+#### Agent Tools (Per-Agent Configuration)
+Each agent can independently enable:
+- **Read File**: Use `<<filename>>` to inject file content into prompts
+- **Write File**: Model can save files with `[[filename]]` in response
+- **Web Search**: Automatic web search for current information
+
+**Important**: Tools are opt-in only. Check the tool boxes when staging each agent to enable them.
+
+#### Execution
+1. Click **"Run Agent"** to start the sequence
+2. Monitor real-time progress in the chat display
+3. Each agent shows:
+   - Status updates (file reads, web searches, file writes)
+   - Model responses
+   - Tool execution results
+4. Final outputs are displayed and can be referenced in subsequent runs
+
+#### Example Workflows
+
+**Research & Documentation Pipeline:**
+```
+Agent 1 [Web Search ✓]: "Search for Python 3.12 new features"
+Agent 2 [Write File ✓]: "Create guide from {{Agent-1}} in [[py312_guide.md]]"
+Agent 3 [Read File ✓]: "Read <<py312_guide.md>> and add code examples"
+Agent 4 [Write File ✓]: "Save enhanced version to [[py312_final.md]]"
+```
+
+**Data Analysis Workflow:**
+```
+Agent 1 [Read File ✓]: "Analyze data in <<sales.csv>> and find trends"
+Agent 2 [Web Search ✓]: "Find industry benchmarks for {{Agent-1}} metrics"
+Agent 3 [Write File ✓]: "Compare findings and save report to [[analysis.txt]]"
+```
+
+For detailed agent documentation, see: `AGENT_TOOLS_INTEGRATION.md` and `AGENT_TOOLS_QUICKREF.md`
+
+---
+
+### Panda CSV Analysis Tool
+
+Process CSV files row-by-row with LLM-powered analysis using dynamic column referencing.
+
+#### Quick Start
+1. **Enable the Tool**: Check **"Panda CSV Analysis Tool"** in the Tools section
+2. **Select CSV File**: Choose your CSV file in the file picker
+3. **Write Your Prompt**: Use special syntax to reference columns:
+   - `{C1}`, `{C2}`, `{C3}` - Read from columns 1, 2, 3...
+   - `{{C4}}`, `{{C5}}` - Write to new columns 4, 5...
+   - `{R1}`, `{R1-10}`, `{R1,3,5}` - Process specific rows (optional)
+
+#### Example: Essay Grading
+```prompt
+Grade the student essay in {C2} and provide feedback.
+
+Output format:
+COLUMN_3: [score 0-10]
+COLUMN_4: [brief feedback comment]
+```
+
+#### Features
+- **Preview Mode**: Test on first 3 rows before full processing
+- **Row Specification**: Process specific rows or ranges
+- **Dynamic Columns**: Create new output columns automatically
+- **Save-After-Each-Row**: Incremental saves for safety
+- **Uses Chat Settings**: Respects current model, temperature, etc.
+
+**Important**: CSV Tool cannot be used simultaneously with Agent Mode due to architectural constraints.
+
+For comprehensive CSV tool documentation, see: `PANDA_CSV_GUIDE.md` and `PANDA_CSV_QUICKREF.md`
+
+---
 
 ### Working with Files
-- **Drop Files**: Drag and drop files directly into the chat window
-- **Batch Process**: Process multiple files with the same prompt
-- **File Types Supported**:
-  - **Documents**: PDFs, Word documents, PowerPoint presentations, Excel spreadsheets
-  - **Images**: JPG, PNG, GIF, BMP with preview display
-  - **Audio**: MP3, WAV, FLAC, M4A with automatic transcription
-  - **Archives**: ZIP files with content extraction
-  - **Web Content**: YouTube videos and general URLs
-  - **Text Formats**: TXT, MD, JSON, CSV, XML
-  - **E-books**: EPUB format
-- **URL Processing**: Paste a URL to automatically extract and process its content
-- **YouTube Integration**: Paste a YouTube URL to extract video transcription
 
-### Using RAG
-1. Select an embedding model from the dropdown
-2. Click "Select RAG Files" to choose reference documents
-4. Ask questions related to your documents
-5. Click "Show RAG Visualization" to see which chunks were used to inform the response
+The chatbot supports comprehensive file processing using Microsoft's MarkItDown library.
 
-### Working with Media and Web Content
+#### Drag-and-Drop Support
+- Simply drag files directly into the chat window
+- Automatic file type detection and processing
+- Preview generation for images, audio, and documents
 
-#### Audio Files
-1. Drag and drop an audio file (MP3, WAV, etc.) into the chat window to automatically transcribe the audio content
-2. A preview of the transcription will be displayed in the chat
-3. Ask questions about the transcribed content
+#### Supported File Types
+- **Documents**: PDF, DOCX, DOC, PPTX, PPT, XLSX, XLS with full content extraction
+- **Images**: JPG, PNG, GIF, BMP with inline preview and analysis
+- **Audio**: MP3, WAV, FLAC, M4A with automatic transcription (uses Whisper)
+- **Archives**: ZIP files with content extraction and processing
+- **Web Content**: Direct URL processing for webpages and YouTube videos
+- **Text Formats**: TXT, MD, JSON, CSV, XML, HTML
+- **E-books**: EPUB format support
 
-#### YouTube Videos
-1. Paste a YouTube URL directly into the chat input field and press Enter
-2. The application will fetch the video's transcription
-3. A preview with title, URL, and transcription excerpt will be displayed
-4. Ask questions about the video content
+#### Batch Processing
+1. Select multiple files using the file picker
+2. Enter a common prompt to apply to all files
+3. Process files individually with the same instruction
+4. Results displayed sequentially in chat
 
-#### Web Search
-1. Enable the Web Search option in the Tools section
-2. Ask questions that require up-to-date information
-3. The application will search the web using crawl4ai and include relevant results in the response
+#### URL Processing
+- Paste any URL directly into the chat input
+- Automatic webpage content extraction using crawl4ai
+- YouTube video transcription support
+- Extracted content becomes part of conversation context
 
-#### Write File Tool
-1. Enable the Write File option in the Tools section
-2. Ask the AI to create files by specifying paths like: `[["C:\path\to\file.txt"]]`
-3. Examples:
-   - "Create a summary table and save it as [["./summary.txt"]]"
-   - "Write a Python script and save as [["scripts/hello.py"]]"
-   - "Generate JSON data and save as [["data/config.json"]]"
-4. Supported formats: TXT, MD, JSON, CSV, HTML, XML, PY, JS, and more
-5. The AI will automatically extract content from code blocks or response text
-6. Files are created with safety checks, backups, and error handling
+---
+
+### File Tools (Read & Write)
 
 #### Read File Tool
-1. Enable the Read File option in the Tools section
-2. Reference files in your messages using: `<<"C:\path\to\file.ext">>`
-3. Examples:
-   - "Analyze the data in <<"data.csv">> and create insights"
-   - "Using instructions in <<"guide.docx">> process <<"input.pdf">>"
-   - "Following <<"template.md">> create summary and save as [["output.txt"]]"
-4. Supported formats: All MarkItDown formats (DOCX, PDF, images, audio, etc.)
-5. Files are automatically read and content included in your message
-6. Works seamlessly with Write File tool for complete file workflows
-#### Web Content
-1. Paste any URL into the chat input field and press Enter
-2. The application will extract the content from the webpage
-3. Ask questions about the extracted content
+Automatically inject file content into your prompts.
+
+**How to Use:**
+1. Enable **"Read File"** in the Tools section
+2. Reference files using `<<filename>>` syntax in your messages
+3. File content is automatically read and injected before sending to model
+
+**Examples:**
+```
+"Analyze the data in <<sales_report.csv>>"
+"Following instructions in <<guide.docx>>, process <<input.pdf>>"
+"Compare <<version1.txt>> with <<version2.txt>>"
+```
+
+**Supports**: All MarkItDown formats (DOCX, PDF, images, audio, etc.)
+
+#### Write File Tool  
+Let the AI create and save files automatically.
+
+**How to Use:**
+1. Enable **"Write File"** in the Tools section
+2. Ask AI to save content and specify path with `[[filename]]` syntax
+3. AI includes `[[path/to/file.ext]]` in response to trigger file creation
+
+**Examples:**
+```
+"Create a summary report and save as [[./reports/summary.txt]]"
+"Generate Python script and save as [[scripts/data_processor.py]]"
+"Write JSON config and save as [[config/settings.json]]"
+```
+
+**Features:**
+- Automatic content extraction from code blocks
+- Safety checks and backups
+- Support for all text-based formats
+- Error handling with detailed feedback
+
+**Syntax Reference:**
+- Read: `<<filename>>` (angle brackets)
+- Write: `[[filename]]` (square brackets)
+
+---
+
+### Web Search Integration
+
+Enable real-time web search to enhance AI responses with current information.
+
+1. Enable **"Web Search"** in the Tools section
+2. Ask questions requiring up-to-date information
+3. The system automatically searches using crawl4ai
+4. Search results are appended to your prompt before sending to model
+5. Model provides informed answers based on current web data
+
+**Best for**: Current events, recent news, latest documentation, trending topics
+
+---
+
+### Using RAG (Retrieval-Augmented Generation)
+
+Enhance responses with relevant context from your documents.
+
+1. Select an embedding model from the dropdown
+2. Click **"Select RAG Files"** to choose reference documents
+3. Ask questions related to your documents
+4. Click **"Show RAG Visualization"** to see which chunks informed the response
+
+**Features:**
+- Customizable chunk sizes
+- Multiple embedding model options
+- Visual chunk relevance display
+- Seamless integration with chat context
+
+---
 
 ### Managing Conversations
 - **New Conversation**: Start a fresh chat session
-- **Save Conversation**: Save the current conversation to a file
-- **Load Conversation**: Load a previously saved conversation
-- **Recent Conversations**: Double-click on recent conversations in the sidebar
+- **Save Conversation**: Save current conversation to JSON file
+- **Load Conversation**: Restore previously saved conversations
+- **Recent Conversations**: Quick access via sidebar (double-click to load)
+- **Auto-Save**: Conversations persist across sessions
 
-### Customization
-- **Temperature**: Control model creativity (higher = more creative)
-- **Context Size**: Adjust the context window size for the model
-- **System Instructions**: Set custom instructions for the model's behavior
+### Customization Options
+- **Temperature**: Control model creativity (0.0 = deterministic, 2.0 = very creative)
+- **Context Size**: Adjust context window (model-dependent)
+- **System Instructions**: Set custom behavior instructions for the model
+- **Model Selection**: Switch providers and models mid-conversation
+
+---
 
 ### Memory Control Program (MCP)
 
-#### Overview
-The Memory Control Program (MCP) provides a persistent knowledge base for your chatbot. It stores information that can be retrieved and included in conversations when relevant.
+A persistent knowledge base that enhances AI responses with relevant stored information.
 
-#### Getting Started with MCP
-1. Open the MCP panel from the Tools menu
-2. Click "Start Server" to activate the memory system
+#### Getting Started
+1. Open MCP panel from Tools menu
+2. Click **"Start Server"** to activate memory system
 3. Add memories manually or import from files
-4. Ask questions related to your stored memories
+4. MCP automatically retrieves relevant memories during conversations
 
 #### Adding Memories
-- **Manual Entry**: Click "Add Memory" to enter text directly
-- **File Import**: Click "Import File" to convert various file types to memories
-- **Automatic**: Conversations are automatically saved as memories when the MCP server is running
+- **Manual Entry**: Click **"Add Memory"** to enter text directly
+- **File Import**: Click **"Import File"** to convert documents to memories using MarkItDown
+- **Automatic**: Conversations auto-saved as memories when server is running
 
 #### Importing Files as Memories
-1. Click "Import File" in the MCP panel
+1. Click **"Import File"** in MCP panel
 2. Select any supported file type (documents, code, images, audio, etc.)
-3. The file will be converted to markdown using MarkItDown
-4. Edit the title, content, and tags before saving
-5. For large files, you can split them into multiple memories
+3. File converted to markdown automatically
+4. Edit title, content, and tags before saving
+5. Split large files into multiple memories for better retrieval
 
 #### Memory Organization
-- **Tags**: Add tags to categorize and organize memories
-- **Search**: Use the search box to find specific memories
-- **Edit/Delete**: Manage existing memories as needed
+- **Tags**: Categorize and organize with custom tags
+- **Search**: Find specific memories using search box
+- **Edit/Delete**: Full memory management capabilities
+- **Relevance**: Top 3 most relevant memories included in model context
 
-#### How Memories Are Used
-- When you ask a question, the MCP searches for relevant memories
-- Up to 3 most relevant memories are included in the context sent to the model
-- This happens automatically when the MCP server is running
-- You can start/stop the server to control when memories are used
+#### How It Works
+- MCP searches memories when you ask questions
+- Relevant memories automatically included in context
+- Start/stop server to control memory usage
+- Improves AI responses with personalized knowledge base
 
-## Architecture
+---
 
-The application is built with a modular architecture for maintainability:
+## Architecture & File Structure
 
-- **main.py**: Entry point and UI coordination
-- **settings.py**: Manages persistent user preferences
-- **conversation.py**: Handles chat history and conversation management
-- **models_manager.py**: Abstracts different model providers (Ollama, Google, Deepseek, Anthropic)
-- **rag_module.py**: Implements retrieval-augmented generation
-- **rag_visualizer.py**: Visualizes RAG process and results
-- **mcp_server.py**: Implements the Memory Control Program server
-- **mcp_ui.py**: Provides the user interface for the MCP
-- **mcp_file_import.py**: Handles file import for the MCP
-- **error_handler.py**: Provides robust error management
-- **html_text.py**: Handles HTML and Markdown rendering in the UI
-- **agent_sequence_store.py**: Persists reusable agent sequences (`agents/*.agent.json`) and tracks loop-limit metadata.
-- **agent_cache.py**: Maintains the temporary cache used while staging agents so work survives until cleared.
-- **agents/**: Directory where saved agent sequences live (created automatically on first save).
+The application uses a modular architecture for easy maintenance and extensibility.
 
-### File Processing Architecture
+### Core Modules
+- **main.py**: Entry point, UI coordination, and main application logic
+- **settings.py**: Persistent user preferences and configuration management
+- **conversation.py**: Chat history and conversation state management
+- **models_manager.py**: Unified interface for multiple LLM providers (Ollama, Google, Deepseek, Anthropic)
+- **error_handler.py**: Centralized error handling and logging
 
-The application uses the MarkItDown library to process various file types:
+### Feature Modules
+- **rag_module.py**: Retrieval-Augmented Generation implementation
+- **rag_visualizer.py**: Visual representation of RAG chunk selection
+- **mcp_server.py**: Memory Control Program server implementation
+- **mcp_ui.py**: MCP user interface components
+- **mcp_file_import.py**: File-to-memory conversion using MarkItDown
+- **html_text.py**: HTML and Markdown rendering in chat display
 
-1. **File Detection**: Automatically identifies file types based on extension or URL pattern
-2. **Content Extraction**: Uses MarkItDown to extract content from files in a consistent Markdown format
-3. **Dependency Management**: Automatically installs required dependencies for specific file types
-4. **Preview Generation**: Creates appropriate previews for different file types (images, audio, YouTube, etc.)
-5. **Content Integration**: Seamlessly integrates extracted content into the conversation
+### Agent System
+- **agent_sequence_store.py**: Persists agent sequences to `agents/*.agent.json` with metadata
+- **agent_cache.py**: Temporary cache for staging agents (survives until cleared)
 
-## Requirements
+### Tool Modules  
+- **panda_csv_tool.py**: Standalone CSV processing with dynamic column referencing
+- **prompt_manager.py**: Prompt template management and utilities
+
+### API Configuration
+- **anthropic_api_config.py**: Anthropic Claude API integration
+- **gemini_api_config.py**: Google Gemini API integration
+- **deepseek_api_config.py**: Deepseek API integration
+
+### Data Directories
+- **agents/**: Saved agent sequence definitions (`.agent.json` files)
+- **conversations/**: Saved conversation history (`.json` files)
+- **memories/**: MCP memory storage
+- **chroma_db/**: ChromaDB vector database for RAG
+- **generated_images/**: Generated/stored images
+- **prompts/**: Custom prompt templates
+
+### File Processing Pipeline
+
+The application leverages Microsoft's MarkItDown library for unified file processing:
+
+1. **Automatic Detection**: Identifies file types by extension or URL pattern
+2. **Content Extraction**: Converts files to consistent Markdown format
+3. **Smart Dependencies**: Auto-installs required packages on-demand (audio, YouTube, etc.)
+4. **Preview Generation**: Creates type-appropriate previews (thumbnails, waveforms, etc.)
+5. **Context Integration**: Seamlessly merges extracted content into conversations
+
+---
+
+## Requirements & Dependencies
 
 ### Core Dependencies
-- **GUI**: tkinter, tkinterdnd2 (for drag-and-drop functionality)
-- **LLM Integration**: ollama, google-generativeai, anthropic
-- **RAG**: chromadb, sentence-transformers, nltk
-- **Media Handling**: PIL/Pillow (for image handling)
-- **File Processing**: markitdown with optional extensions
+- **GUI**: `tkinter`, `tkinterdnd2` (drag-and-drop support)
+- **LLM Integration**: `ollama`, `google-generativeai`, `anthropic`, `openai`
+- **RAG**: `chromadb`, `sentence-transformers`, `nltk`
+- **Data Processing**: `pandas` (CSV tool), `numpy`
+- **Media**: `Pillow` (image processing)
+- **Web**: `crawl4ai` (web search and content extraction)
+- **File Processing**: `markitdown` (base + optional extensions)
 
-### MarkItDown Optional Dependencies
-- **Document Processing**: [markitdown[pdf,docx,pptx,xlsx,xls]]
-- **Audio Processing**: [markitdown[audio-transcription]]
-- **YouTube Integration**: [markitdown[youtube-transcription]]
-- **Advanced Document Analysis**: [markitdown[az-doc-intel]]
+### MarkItDown Optional Extensions
+Install as needed for specific file types:
+- **Documents**: `pip install markitdown[pdf,docx,pptx,xlsx,xls]`
+- **Audio Transcription**: `pip install markitdown[audio-transcription]`
+- **YouTube Videos**: `pip install markitdown[youtube-transcription]`
+- **Advanced OCR**: `pip install markitdown[az-doc-intel]`
 
-See requirements.txt for a complete list of dependencies.
+### Installation
+```bash
+# Basic installation
+pip install -r requirements.txt
+
+# Install all optional extensions
+pip install markitdown[pdf,docx,pptx,xlsx,xls,audio-transcription,youtube-transcription]
+```
+
+**Note**: The application automatically detects and installs missing dependencies when needed.
+
+---
+
+## Documentation
+
+### Feature Guides
+- **Agent Mode**: See `AGENT_TOOLS_INTEGRATION.md` and `AGENT_TOOLS_QUICKREF.md`
+- **CSV Tool**: See `PANDA_CSV_GUIDE.md` and `PANDA_CSV_QUICKREF.md`
+- **Testing**: See `TESTING_GUIDE.md`
+- **Architecture**: See `Agent_Mode_Implementation_Strategy.md`
+
+### Quick Reference
+- Agent syntax: `{{Agent-X}}` for outputs, `<<file>>` for reads, `[[file]]` for writes
+- CSV syntax: `{CX}` for read columns, `{{CX}}` for write columns, `{RX}` for rows
+- All tool checkboxes are **opt-in only** - tools don't activate unless explicitly enabled
+
+---
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions welcome! Key areas for contribution:
+- Additional file format support
+- New tool integrations
+- UI/UX improvements
+- Performance optimizations
+- Documentation enhancements
+
+Please submit Pull Requests to the main repository.
+
+---
 
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
+
+---
+
+**Version**: 2.0.0  
+**Last Updated**: October 6, 2025  
+**Status**: Production Ready

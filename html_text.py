@@ -37,7 +37,9 @@ class HTMLTextParser(HTMLParser):
             'code_fg': '#E0E0E0',
             'link': '#7AA2F7',
             'quote_border': '#414868',
-            'hr': '#414868'
+            'hr': '#414868',
+            'border': '#414868',
+            'header_bg': '#1A1B26'
         }
     
     def _configure_tags(self):
@@ -205,13 +207,13 @@ class HTMLTextParser(HTMLParser):
             self.in_code_block = False
             self.skip_data = False
             
-            # Display code with language label if available
+            # CodeBlockWidget disabled - using simple text display
+            # Fallback to simple text display
             if self.code_language:
                 self.text_widget.insert(tk.END, f'\n[{self.code_language}]\n', 'code_language')
             else:
                 self.text_widget.insert(tk.END, '\n', tuple(self.current_tags))
             
-            # Insert code content with proper formatting
             self.text_widget.insert(tk.END, self.code_content.strip(), 'code')
             self.text_widget.insert(tk.END, '\n\n', tuple(self.current_tags))
             
