@@ -30,7 +30,9 @@ markdown-it-py
 pdfminer.six
 
 # Utilities
+mcp
 python-dotenv
+ffmpeg
 tqdm
 rich
 pillow

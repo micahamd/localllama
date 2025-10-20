@@ -1,7 +1,7 @@
 {
     "developer": "deepseek",
     "llm_model": "deepseek-chat",
-    "embedding_model": "nomic-embed-text:latest",
+    "embedding_model": null,
     "temperature": 1.0,
     "context_size": 128000,
     "chunk_size": 64,
@@ -28,6 +28,6 @@
     "semantic_max_chunk_size": 2000,
     "layout_preset": "focus",
     "window_maximized": false,
-    "window_geometry": "2752x1152+344+144",
-    "sash_pos": 2432
+    "window_geometry": "2752x1152+344+200",
+    "sash_pos": 2431
 }
