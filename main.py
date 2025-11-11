@@ -6412,9 +6412,8 @@ class OllamaChat:
         view_window.minsize(500, 300)
         view_window.configure(background=self.bg_color)
 
-        # Make it modal
+        # Make it modal (set transient first, grab_set after window is visible)
         view_window.transient(parent_window)
-        view_window.grab_set()
 
         # Create main frame
         main_frame = ttk.Frame(view_window, padding=(10, 10, 10, 10))
@@ -6458,6 +6457,15 @@ class OllamaChat:
             text="Close",
             command=view_window.destroy
         ).pack(side=tk.RIGHT, padx=5)
+        
+        # Now that all widgets are created, make the window visible and grab focus
+        # This needs to be done after all widgets are packed for Linux/X11 compatibility
+        view_window.update_idletasks()  # Ensure window is fully laid out
+        view_window.deiconify()  # Make sure it's visible
+        try:
+            view_window.grab_set()  # Now safe to grab focus
+        except Exception:
+            pass  # If grab fails, continue anyway (window will still work)
 
     def update_prompt(self, title, content, window, listbox):
         """Update an existing prompt."""
