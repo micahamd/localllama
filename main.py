@@ -3035,7 +3035,7 @@ class OllamaChat:
                     # Display success message with metadata and helper text
                     msg = f"\n[CSV Tool Enabled]\n"
                     msg += f"File: {metadata['file_path']}\n"
-                    msg += f"Rows: {metadata['rows']}, Columns: {metadata['columns']}\n"
+                    msg += f"Rows: {metadata['rows']}, Columns: {metadata['cols']}\n"
                     msg += f"Original Headers: {', '.join(metadata['original_headers'])}\n\n"
                     msg += "Helper Text:\n"
                     msg += "  {{CX}} - Double braces = Output Column (write result to column X)\n"
@@ -3076,6 +3076,10 @@ class OllamaChat:
             prompt: The prompt template with {CX}, {{CX}}, and optional {R...} placeholders
             preview_only: If True, only process first 3 rows for preview
         """
+        # Set processing state
+        self.is_processing = True
+        self.status_bar["text"] = "Processing CSV rows..."
+        
         try:
             if not self.panda_csv_tool.has_data():
                 self.display_message("\n[CSV Tool Error]\nNo CSV loaded.\n", 'error')
@@ -3134,42 +3138,56 @@ class OllamaChat:
                 
                 # Process the prompt for this row (use cleaned_prompt without {R...})
                 processed_prompt, output_columns, substitution_log = self.panda_csv_tool.process_prompt_for_row(
-                    row_idx, cleaned_prompt
+                    cleaned_prompt, row_idx
                 )
+                
+                # Check if output columns are specified
+                if not output_columns and not preview_only:
+                    self.display_message(f"\n⚠️ Warning: No output columns specified (use {{{{CX}}}} syntax).\nResults will only be displayed, not saved to CSV.\n", 'error')
                 
                 # Display what we're sending
                 self.display_message(f"Prompt: {processed_prompt[:200]}{'...' if len(processed_prompt) > 200 else ''}\n", 'info')
-                self.display_message(f"Expected outputs: {', '.join([f'COLUMN_{col}' for col in output_columns])}\n", 'info')
+                if output_columns:
+                    self.display_message(f"Expected outputs: {', '.join([f'COLUMN_{col}' for col in output_columns])}\n", 'info')
+                else:
+                    self.display_message(f"Expected outputs: (none specified - response will not be saved to CSV)\n", 'info')
                 
                 # Call the model (using current chat settings but NO chat history)
                 try:
                     # Save original chat history
-                    original_history = self.conversation_manager.current_conversation.messages.copy()
+                    original_history = self.conversation_manager.active_conversation.messages.copy()
                     
                     # Temporarily clear history for this request
-                    self.conversation_manager.current_conversation.messages = []
+                    self.conversation_manager.active_conversation.messages = []
                     
                     # Get response
                     response_text = self._get_model_response_sync(processed_prompt)
                     
                     # Restore history
-                    self.conversation_manager.current_conversation.messages = original_history
+                    self.conversation_manager.active_conversation.messages = original_history
                     
-                    # Parse the response
-                    parsed_results = self.panda_csv_tool.parse_model_response(response_text, output_columns)
-                    
-                    # Display results
-                    if parsed_results:
-                        self.display_message("Results:\n", 'info')
-                        for col_num, value in parsed_results.items():
-                            self.display_message(f"  COLUMN_{col_num}: {value[:100]}{'...' if len(value) > 100 else ''}\n", 'info')
-                        
-                        # Update cells (only if not preview mode)
-                        if not preview_only:
-                            for col_num, value in parsed_results.items():
-                                self.panda_csv_tool.update_cell(row_idx, col_num, value)
+                    # If no output columns specified, just display the raw response
+                    if not output_columns:
+                        self.display_message("\n", 'assistant')
+                        self.display_message(f"{response_text}\n", 'assistant')
                     else:
-                        self.display_message("No valid outputs found in response.\n", 'error')
+                        # Parse the response for structured output
+                        parsed_results = self.panda_csv_tool.parse_model_response(response_text, output_columns)
+                        
+                        # Display results
+                        if parsed_results:
+                            self.display_message("Results:\n", 'info')
+                            for col_num, value in parsed_results.items():
+                                self.display_message(f"  COLUMN_{col_num}: {value[:100]}{'...' if len(value) > 100 else ''}\n", 'info')
+                            
+                            # Update cells (only if not preview mode)
+                            if not preview_only:
+                                for col_num, value in parsed_results.items():
+                                    self.panda_csv_tool.update_cell(row_idx, col_num, value)
+                        else:
+                            self.display_message("No valid outputs found in response.\n", 'error')
+                            # Still show the raw response so user can see what the model said
+                            self.display_message(f"\nRaw response:\n{response_text[:500]}{'...' if len(response_text) > 500 else ''}\n", 'info')
                     
                 except Exception as e:
                     self.display_message(f"Error processing row {row_idx + 1}: {e}\n", 'error')
@@ -3187,9 +3205,9 @@ class OllamaChat:
             if preview_only:
                 self.display_message("\n[Preview Complete]\n", 'status')
                 if row_spec:
-                    self.display_message(f"Type 'ok' to continue processing {spec_description}, or enter a new prompt to modify.\n", 'info')
+                    self.display_message(f"Enter a new prompt to revise, or type 'ok' to re-apply the same prompt to {spec_description}.\n", 'info')
                 else:
-                    self.display_message("Type 'ok' to continue processing all rows, or enter a new prompt to modify.\n", 'info')
+                    self.display_message("Enter a new prompt to revise, or type 'ok' to re-apply the same prompt to all rows.\n", 'info')
                 # Store the prompt for later
                 self.panda_csv_preview_prompt = prompt
             else:
@@ -3202,6 +3220,10 @@ class OllamaChat:
             self.display_message(f"\n[CSV Processing Error]\n{e}\n", 'error')
             import traceback
             traceback.print_exc()
+        finally:
+            # Reset processing state
+            self.is_processing = False
+            self.status_bar["text"] = "Ready"
 
     def _get_model_response_sync(self, prompt: str) -> str:
         """Get a synchronous response from the model for CSV processing.
@@ -3213,31 +3235,42 @@ class OllamaChat:
             The model's response text
         """
         try:
-            # Use the current model manager
-            model_manager = self.model_manager
+            # Get system instructions (full, not truncated - needed for consistent evaluation)
+            system_msg = self.system_text.get('1.0', tk.END).strip()
             
-            # Prepare messages (just the prompt, no history)
-            messages = [{"role": "user", "content": prompt}]
+            # Prepare messages (system + user prompt, no history)
+            messages = []
+            if system_msg:
+                messages.append({
+                    'role': 'system',
+                    'content': system_msg
+                })
+            messages.append({
+                'role': 'user',
+                'content': prompt
+            })
             
-            # Get response based on model type
-            if hasattr(model_manager, 'stream_chat'):
-                # Ollama or similar - collect streaming response
-                full_response = ""
-                for chunk in model_manager.stream_chat(messages, model_manager.current_model):
-                    if isinstance(chunk, dict) and 'message' in chunk:
-                        content = chunk['message'].get('content', '')
-                        full_response += content
-                    elif isinstance(chunk, str):
-                        full_response += chunk
-                return full_response
+            # Use the same approach as the main send_message method
+            # Get streaming response from model manager
+            full_response = ""
+            stream = self.model_manager.get_response(
+                messages=messages,
+                model=self.selected_model,
+                temperature=self.temperature.get()
+            )
             
-            elif hasattr(model_manager, 'send_message'):
-                # Gemini or Anthropic - direct response
-                response = model_manager.send_message(prompt)
-                return response
+            # Collect streaming response
+            for chunk in stream:
+                if self.stop_event.is_set():
+                    break
+                    
+                if isinstance(chunk, dict) and 'message' in chunk:
+                    content = chunk['message'].get('content', '')
+                    full_response += content
+                elif isinstance(chunk, str):
+                    full_response += chunk
             
-            else:
-                raise ValueError(f"Unsupported model manager type: {type(model_manager)}")
+            return full_response
                 
         except Exception as e:
             raise Exception(f"Failed to get model response: {e}")
@@ -3665,12 +3698,12 @@ class OllamaChat:
             
             # Check if user typed 'ok' to continue from preview
             if self.panda_csv_preview_prompt and original_input.lower().strip() == 'ok':
-                # Continue with full processing using stored prompt
-                self.process_csv_rows(self.panda_csv_preview_prompt, preview_only=False)
+                # Continue with full processing using stored prompt in a separate thread
+                threading.Thread(target=self.process_csv_rows, args=(self.panda_csv_preview_prompt, False)).start()
                 return
             
-            # Otherwise, treat as new prompt and start preview
-            self.process_csv_rows(original_input, preview_only=True)
+            # Otherwise, treat as new prompt and start preview in a separate thread
+            threading.Thread(target=self.process_csv_rows, args=(original_input, True)).start()
             return
 
         # Process file read requests if Read File tool is enabled

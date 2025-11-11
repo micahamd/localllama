@@ -144,7 +144,14 @@ class PandaCSVAnalysisTool:
         if match:
             row_spec = match.group(1).strip()
             # Remove the {R...} from prompt
-            cleaned_prompt = re.sub(pattern, '', prompt).strip()
+            cleaned_prompt = re.sub(pattern, '', prompt)
+            # Clean up common leftover patterns
+            # Handle "For {R...}, " -> just remove the whole phrase
+            cleaned_prompt = re.sub(r'^For\s*,\s*', '', cleaned_prompt, flags=re.IGNORECASE)
+            # Handle leading/trailing commas and extra whitespace
+            cleaned_prompt = re.sub(r'^\s*,\s*', '', cleaned_prompt)  # Leading comma
+            cleaned_prompt = re.sub(r'\s*,\s*$', '', cleaned_prompt)  # Trailing comma
+            cleaned_prompt = re.sub(r'\s+', ' ', cleaned_prompt).strip()  # Multiple spaces
             return row_spec, cleaned_prompt
         
         return None, prompt
