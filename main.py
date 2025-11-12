@@ -3840,12 +3840,37 @@ class OllamaChat:
     # Image generation functionality removed - not working
 
     def get_chat_history(self):
-        """Get formatted chat history for context."""
-        history = []
-        for msg in self.conversation_manager.active_conversation.messages:
-            if msg.role in ['user', 'assistant']:
-                history.append(f"{msg.role.capitalize()}: {msg.content}")
-        return "\n\n".join(history)
+        """Get formatted chat history for context.
+        
+        Retrieves the full visible chat history from the UI display,
+        including messages that may not have been added to the conversation manager
+        (e.g., batch processing with history disabled).
+        """
+        try:
+            # Get all text from the chat display
+            self.chat_display["state"] = "normal"
+            display_content = self.chat_display.get("1.0", tk.END).strip()
+            self.chat_display["state"] = "disabled"
+            
+            # If display is empty, fall back to conversation manager
+            if not display_content:
+                history = []
+                for msg in self.conversation_manager.active_conversation.messages:
+                    if msg.role in ['user', 'assistant']:
+                        history.append(f"{msg.role.capitalize()}: {msg.content}")
+                return "\n\n".join(history)
+            
+            # Return the full markdown display content
+            # This includes all visible interactions regardless of conversation manager state
+            return display_content
+            
+        except Exception as e:
+            # Fallback to conversation manager on any error
+            history = []
+            for msg in self.conversation_manager.active_conversation.messages:
+                if msg.role in ['user', 'assistant']:
+                    history.append(f"{msg.role.capitalize()}: {msg.content}")
+            return "\n\n".join(history)
 
     def get_rag_chunks(self, query):
         """Get RAG chunks with metadata for visualization."""
@@ -5329,8 +5354,13 @@ class OllamaChat:
 
     def new_conversation(self):
         """Start a new conversation."""
-        # Ask for confirmation if there are messages in the current conversation
-        if self.conversation_manager.active_conversation.messages:
+        # Check if there's content in the chat display
+        self.chat_display["state"] = "normal"
+        has_content = bool(self.chat_display.get("1.0", tk.END).strip())
+        self.chat_display["state"] = "disabled"
+        
+        # Ask for confirmation if there's content
+        if has_content:
             confirm = messagebox.askyesno(
                 "New Conversation",
                 "Starting a new conversation will clear the current chat. Continue?"
@@ -5348,8 +5378,17 @@ class OllamaChat:
         self.display_message("Started a new conversation.\n", "status")
 
     def save_conversation(self):
-        """Save the current conversation with custom filename and clean format."""
-        if not self.conversation_manager.active_conversation.messages:
+        """Save the current conversation with custom filename and clean format.
+        
+        Extracts conversation content from the UI display (primary source)
+        rather than from the conversation_manager.
+        """
+        # Check if there's any content in the chat display
+        self.chat_display["state"] = "normal"
+        display_content = self.chat_display.get("1.0", tk.END).strip()
+        self.chat_display["state"] = "disabled"
+        
+        if not display_content:
             messagebox.showinfo("Save Conversation", "No messages to save.")
             return
 
@@ -5357,7 +5396,7 @@ class OllamaChat:
         from tkinter import simpledialog
 
         # Suggest a default name based on the first user message or current time
-        default_name = self._generate_default_filename()
+        default_name = self._generate_default_filename_from_display()
 
         custom_name = simpledialog.askstring(
             "Save Conversation",
@@ -5375,33 +5414,99 @@ class OllamaChat:
         if not safe_name:
             safe_name = "conversation"
 
-        # Save with clean format
-        result = self.save_conversation_clean_format(safe_name)
+        # Save with clean format from UI display
+        result = self.save_conversation_from_display(safe_name)
         self.display_message(f"\n{result}\n", "status")
 
         # Update conversations list
         self.update_conversations_list()
 
-    def _generate_default_filename(self):
-        """Generate a default filename based on conversation content."""
-        messages = self.conversation_manager.active_conversation.messages
+    def _generate_default_filename_from_display(self):
+        """Generate a default filename based on UI display content."""
+        try:
+            # Get display content
+            self.chat_display["state"] = "normal"
+            display_content = self.chat_display.get("1.0", tk.END).strip()
+            self.chat_display["state"] = "disabled"
+            
+            if not display_content:
+                from datetime import datetime
+                return f"Chat_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            
+            # Look for first user message (typically starts with emoji or "You:")
+            lines = display_content.split('\n')
+            for line in lines:
+                # Look for user messages
+                if any(marker in line for marker in ['🧑 You:', 'You:', 'User:']):
+                    # Get next non-empty line after the marker
+                    idx = lines.index(line)
+                    if idx + 1 < len(lines):
+                        content = lines[idx + 1].strip()
+                        # Skip file-related content
+                        if content and not any(skip in content.lower() for skip in 
+                                             ['document content:', 'file content:', 'image:', 'file:']):
+                            # Take first sentence or 30 characters
+                            first_sentence = content.split('.')[0][:30]
+                            if first_sentence:
+                                return first_sentence.strip()
+            
+            # Fallback to timestamp
+            from datetime import datetime
+            return f"Chat_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            
+        except Exception:
+            from datetime import datetime
+            return f"Chat_{datetime.now().strftime('%Y%m%d_%H%M')}"
 
-        # Find the first meaningful user message
-        for message in messages:
-            if message.role == 'user' and message.content.strip():
-                # Take first 30 characters and clean them
-                content = message.content.strip()
-                # Remove common file-related prefixes
-                if content.lower().startswith(('document content:', 'file content:', 'image:')):
-                    continue
-                # Take first sentence or 30 characters
-                first_sentence = content.split('.')[0][:30]
-                if first_sentence:
-                    return first_sentence.strip()
+    def save_conversation_from_display(self, filename):
+        """Save conversation from UI display in a format compatible with load.
+        
+        Extracts the full conversation from the chat display and saves it
+        in a clean, readable format that can be loaded back.
+        """
+        try:
+            # Get display content
+            self.chat_display["state"] = "normal"
+            display_content = self.chat_display.get("1.0", tk.END).strip()
+            self.chat_display["state"] = "disabled"
+            
+            if not display_content:
+                return "No messages to save"
 
-        # Fallback to timestamp
-        from datetime import datetime
-        return f"Chat_{datetime.now().strftime('%Y%m%d_%H%M')}"
+            # Create conversation data with metadata
+            from datetime import datetime
+            conversation_data = {
+                "title": filename,
+                "model": self.selected_model or "unknown",
+                "created_at": datetime.now().isoformat(),
+                "last_updated": datetime.now().isoformat(),
+                "display_content": display_content  # Store full markdown display
+            }
+
+            # Ensure filename has .json extension
+            if not filename.endswith('.json'):
+                filename += '.json'
+
+            # Save to conversations directory
+            conversations_dir = self.conversation_manager.conversations_dir
+            filepath = os.path.join(conversations_dir, filename)
+
+            # Check if file exists and ask for confirmation
+            if os.path.exists(filepath):
+                confirm = messagebox.askyesno(
+                    "File Exists",
+                    f"A file named '{filename}' already exists. Do you want to overwrite it?"
+                )
+                if not confirm:
+                    return "Save cancelled"
+
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(conversation_data, f, indent=2, ensure_ascii=False)
+
+            return f"Conversation saved as '{filename}'"
+
+        except Exception as e:
+            return f"Error saving conversation: {str(e)}"
 
     def save_conversation_clean_format(self, filename):
         """Save conversation in a clean, simplified format."""
@@ -5632,7 +5737,11 @@ class OllamaChat:
         self.load_conversation_by_name(conversation_name)
 
     def load_conversation_by_name(self, conversation_name):
-        """Load a conversation by its name."""
+        """Load a conversation by its name.
+        
+        Supports both new format (display_content) and legacy format (messages array)
+        for backward compatibility with existing saved conversations.
+        """
         try:
             # Construct the filepath
             filepath = os.path.join(self.conversation_manager.conversations_dir, f"{conversation_name}.json")
@@ -5642,35 +5751,55 @@ class OllamaChat:
                 messagebox.showerror("Error", f"Conversation file not found: {conversation_name}")
                 return
 
-            # Load the selected conversation
-            conversation = self.conversation_manager.load_conversation(filepath)
+            # Load the JSON data
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
 
-            if conversation:
-                # Update model if it was saved with the conversation
-                if conversation.model and conversation.model in self.model_selector["values"]:
-                    self.model_selector.set(conversation.model)
-                    self.selected_model = conversation.model
+            # Clear the chat display first
+            self.chat_display["state"] = "normal"
+            self.chat_display.delete(1.0, tk.END)
+            
+            # Check if this is the new format (has display_content)
+            if "display_content" in data:
+                # NEW FORMAT: Just insert the saved display content
+                self.chat_display.insert("1.0", data["display_content"])
+                
+                # Update model if saved
+                if data.get("model") and data["model"] in self.model_selector["values"]:
+                    self.model_selector.set(data["model"])
+                    self.selected_model = data["model"]
+                    
+                self.display_message(f"\nLoaded conversation: {data.get('title', conversation_name)}\n", "status")
+                
+            else:
+                # LEGACY FORMAT: Load using conversation_manager for backward compatibility
+                conversation = self.conversation_manager.load_conversation(filepath)
+                
+                if conversation:
+                    # Update model if it was saved with the conversation
+                    if conversation.model and conversation.model in self.model_selector["values"]:
+                        self.model_selector.set(conversation.model)
+                        self.selected_model = conversation.model
 
-                # Clear the chat display first
-                self.chat_display["state"] = "normal"
-                self.chat_display.delete(1.0, tk.END)
-                self.chat_display["state"] = "disabled"
+                    # Render the conversation in the chat display using the old method
+                    self.conversation_manager.render_conversation(self.chat_display, {
+                        'user': {'foreground': '#6699CC'},
+                        'assistant': {'foreground': '#99CC99'},
+                        'system': {'foreground': '#CC9999'},
+                        'error': {'foreground': '#FF6666'},
+                        'status': {'foreground': '#999999'},
+                        'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
+                    })
 
-                # Render the conversation in the chat display
-                self.conversation_manager.render_conversation(self.chat_display, {
-                    'user': {'foreground': '#6699CC'},
-                    'assistant': {'foreground': '#99CC99'},
-                    'system': {'foreground': '#CC9999'},
-                    'error': {'foreground': '#FF6666'},
-                    'status': {'foreground': '#999999'},
-                    'code': {'font': ('Consolas', 12), 'background': '#2A2A2A', 'foreground': '#E0E0E0'}
-                })
-
-                self.display_message(f"\nLoaded conversation: {conversation.title}\n", "status")
-
-                # Update the conversations list
-                self.update_conversations_list()
+                    self.display_message(f"\nLoaded conversation: {conversation.title}\n", "status")
+            
+            self.chat_display["state"] = "disabled"
+            
+            # Update the conversations list
+            self.update_conversations_list()
+            
         except Exception as e:
+            self.chat_display["state"] = "disabled"
             error_msg = error_handler.handle_error(e, "Loading conversation")
             messagebox.showerror("Error", f"Failed to load conversation: {error_msg}")
 
