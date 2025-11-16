@@ -218,6 +218,19 @@ class OllamaChat:
                  foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
                  relief=[("pressed", "sunken")])
 
+        # Create an accent button style for active states (like Edit Mode)
+        style.configure("Accent.TButton",
+                      background=self.warning_color,  # Orange/amber for active state
+                      foreground="#FFFFFF",
+                      borderwidth=1,
+                      relief="flat",
+                      padding=(10, 5),
+                      font=("Segoe UI", 10, "bold"))
+        style.map("Accent.TButton",
+                 background=[("active", self.error_color), ("pressed", self.subtle_accent)],
+                 foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
+                 relief=[("pressed", "sunken")])
+
         # Checkbox styling
         style.configure("TCheckbutton",
                       background=self.bg_color,
@@ -452,6 +465,9 @@ class OllamaChat:
         
         # Tool task tracking
         self.active_tasks = {}  # Maps task_id to description
+
+        # Edit Chat History mode
+        self.edit_mode_enabled = False
 
         # Agent Mode variables
         self.agent_mode_var = tk.BooleanVar(value=self.settings.get("agent_mode_enabled", False))
@@ -1263,6 +1279,14 @@ class OllamaChat:
             text="Stop",
             command=self.stop_processing
         ).pack(side=tk.LEFT, padx=2)
+
+        # Edit Chat History button (toggles edit mode)
+        self.edit_chat_button = ttk.Button(
+            button_frame,
+            text="Edit Chat History",
+            command=self.toggle_edit_mode
+        )
+        self.edit_chat_button.pack(side=tk.LEFT, padx=2)
 
         # Use Primary button style for the Send button to make it stand out
         ttk.Button(
@@ -3674,6 +3698,75 @@ class OllamaChat:
             self.input_field.insert("1.0", "Type your message here...")
             self.input_placeholder_visible = True
 
+    def toggle_edit_mode(self):
+        """Toggle edit mode for chat history.
+        
+        When enabled, the chat display becomes editable, allowing users to modify
+        the conversation history directly. This is useful for:
+        - Correcting mistakes in previous messages
+        - Removing unwanted content before including in context
+        - Manually adjusting the conversation flow
+        """
+        try:
+            if not self.edit_mode_enabled:
+                # ENABLE EDIT MODE
+                self.edit_mode_enabled = True
+                
+                # Make chat display editable
+                self.chat_display["state"] = "normal"
+                
+                # Update button appearance to show active state
+                self.edit_chat_button.configure(style="Accent.TButton")
+                
+                # Show status message
+                self.status_bar["text"] = "Edit Mode: ON - You can now edit chat history directly"
+                
+                # Add a visual indicator at the top of chat
+                current_content = self.chat_display.get("1.0", tk.END)
+                self.chat_display.delete("1.0", tk.END)
+                self.chat_display.insert("1.0", "🔓 EDIT MODE ACTIVE - Chat history is now editable\n" + "="*60 + "\n\n", "warning")
+                self.chat_display.insert(tk.END, current_content)
+                self.chat_display.see("1.0")  # Scroll to top to show indicator
+                
+            else:
+                # DISABLE EDIT MODE
+                self.edit_mode_enabled = False
+                
+                # Get the edited content first (in case user edited it)
+                edited_content = self.chat_display.get("1.0", tk.END)
+                
+                # Remove edit mode indicator if present
+                if edited_content.startswith("🔓 EDIT MODE ACTIVE"):
+                    # Find the end of the indicator (after the separator line)
+                    lines = edited_content.split("\n")
+                    if len(lines) > 2:
+                        # Remove first 3 lines (indicator, separator, blank line)
+                        edited_content = "\n".join(lines[3:])
+                
+                # Update display with cleaned content
+                self.chat_display.delete("1.0", tk.END)
+                self.chat_display.insert("1.0", edited_content)
+                
+                # Make chat display read-only again
+                self.chat_display["state"] = "disabled"
+                
+                # Reset button appearance
+                self.edit_chat_button.configure(style="TButton")
+                
+                # Update status
+                self.status_bar["text"] = "Edit Mode: OFF - Chat history is read-only"
+                self.chat_display.see(tk.END)  # Scroll to bottom
+                
+        except Exception as e:
+            error_handler.handle_error(e, "Toggling edit mode")
+            self.display_message(f"\nError toggling edit mode: {e}\n", "error")
+            # Ensure we're in a consistent state
+            self.edit_mode_enabled = False
+            try:
+                self.chat_display["state"] = "disabled"
+            except:
+                pass
+
     @safe_execute("Sending message")
     def send_message(self):
         """Process and send the user's message."""
@@ -4112,7 +4205,13 @@ class OllamaChat:
         return list(sources.values())
 
     def display_message(self, message, tag=None):
-        """Display a message in the chat window with optional tags and enhanced markdown rendering."""
+        """Display a message in the chat window with optional tags and enhanced markdown rendering.
+        
+        Respects edit mode: if edit mode is enabled, the widget remains editable.
+        """
+        # Remember if we were in edit mode
+        was_in_edit_mode = getattr(self, 'edit_mode_enabled', False)
+        
         self.chat_display["state"] = "normal"
 
         # Add role label if it's a new message
@@ -4147,7 +4246,10 @@ class OllamaChat:
             # For other message types, just insert with the tag
             self.chat_display.insert(tk.END, message, tag)
 
-        self.chat_display["state"] = "disabled"
+        # Only disable if we weren't in edit mode
+        if not was_in_edit_mode:
+            self.chat_display["state"] = "disabled"
+        
         self.chat_display.see(tk.END)
     
     def _render_markdown_safe(self, message):
