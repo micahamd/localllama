@@ -3,8 +3,8 @@
 # Launch script for chat_py2 application
 # This script can be run from anywhere
 
-# Get the directory where this script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+# Hardcoded path to the chat application
+SCRIPT_DIR="/home/mic/SharedDrive/Python Projects/chat_py2"
 
 # Initialize conda for bash (if not already done)
 if [ -f "$HOME/miniconda3/etc/profile.d/conda.sh" ]; then

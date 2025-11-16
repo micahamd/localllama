@@ -1,9 +1,9 @@
 {
     "developer": "deepseek",
     "llm_model": "deepseek-chat",
-    "embedding_model": null,
-    "temperature": 1.0,
-    "context_size": 128000,
+    "embedding_model": "nomic-embed-text:latest",
+    "temperature": 0.9009009009009009,
+    "context_size": 32000,
     "chunk_size": 64,
     "top_k": 10,
     "top_p": 0.9,
@@ -11,10 +11,10 @@
     "max_tokens": 8000,
     "include_chat": true,
     "show_image": false,
-    "include_file": true,
+    "include_file": false,
     "web_access": false,
     "advanced_web_access": false,
-    "write_file": true,
+    "write_file": false,
     "read_file": true,
     "intelligent_processing": true,
     "system_prompt": "",
@@ -28,6 +28,6 @@
     "semantic_max_chunk_size": 2000,
     "layout_preset": "focus",
     "window_maximized": false,
-    "window_geometry": "2752x1152+344+200",
-    "sash_pos": 2431
+    "window_geometry": "2752x1152+344+144",
+    "sash_pos": 2432
 }
