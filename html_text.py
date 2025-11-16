@@ -23,23 +23,23 @@ class HTMLTextParser(HTMLParser):
         self._configure_tags()
     
     def _default_colors(self):
-        """Return default cyberpunk color scheme matching main UI."""
+        """Return default color scheme matching main UI."""
         return {
-            'bg': "#2E1739",
-            'fg': "#E0CCF2",
-            'accent': "#B4C8F5",
-            'purple': "#9C6AF9",
-            'cyan': '#2AC3DE',
-            'green': "#2DDF42",
-            'red': "#F94B6B",
-            'yellow': "#EF9000",
-            'code_bg': '#0D0E14',
-            'code_fg': '#E0E0E0',
-            'link': '#7AA2F7',
-            'quote_border': "#2B376C",
-            'hr': '#414868',
-            'border': '#414868',
-            'header_bg': "#06060A"
+            'bg': '#1A1B26',           # Rich dark blue-black (matches main UI)
+            'fg': '#C0CAF5',           # Soft blue-white text (matches main UI)
+            'accent': '#7AA2F7',       # Vibrant blue accent (matches main UI)
+            'purple': '#BB9AF7',       # Purple accent (matches main UI)
+            'cyan': '#2AC3DE',         # Cyan highlight (matches main UI)
+            'green': '#9ECE6A',        # Vibrant green (matches main UI)
+            'red': '#F7768E',          # Bright red (matches main UI)
+            'yellow': '#E0AF68',       # Rich amber (matches main UI)
+            'code_bg': '#0D0E14',      # Dark code background
+            'code_fg': '#E0E0E0',      # Light text for code
+            'link': '#7AA2F7',         # Blue links (matches accent)
+            'quote_border': '#414868', # Subtle border (matches main UI)
+            'hr': '#414868',           # Subtle hr (matches border)
+            'border': '#414868',       # Border color (matches main UI)
+            'header_bg': '#24283B'     # Header background (matches secondary_bg)
         }
     
     def _configure_tags(self):

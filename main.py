@@ -125,19 +125,19 @@ class OllamaChat:
     """Main application class for Ollama Chat."""
 
     # Define color scheme as class variables - enhanced for better aesthetics
-    bg_color = "#1A1B26"  # Rich dark blue-black background
-    fg_color = "#C0CAF5"  # Soft blue-white text for better readability
-    accent_color = "#7AA2F7"  # Vibrant blue accent
-    secondary_bg = "#24283B"  # Slightly lighter background for contrast
-    tertiary_bg = "#16161E"  # Darker background for depth
-    subtle_accent = "#BB9AF7"  # Purple accent for highlights and interactive elements
-    success_color = "#9ECE6A"  # Vibrant green for success messages
-    error_color = "#F7768E"  # Bright red for errors
-    warning_color = "#E0AF68"  # Rich amber for warnings
-    border_color = "#414868"  # Subtle border color
-    highlight_color = "#2AC3DE"  # Cyan highlight for selections and focus
-    cursor_color = "#61AFEF"  # Light blue cursor for better visibility
-    muted_text = "#565F89"  # Muted text for less important elements
+    bg_color = "#0F0115"  # Rich dark background
+    fg_color = "#CBABE2"  # Soft purple-white text for better readability
+    accent_color = "#266A02"  # Vibrant accent
+    secondary_bg = "#200202"  # Slightly lighter background for contrast
+    tertiary_bg = "#1B0202"  # Darker background for depth
+    subtle_accent = "#336648"  # Dark green accent for highlights and interactive elements
+    success_color = "#00FD04"  # Vibrant green for success messages
+    error_color = "#E5002A"  # Bright red for errors
+    warning_color = "#EE940D"  # Rich amber for warnings
+    border_color = "#250606"  # Subtle border color
+    highlight_color = "#98A1C3"  # Light highlight for selections and focus
+    cursor_color = "#FFD8D7"  # Light cursor for better visibility
+    muted_text = "#825F5F"  # Muted text for less important elements
 
     def __init__(self, root):
         """Initialize the application and all its components."""
@@ -4267,8 +4267,25 @@ class OllamaChat:
                 ]
             )
             
-            # Create parser with current color scheme
-            parser = HTMLTextParser(self.chat_display)
+            # Create parser with main UI color scheme for consistency
+            color_scheme = {
+                'bg': self.bg_color,
+                'fg': self.fg_color,
+                'accent': self.accent_color,
+                'purple': self.subtle_accent,
+                'cyan': self.highlight_color,
+                'green': self.success_color,
+                'red': self.error_color,
+                'yellow': self.warning_color,
+                'code_bg': '#0D0E14',
+                'code_fg': '#E0E0E0',
+                'link': self.accent_color,
+                'quote_border': self.border_color,
+                'hr': self.border_color,
+                'border': self.border_color,
+                'header_bg': self.secondary_bg
+            }
+            parser = HTMLTextParser(self.chat_display, color_scheme=color_scheme)
             parser.feed(html)
             
         except Exception as e:
