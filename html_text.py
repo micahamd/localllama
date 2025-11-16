@@ -25,21 +25,21 @@ class HTMLTextParser(HTMLParser):
     def _default_colors(self):
         """Return default cyberpunk color scheme matching main UI."""
         return {
-            'bg': '#1A1B26',
-            'fg': '#C0CAF5',
-            'accent': '#7AA2F7',
-            'purple': '#BB9AF7',
+            'bg': "#2E1739",
+            'fg': "#E0CCF2",
+            'accent': "#B4C8F5",
+            'purple': "#9C6AF9",
             'cyan': '#2AC3DE',
-            'green': '#9ECE6A',
-            'red': '#F7768E',
-            'yellow': '#E0AF68',
+            'green': "#2DDF42",
+            'red': "#F94B6B",
+            'yellow': "#EF9000",
             'code_bg': '#0D0E14',
             'code_fg': '#E0E0E0',
             'link': '#7AA2F7',
-            'quote_border': '#414868',
+            'quote_border': "#2B376C",
             'hr': '#414868',
             'border': '#414868',
-            'header_bg': '#1A1B26'
+            'header_bg': "#06060A"
         }
     
     def _configure_tags(self):
