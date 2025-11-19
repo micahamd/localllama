@@ -35,11 +35,13 @@ from error_handler import error_handler, safe_execute
 from mcp_core import MCPManagerEnhanced as MCPManager
 from mcp_ui import MCPPanelEnhanced as MCPPanel
 
-# Enhanced tools system imports
-from tools_manager import ToolsManager, ToolTask, ToolStatus
-from tool_status_panel import ToolStatusPanel
-from panda_csv_tool import PandaCSVAnalysisTool
-from enhanced_tools import (
+# Enhanced tools system imports (Consolidated)
+from tools_system import (
+    ToolsManager, 
+    ToolTask, 
+    ToolStatus,
+    ToolStatusPanel,
+    PandaCSVAnalysisTool,
     EnhancedWebSearchTool, 
     EnhancedFileTools, 
     EnhancedDependencyManager,
@@ -775,7 +777,7 @@ class OllamaChat:
         self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}", font=("Segoe UI", 8))
         self.repeat_penalty_label.pack(side=tk.RIGHT, padx=(5, 0))
 
-        # Max tokens control - discrete values: 256, 512, 1k, 2k, 4k, 8k
+        # Max tokens control - discrete values: 256, 512, 1k, 2k, 4k, 8k...64k
         max_tokens_container = ttk.Frame(advanced_params_frame.content_frame)
         max_tokens_container.pack(fill=tk.X, padx=3, pady=3)
         ttk.Label(max_tokens_container, text="Max Tokens:", font=("Segoe UI", 9)).pack(anchor="w")
@@ -783,7 +785,7 @@ class OllamaChat:
         max_tokens_frame.pack(fill=tk.X, pady=(2, 0))
 
         # Define discrete max tokens values
-        self.max_tokens_values = [256, 512, 1000, 2000, 4000, 8000]
+        self.max_tokens_values = [256, 512, 1000, 2000, 4000, 8000, 16000, 32000, 64000]
         
         # Find closest position for current max tokens
         current_max_tokens = self.max_tokens.get()
@@ -3110,7 +3112,7 @@ class OllamaChat:
                 return
             
             # Import here to access utility function
-            from panda_csv_tool import parse_row_specification
+            from tools_system import parse_row_specification
             
             metadata = self.panda_csv_tool.get_metadata()
             total_rows = metadata['rows']
