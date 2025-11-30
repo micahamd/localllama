@@ -178,11 +178,128 @@ class OllamaChat:
             if hasattr(self, 'chat_display'):
                 self.configure_chat_tags()
             
+            # Update all existing widgets recursively
+            self._update_all_widgets_theme()
+            
             # Show status message
             if hasattr(self, 'display_message'):
                 self.display_message("\n✨ Theme updated successfully!\n", "status")
         except Exception as e:
             print(f"Error updating theme: {e}")
+    
+    def _update_all_widgets_theme(self):
+        """Recursively update all widgets with new theme colors."""
+        try:
+            # Update root window
+            self.root.configure(background=self.bg_color)
+            
+            # Update all tk.Frame widgets
+            self._update_widget_colors(self.root)
+            
+            # Update specific major components
+            if hasattr(self, 'chat_display'):
+                self.chat_display.configure(
+                    background=self.bg_color,
+                    foreground=self.fg_color,
+                    insertbackground=self.cursor_color,
+                    selectbackground=self.subtle_accent,
+                    selectforeground="#FFFFFF"
+                )
+            
+            if hasattr(self, 'input_field'):
+                self.input_field.configure(
+                    background=self.secondary_bg,
+                    foreground=self.fg_color,
+                    insertbackground=self.cursor_color,
+                    selectbackground=self.subtle_accent,
+                    selectforeground="#FFFFFF"
+                )
+            
+            if hasattr(self, 'status_bar'):
+                self.status_bar.configure(
+                    background=self.secondary_bg,
+                    foreground=self.fg_color
+                )
+            
+            if hasattr(self, 'system_text'):
+                self.system_text.configure(
+                    background=self.secondary_bg,
+                    foreground=self.fg_color,
+                    insertbackground=self.cursor_color
+                )
+            
+            # Update listbox widgets
+            if hasattr(self, 'conversations_listbox'):
+                self.conversations_listbox.configure(
+                    background=self.secondary_bg,
+                    foreground=self.fg_color,
+                    selectbackground=self.subtle_accent,
+                    selectforeground="#FFFFFF"
+                )
+            
+            if hasattr(self, 'rag_files_listbox'):
+                self.rag_files_listbox.configure(
+                    background=self.secondary_bg,
+                    foreground=self.fg_color,
+                    selectbackground=self.subtle_accent,
+                    selectforeground="#FFFFFF"
+                )
+            
+            # Force update
+            self.root.update_idletasks()
+            
+        except Exception as e:
+            print(f"Error updating widget colors: {e}")
+    
+    def _update_widget_colors(self, widget):
+        """Recursively update a widget and all its children."""
+        try:
+            # Update based on widget type
+            widget_class = widget.winfo_class()
+            
+            if widget_class == 'Frame':
+                widget.configure(background=self.bg_color)
+            elif widget_class == 'Label':
+                try:
+                    widget.configure(
+                        background=self.bg_color,
+                        foreground=self.fg_color
+                    )
+                except tk.TclError:
+                    pass  # Some labels may not support all options
+            elif widget_class == 'Text':
+                try:
+                    widget.configure(
+                        background=self.bg_color,
+                        foreground=self.fg_color,
+                        insertbackground=self.cursor_color,
+                        selectbackground=self.subtle_accent
+                    )
+                except tk.TclError:
+                    pass
+            elif widget_class == 'Listbox':
+                try:
+                    widget.configure(
+                        background=self.secondary_bg,
+                        foreground=self.fg_color,
+                        selectbackground=self.subtle_accent,
+                        selectforeground="#FFFFFF"
+                    )
+                except tk.TclError:
+                    pass
+            elif widget_class == 'Canvas':
+                try:
+                    widget.configure(background=self.bg_color)
+                except tk.TclError:
+                    pass
+            
+            # Recursively update children
+            for child in widget.winfo_children():
+                self._update_widget_colors(child)
+                
+        except Exception as e:
+            # Silently continue if widget doesn't exist or can't be updated
+            pass
 
     def setup_theme(self):
         """Set up a modern theme for the application."""

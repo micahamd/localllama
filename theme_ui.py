@@ -394,6 +394,13 @@ class ThemeCustomizerDialog:
             self.preview_labels[attr_name].configure(text=color_value)
         
         self._update_dialog_colors()
+        
+        # Update dialog background
+        try:
+            self.dialog.configure(background=self.working_scheme.bg_color)
+            self.dialog.update_idletasks()
+        except:
+            pass
     
     def _update_dialog_colors(self):
         """Update dialog colors based on working scheme."""
@@ -460,6 +467,15 @@ class ThemeCustomizerDialog:
         self.theme_manager.notify_theme_changed()
         self.theme_manager.save_theme_settings()
         self.modified = False
+        
+        # Update the dialog's own colors
+        try:
+            self.dialog.configure(background=self.working_scheme.bg_color)
+            # Force a refresh of the dialog
+            self.dialog.update_idletasks()
+        except:
+            pass
+        
         messagebox.showinfo("Applied", "Theme changes applied!")
     
     def _on_ok(self):
