@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import scrolledtext, filedialog, StringVar, Menu, messagebox
 from tkinter import ttk
+from tkinter import font as tkFont
 from tkinterdnd2 import DND_FILES, TkinterDnD
 import os
 import threading
@@ -163,8 +164,64 @@ class OllamaChat:
         self.cursor_color = scheme.cursor_color
         self.muted_text = scheme.muted_text
         
+        # Apply font configuration with validation
+        self.font_family = self._validate_font(scheme.font_family, ['Arial', 'Helvetica', 'DejaVu Sans'])
+        self.font_size = scheme.font_size
+        self.font_family_mono = self._validate_font(scheme.font_family_mono, ['Courier New', 'Courier', 'DejaVu Sans Mono', 'Monospace'])
+        self.font_size_mono = scheme.font_size_mono
+        self.font_size_chat = scheme.font_size_chat
+        self.font_size_input = scheme.font_size_input
+        self.font_size_heading = scheme.font_size_heading
+        self.font_weight = scheme.font_weight
+        self.font_weight_heading = scheme.font_weight_heading
+        
         # Store full scheme for markdown rendering
         self.color_scheme = scheme
+    
+    def _validate_font(self, font_name: str, fallbacks: list) -> str:
+        """Validate font availability and return available font or fallback.
+        
+        Args:
+            font_name: The font to check
+            fallbacks: List of fallback fonts to try
+            
+        Returns:
+            Available font name
+        """
+        try:
+            # Get list of available fonts
+            available_fonts = tkFont.families()
+            
+            # Normalize font names (case-insensitive on Linux)
+            available_fonts_lower = [f.lower() for f in available_fonts]
+            
+            # Check if requested font is available (case-insensitive)
+            if font_name.lower() in available_fonts_lower:
+                # Return the actual font name from the system
+                idx = available_fonts_lower.index(font_name.lower())
+                return available_fonts[idx]
+            
+            # Try fallbacks
+            for fallback in fallbacks:
+                if fallback.lower() in available_fonts_lower:
+                    print(f"Font '{font_name}' not available, using '{fallback}'")
+                    idx = available_fonts_lower.index(fallback.lower())
+                    return available_fonts[idx]
+            
+            # Universal fallbacks that work on most systems
+            universal_fallbacks = ['helvetica', 'fixed', 'courier']
+            for fallback in universal_fallbacks:
+                if fallback in available_fonts_lower:
+                    print(f"Font '{font_name}' not available, using '{fallback}' as fallback")
+                    idx = available_fonts_lower.index(fallback)
+                    return available_fonts[idx]
+            
+            # Last resort: use tkinter defaults
+            print(f"Font '{font_name}' not available, using Tkinter default")
+            return 'TkDefaultFont'
+        except Exception as e:
+            print(f"Error validating font: {e}")
+            return 'TkDefaultFont'
     
     def _on_theme_changed(self, scheme: ColorScheme):
         """Callback when theme is changed."""
@@ -176,7 +233,7 @@ class OllamaChat:
             
             # Refresh chat display tags
             if hasattr(self, 'chat_display'):
-                self.configure_chat_tags()
+                self.configure_tags()
             
             # Update all existing widgets recursively
             self._update_all_widgets_theme()
@@ -203,7 +260,8 @@ class OllamaChat:
                     foreground=self.fg_color,
                     insertbackground=self.cursor_color,
                     selectbackground=self.subtle_accent,
-                    selectforeground="#FFFFFF"
+                    selectforeground="#FFFFFF",
+                    font=(self.font_family, self.font_size_chat)
                 )
             
             if hasattr(self, 'input_field'):
@@ -212,7 +270,8 @@ class OllamaChat:
                     foreground=self.fg_color,
                     insertbackground=self.cursor_color,
                     selectbackground=self.subtle_accent,
-                    selectforeground="#FFFFFF"
+                    selectforeground="#FFFFFF",
+                    font=(self.font_family, self.font_size_input)
                 )
             
             if hasattr(self, 'status_bar'):
@@ -1463,34 +1522,34 @@ class OllamaChat:
     def configure_tags(self):
         """Configure text tags for styling chat messages."""
         # Configure message tags with enhanced colors from our new theme
-        self.chat_display.tag_configure('user', foreground=self.accent_color)  # Vibrant blue for user
-        self.chat_display.tag_configure('assistant', foreground=self.success_color)  # Vibrant green for assistant
-        self.chat_display.tag_configure('system', foreground=self.subtle_accent)  # Purple for system
-        self.chat_display.tag_configure('error', foreground=self.error_color)  # Bright red for errors
-        self.chat_display.tag_configure('warning', foreground=self.warning_color)  # Rich amber for warnings
-        self.chat_display.tag_configure('status', foreground=self.muted_text)  # Muted text for status
+        self.chat_display.tag_configure('user', foreground=self.accent_color, font=(self.font_family, self.font_size_chat))
+        self.chat_display.tag_configure('assistant', foreground=self.success_color, font=(self.font_family, self.font_size_chat))
+        self.chat_display.tag_configure('system', foreground=self.subtle_accent, font=(self.font_family, self.font_size_chat))
+        self.chat_display.tag_configure('error', foreground=self.error_color, font=(self.font_family, self.font_size_chat))
+        self.chat_display.tag_configure('warning', foreground=self.warning_color, font=(self.font_family, self.font_size_chat))
+        self.chat_display.tag_configure('status', foreground=self.muted_text, font=(self.font_family, self.font_size_chat))
 
         # Configure additional tags for rich text formatting with enhanced styling
-        self.chat_display.tag_configure('user_label', foreground=self.accent_color, font=("Segoe UI", 13, "bold"))
-        self.chat_display.tag_configure('assistant_label', foreground=self.success_color, font=("Segoe UI", 13, "bold"))
-        self.chat_display.tag_configure('warning_label', foreground=self.warning_color, font=("Segoe UI", 13, "bold"))
-        self.chat_display.tag_configure('system_label', foreground=self.subtle_accent, font=("Segoe UI", 13, "bold"))
-        self.chat_display.tag_configure('error_label', foreground=self.error_color, font=("Segoe UI", 13, "bold"))
-        self.chat_display.tag_configure('status_label', foreground=self.muted_text, font=("Segoe UI", 13, "bold"))
+        self.chat_display.tag_configure('user_label', foreground=self.accent_color, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('assistant_label', foreground=self.success_color, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('warning_label', foreground=self.warning_color, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('system_label', foreground=self.subtle_accent, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('error_label', foreground=self.error_color, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('status_label', foreground=self.muted_text, font=(self.font_family, self.font_size_heading, "bold"))
 
         # Configure file preview tags with enhanced colors
-        self.chat_display.tag_configure('file_label', foreground=self.highlight_color, font=("Segoe UI", 13, "bold"))  # Cyan for file name
-        self.chat_display.tag_configure('file_info', foreground=self.subtle_accent, font=("Segoe UI", 12))  # Purple for file info
+        self.chat_display.tag_configure('file_label', foreground=self.highlight_color, font=(self.font_family, self.font_size_heading, "bold"))
+        self.chat_display.tag_configure('file_info', foreground=self.subtle_accent, font=(self.font_family, self.font_size_chat))
 
         # Configure link tag for clickable links with enhanced styling
-        self.chat_display.tag_configure('link', foreground=self.highlight_color, underline=1)
+        self.chat_display.tag_configure('link', foreground=self.highlight_color, underline=1, font=(self.font_family, self.font_size_chat))
         self.chat_display.tag_bind('link', '<Button-1>', lambda e: self.open_url_from_text())
         
         # Configure code block tags for enhanced markdown support
         self.chat_display.tag_configure('code',
             background='#0D0E14',  # Dark code background
             foreground='#E0E0E0',  # Light text
-            font=('Consolas', 12),
+            font=(self.font_family_mono, self.font_size_mono),
             spacing1=4,
             spacing3=4,
             lmargin1=10,
@@ -1498,8 +1557,8 @@ class OllamaChat:
             rmargin=10)
         
         self.chat_display.tag_configure('code_language',
-            foreground=self.warning_color,  # Yellow/amber for language label
-            font=('Consolas', 12, 'bold'))
+            foreground=self.warning_color,
+            font=(self.font_family_mono, self.font_size_mono, 'bold'))
 
     def create_context_menu(self):
         """Create context menu for right-click actions."""
@@ -4489,19 +4548,19 @@ class OllamaChat:
             link_callback: Optional function to call when links are clicked (receives URL)
         """
         # Configure text widget tags for markdown elements
-        text_widget.tag_configure('h1', font=('Segoe UI', 18, 'bold'), foreground=self.highlight_color, spacing1=15, spacing3=10)
-        text_widget.tag_configure('h2', font=('Segoe UI', 16, 'bold'), foreground=self.accent_color, spacing1=12, spacing3=8)
-        text_widget.tag_configure('h3', font=('Segoe UI', 14, 'bold'), foreground=self.subtle_accent, spacing1=10, spacing3=6)
-        text_widget.tag_configure('h4', font=('Segoe UI', 12, 'bold'), foreground=self.fg_color, spacing1=8, spacing3=4)
-        text_widget.tag_configure('h5', font=('Segoe UI', 11, 'bold'), foreground=self.fg_color, spacing1=6, spacing3=3)
-        text_widget.tag_configure('h6', font=('Segoe UI', 10, 'bold'), foreground=self.muted_text, spacing1=4, spacing3=2)
+        text_widget.tag_configure('h1', font=(self.font_family, self.font_size_heading + 4, 'bold'), foreground=self.highlight_color, spacing1=15, spacing3=10)
+        text_widget.tag_configure('h2', font=(self.font_family, self.font_size_heading + 2, 'bold'), foreground=self.accent_color, spacing1=12, spacing3=8)
+        text_widget.tag_configure('h3', font=(self.font_family, self.font_size_heading, 'bold'), foreground=self.subtle_accent, spacing1=10, spacing3=6)
+        text_widget.tag_configure('h4', font=(self.font_family, self.font_size_chat + 2, 'bold'), foreground=self.fg_color, spacing1=8, spacing3=4)
+        text_widget.tag_configure('h5', font=(self.font_family, self.font_size_chat + 1, 'bold'), foreground=self.fg_color, spacing1=6, spacing3=3)
+        text_widget.tag_configure('h6', font=(self.font_family, self.font_size_chat, 'bold'), foreground=self.muted_text, spacing1=4, spacing3=2)
         
-        text_widget.tag_configure('bold', font=('Segoe UI', 11, 'bold'))
-        text_widget.tag_configure('italic', font=('Segoe UI', 11, 'italic'))
-        text_widget.tag_configure('bold_italic', font=('Segoe UI', 11, 'bold italic'))
-        text_widget.tag_configure('code', font=('Consolas', 10), background=self.secondary_bg, foreground=self.success_color)
-        text_widget.tag_configure('code_block', font=('Consolas', 10), background=self.secondary_bg, foreground=self.fg_color, spacing1=5, spacing3=5, lmargin1=20, lmargin2=20)
-        text_widget.tag_configure('link', foreground=self.highlight_color, underline=True)
+        text_widget.tag_configure('bold', font=(self.font_family, self.font_size_chat + 1, 'bold'))
+        text_widget.tag_configure('italic', font=(self.font_family, self.font_size_chat + 1, 'italic'))
+        text_widget.tag_configure('bold_italic', font=(self.font_family, self.font_size_chat + 1, 'bold italic'))
+        text_widget.tag_configure('code', font=(self.font_family_mono, self.font_size_mono), background=self.secondary_bg, foreground=self.success_color)
+        text_widget.tag_configure('code_block', font=(self.font_family_mono, self.font_size_mono), background=self.secondary_bg, foreground=self.fg_color, spacing1=5, spacing3=5, lmargin1=20, lmargin2=20)
+        text_widget.tag_configure('link', foreground=self.highlight_color, underline=True, font=(self.font_family, self.font_size_chat))
         text_widget.tag_configure('list_item', lmargin1=20, lmargin2=40)
         text_widget.tag_configure('blockquote', lmargin1=20, lmargin2=20, foreground=self.muted_text, background=self.tertiary_bg)
         text_widget.tag_configure('separator', foreground=self.border_color)
