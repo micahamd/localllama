@@ -49,6 +49,10 @@ from tools_system import (
     RetryConfig
 )
 
+# Theme management
+from theme_manager import ThemeManager, ColorScheme
+from theme_ui import ThemeCustomizerDialog
+
 class CollapsibleFrame(ttk.Frame):
     """A collapsible frame widget that can expand/collapse its content."""
 
@@ -83,7 +87,7 @@ class CollapsibleFrame(ttk.Frame):
         self.title_label = ttk.Label(
             self.header_frame,
             text=title,
-            font=("Segoe UI", 10, "bold"),
+            font=("Segoe UI", 14, "bold"),
             style="SectionTitle.TLabel"
         )
         self.title_label.pack(side=tk.LEFT, padx=(2, 0), pady=2)
@@ -126,21 +130,6 @@ class CollapsibleFrame(ttk.Frame):
 class OllamaChat:
     """Main application class for Ollama Chat."""
 
-    # Define color scheme as class variables - enhanced for better aesthetics
-    bg_color = "#0F0115"  # Rich dark background
-    fg_color = "#CBABE2"  # Soft purple-white text for better readability
-    accent_color = "#266A02"  # Vibrant accent
-    secondary_bg = "#200202"  # Slightly lighter background for contrast
-    tertiary_bg = "#1B0202"  # Darker background for depth
-    subtle_accent = "#336648"  # Dark green accent for highlights and interactive elements
-    success_color = "#00FD04"  # Vibrant green for success messages
-    error_color = "#E5002A"  # Bright red for errors
-    warning_color = "#EE940D"  # Rich amber for warnings
-    border_color = "#250606"  # Subtle border color
-    highlight_color = "#98A1C3"  # Light highlight for selections and focus
-    cursor_color = "#FFD8D7"  # Light cursor for better visibility
-    muted_text = "#825F5F"  # Muted text for less important elements
-
     def __init__(self, root):
         """Initialize the application and all its components."""
         self.root = root
@@ -148,8 +137,52 @@ class OllamaChat:
         self.root.geometry("1200x800")
         self.root.minsize(800, 400)
 
+        # Initialize theme manager first
+        self.theme_manager = ThemeManager()
+        self.theme_manager.register_callback(self._on_theme_changed)
+        
+        # Get current color scheme
+        self._apply_color_scheme(self.theme_manager.get_current_scheme())
+
         # Set up a modern theme
         self.setup_theme()
+    
+    def _apply_color_scheme(self, scheme: ColorScheme):
+        """Apply a color scheme to the application."""
+        self.bg_color = scheme.bg_color
+        self.fg_color = scheme.fg_color
+        self.accent_color = scheme.accent_color
+        self.secondary_bg = scheme.secondary_bg
+        self.tertiary_bg = scheme.tertiary_bg
+        self.subtle_accent = scheme.subtle_accent
+        self.success_color = scheme.success_color
+        self.error_color = scheme.error_color
+        self.warning_color = scheme.warning_color
+        self.border_color = scheme.border_color
+        self.highlight_color = scheme.highlight_color
+        self.cursor_color = scheme.cursor_color
+        self.muted_text = scheme.muted_text
+        
+        # Store full scheme for markdown rendering
+        self.color_scheme = scheme
+    
+    def _on_theme_changed(self, scheme: ColorScheme):
+        """Callback when theme is changed."""
+        self._apply_color_scheme(scheme)
+        
+        # Re-apply theme to refresh UI
+        try:
+            self.setup_theme()
+            
+            # Refresh chat display tags
+            if hasattr(self, 'chat_display'):
+                self.configure_chat_tags()
+            
+            # Show status message
+            if hasattr(self, 'display_message'):
+                self.display_message("\n✨ Theme updated successfully!\n", "status")
+        except Exception as e:
+            print(f"Error updating theme: {e}")
 
     def setup_theme(self):
         """Set up a modern theme for the application."""
@@ -172,7 +205,7 @@ class OllamaChat:
         style.configure("TLabel",
                       background=self.bg_color,
                       foreground=self.fg_color,
-                      font=("Segoe UI", 10))
+                      font=("Segoe UI", 12))
 
         # Create a frame style with no border
         style.configure("NoBorder.TFrame",
@@ -201,7 +234,7 @@ class OllamaChat:
                       borderwidth=1,
                       relief="flat",
                       padding=(10, 5),  # More padding for better touch targets
-                      font=("Segoe UI", 10, "bold"))  # Bold text for better visibility
+                      font=("Segoe UI", 12, "bold"))  # Bold text for better visibility
         style.map("TButton",
                  background=[("active", self.subtle_accent), ("pressed", self.accent_color)],
                  foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
@@ -214,7 +247,7 @@ class OllamaChat:
                       borderwidth=1,
                       relief="flat",
                       padding=(10, 5),
-                      font=("Segoe UI", 10, "bold"))
+                      font=("Segoe UI", 12, "bold"))
         style.map("Primary.TButton",
                  background=[("active", self.subtle_accent), ("pressed", self.highlight_color)],
                  foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
@@ -227,7 +260,7 @@ class OllamaChat:
                       borderwidth=1,
                       relief="flat",
                       padding=(10, 5),
-                      font=("Segoe UI", 10, "bold"))
+                      font=("Segoe UI", 12, "bold"))
         style.map("Accent.TButton",
                  background=[("active", self.error_color), ("pressed", self.subtle_accent)],
                  foreground=[("active", "#FFFFFF"), ("pressed", "#FFFFFF")],
@@ -237,7 +270,7 @@ class OllamaChat:
         style.configure("TCheckbutton",
                       background=self.bg_color,
                       foreground=self.fg_color,
-                      font=("Segoe UI", 10))
+                      font=("Segoe UI", 12))
         style.map("TCheckbutton",
                  background=[("active", self.bg_color)],
                  foreground=[("active", self.accent_color)])
@@ -257,7 +290,7 @@ class OllamaChat:
                       background=self.secondary_bg,
                       foreground=self.fg_color,
                       arrowcolor=self.accent_color,
-                      font=("Segoe UI", 10))
+                      font=("Segoe UI", 12))
         style.map("TCombobox",
                  fieldbackground=[("readonly", self.secondary_bg)],
                  background=[("readonly", self.secondary_bg)],
@@ -289,7 +322,7 @@ class OllamaChat:
         style.configure("TLabelframe.Label",
                       background=self.bg_color,
                       foreground=self.accent_color,
-                      font=("Segoe UI", 11, "bold"))  # Slightly larger font for better readability
+                      font=("Segoe UI", 14, "bold"))  # Slightly larger font for better readability
 
         # Enhanced styles for CollapsibleFrame visual hierarchy
         style.configure('Header.TFrame',
@@ -306,13 +339,13 @@ class OllamaChat:
         style.configure('SectionTitle.TLabel',
                       background=self.secondary_bg,
                       foreground=self.fg_color,
-                      font=("Segoe UI", 10, "bold"))
+                      font=("Segoe UI", 12, "bold"))
         style.configure('Toggle.TButton',
                       background=self.secondary_bg,
                       foreground=self.accent_color,
                       borderwidth=0,
                       focuscolor='none',
-                      font=("Segoe UI", 8),
+                      font=("Segoe UI", 10),
                       relief="flat",
                       padding=(2, 1))
         style.map('Toggle.TButton',
@@ -323,7 +356,7 @@ class OllamaChat:
         self.root.configure(background=self.bg_color)
 
         # Set default font to a modern font
-        self.root.option_add("*Font", ("Segoe UI", 10))
+        self.root.option_add("*Font", ("Segoe UI", 12))
 
 
         # Initialize components
@@ -551,6 +584,8 @@ class OllamaChat:
         tools_menu = Menu(self.menu_bar, tearoff=0)
         self.menu_bar.add_cascade(label="Tools", menu=tools_menu)
         tools_menu.add_command(label="Memory Control Program", command=self.show_mcp_panel)
+        tools_menu.add_separator()
+        tools_menu.add_command(label="Theme Customizer", command=self.show_theme_customizer)
 
         # Help menu
         help_menu = Menu(self.menu_bar, tearoff=0)
@@ -630,7 +665,7 @@ class OllamaChat:
         # Developer selector
         dev_frame = ttk.Frame(model_frame.content_frame)
         dev_frame.pack(fill=tk.X, padx=3, pady=2)
-        ttk.Label(dev_frame, text="Developer:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(dev_frame, text="Developer:", font=("Segoe UI", 11)).pack(anchor="w")
         developer_selector = ttk.Combobox(dev_frame, textvariable=self.developer,
                                          values=['ollama', 'google', 'deepseek', 'anthropic'], state='readonly',
                                          font=("Segoe UI", 9))
@@ -641,7 +676,7 @@ class OllamaChat:
         llm_frame = ttk.Frame(model_frame.content_frame)
         llm_frame.pack(fill=tk.X, padx=3, pady=2)
         ttk.Label(llm_frame, text="LLM Model:", font=("Segoe UI", 9)).pack(anchor="w")
-        self.model_selector = ttk.Combobox(llm_frame, state='readonly', font=("Segoe UI", 9))
+        self.model_selector = ttk.Combobox(llm_frame, state='readonly', font=("Segoe UI", 11))
         self.model_selector.pack(fill=tk.X, pady=(2, 0))
         self.model_selector.bind('<<ComboboxSelected>>', self.on_model_selected)
 
@@ -649,7 +684,7 @@ class OllamaChat:
         emb_frame = ttk.Frame(model_frame.content_frame)
         emb_frame.pack(fill=tk.X, padx=3, pady=2)
         ttk.Label(emb_frame, text="Embedding:", font=("Segoe UI", 9)).pack(anchor="w")
-        self.embedding_selector = ttk.Combobox(emb_frame, state='readonly', font=("Segoe UI", 9))
+        self.embedding_selector = ttk.Combobox(emb_frame, state='readonly', font=("Segoe UI", 11))
         self.embedding_selector.pack(fill=tk.X, pady=(2, 0))
         self.embedding_selector.bind('<<ComboboxSelected>>', self.on_embedding_model_selected)
 
@@ -660,7 +695,7 @@ class OllamaChat:
         # Temperature control
         temp_container = ttk.Frame(basic_params_frame.content_frame)
         temp_container.pack(fill=tk.X, padx=3, pady=3)
-        ttk.Label(temp_container, text="Temperature:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(temp_container, text="Temperature:", font=("Segoe UI", 11)).pack(anchor="w")
         temp_frame = ttk.Frame(temp_container)
         temp_frame.pack(fill=tk.X, pady=(2, 0))
 
@@ -674,7 +709,7 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.temp_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Segoe UI", 8))
+        self.temp_label = ttk.Label(temp_frame, text=f"{self.temperature.get():.2f}", font=("Segoe UI", 10))
         self.temp_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Context size control - discrete values: 2k, 4k, 8k, 16k, 32k, 64k, 128k, 256k, 512k
@@ -710,7 +745,7 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.context_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.context_label = ttk.Label(context_frame, text=self.format_context_size(self.context_values[closest_pos]), font=("Segoe UI", 8))
+        self.context_label = ttk.Label(context_frame, text=self.format_context_size(self.context_values[closest_pos]), font=("Segoe UI", 10))
         self.context_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Advanced Parameters - using CollapsibleFrame (collapsed by default)
@@ -734,13 +769,13 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.top_k_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.top_k_label = ttk.Label(top_k_frame, text=str(self.top_k.get()), font=("Segoe UI", 8))
+        self.top_k_label = ttk.Label(top_k_frame, text=str(self.top_k.get()), font=("Segoe UI", 10))
         self.top_k_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Top-p control
         top_p_container = ttk.Frame(advanced_params_frame.content_frame)
         top_p_container.pack(fill=tk.X, padx=3, pady=3)
-        ttk.Label(top_p_container, text="Top-p (nucleus):", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(top_p_container, text="Top-p (nucleus):", font=("Segoe UI", 10)).pack(anchor="w")
         top_p_frame = ttk.Frame(top_p_container)
         top_p_frame.pack(fill=tk.X, pady=(2, 0))
 
@@ -754,13 +789,13 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.top_p_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.top_p_label = ttk.Label(top_p_frame, text=f"{self.top_p.get():.2f}", font=("Segoe UI", 8))
+        self.top_p_label = ttk.Label(top_p_frame, text=f"{self.top_p.get():.2f}", font=("Segoe UI", 10))
         self.top_p_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Repeat penalty control
         repeat_penalty_container = ttk.Frame(advanced_params_frame.content_frame)
         repeat_penalty_container.pack(fill=tk.X, padx=3, pady=3)
-        ttk.Label(repeat_penalty_container, text="Repeat Penalty:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(repeat_penalty_container, text="Repeat Penalty:", font=("Segoe UI", 10)).pack(anchor="w")
         repeat_penalty_frame = ttk.Frame(repeat_penalty_container)
         repeat_penalty_frame.pack(fill=tk.X, pady=(2, 0))
 
@@ -774,13 +809,13 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.repeat_penalty_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}", font=("Segoe UI", 8))
+        self.repeat_penalty_label = ttk.Label(repeat_penalty_frame, text=f"{self.repeat_penalty.get():.2f}", font=("Segoe UI", 10))
         self.repeat_penalty_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Max tokens control - discrete values: 256, 512, 1k, 2k, 4k, 8k...64k
         max_tokens_container = ttk.Frame(advanced_params_frame.content_frame)
         max_tokens_container.pack(fill=tk.X, padx=3, pady=3)
-        ttk.Label(max_tokens_container, text="Max Tokens:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(max_tokens_container, text="Max Tokens:", font=("Segoe UI", 10)).pack(anchor="w")
         max_tokens_frame = ttk.Frame(max_tokens_container)
         max_tokens_frame.pack(fill=tk.X, pady=(2, 0))
 
@@ -810,7 +845,7 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.max_tokens_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.max_tokens_label = ttk.Label(max_tokens_frame, text=self.format_tokens(self.max_tokens_values[closest_pos]), font=("Segoe UI", 8))
+        self.max_tokens_label = ttk.Label(max_tokens_frame, text=self.format_tokens(self.max_tokens_values[closest_pos]), font=("Segoe UI", 10))
         self.max_tokens_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # RAG Settings - using CollapsibleFrame (collapsed by default)
@@ -820,7 +855,7 @@ class OllamaChat:
         # Chunk size - discrete values: 64, 128, 256, 512, 1k, 2k
         chunk_container = ttk.Frame(rag_frame.content_frame)
         chunk_container.pack(fill=tk.X, padx=3, pady=3)
-        ttk.Label(chunk_container, text="Chunk Size:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(chunk_container, text="Chunk Size:", font=("Segoe UI", 10)).pack(anchor="w")
         chunk_frame = ttk.Frame(chunk_container)
         chunk_frame.pack(fill=tk.X, pady=(2, 0))
 
@@ -850,7 +885,7 @@ class OllamaChat:
             style="Horizontal.TScale"
         )
         self.chunk_slider.pack(side=tk.LEFT, expand=True, fill=tk.X)
-        self.chunk_label = ttk.Label(chunk_frame, text=self.format_chunk_size(self.chunk_values[closest_pos]), font=("Segoe UI", 8))
+        self.chunk_label = ttk.Label(chunk_frame, text=self.format_chunk_size(self.chunk_values[closest_pos]), font=("Segoe UI", 10))
         self.chunk_label.pack(side=tk.RIGHT, padx=(5, 0))
 
         # Options - using CollapsibleFrame
@@ -998,7 +1033,7 @@ class OllamaChat:
         # Recent conversations list
         recent_frame = ttk.Frame(conversations_frame.content_frame)
         recent_frame.pack(fill=tk.X, padx=3, pady=(5, 3))
-        ttk.Label(recent_frame, text="Recent:", font=("Segoe UI", 9)).pack(anchor="w")
+        ttk.Label(recent_frame, text="Recent:", font=("Segoe UI", 10)).pack(anchor="w")
 
         self.conversations_listbox = tk.Listbox(
             recent_frame,
@@ -1011,7 +1046,7 @@ class OllamaChat:
             highlightthickness=1,
             highlightcolor=self.highlight_color,
             highlightbackground=self.border_color,
-            font=("Segoe UI", 9)  # Slightly smaller font
+            font=("Segoe UI", 10)  # Slightly smaller font
         )
         self.conversations_listbox.pack(fill=tk.X, pady=(2, 0))
         self.conversations_listbox.bind("<Double-1>", self.on_conversation_selected)
@@ -1120,7 +1155,7 @@ class OllamaChat:
             system_frame,
             height=2,
             wrap=tk.WORD,
-            font=("Segoe UI", 11),  # Slightly larger font
+            font=("Segoe UI", 12),  # Slightly larger font
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.cursor_color,  # Light blue cursor for better visibility
@@ -1338,7 +1373,7 @@ class OllamaChat:
         self.chat_display.tag_configure('code',
             background='#0D0E14',  # Dark code background
             foreground='#E0E0E0',  # Light text
-            font=('Consolas', 10),
+            font=('Consolas', 12),
             spacing1=4,
             spacing3=4,
             lmargin1=10,
@@ -1347,7 +1382,7 @@ class OllamaChat:
         
         self.chat_display.tag_configure('code_language',
             foreground=self.warning_color,  # Yellow/amber for language label
-            font=('Consolas', 9, 'bold'))
+            font=('Consolas', 12, 'bold'))
 
     def create_context_menu(self):
         """Create context menu for right-click actions."""
@@ -1597,6 +1632,15 @@ class OllamaChat:
             self.secondary_bg
         )
         mcp_panel.show()
+    
+    def show_theme_customizer(self):
+        """Show the theme customizer dialog."""
+        try:
+            dialog = ThemeCustomizerDialog(self.root, self.theme_manager)
+            dialog.show()
+        except Exception as e:
+            self.display_message(f"\\nError opening theme customizer: {str(e)}\\n", "error")
+            error_handler.handle_error(e, "Theme Customizer")
 
     def show_help_window(self):
         """Show the comprehensive help documentation window."""
@@ -2041,7 +2085,7 @@ class OllamaChat:
             preview_frame = ttk.LabelFrame(main_frame, text="Agent Preview", padding="5")
             preview_frame.pack(fill=tk.X, pady=(0, 10))
 
-            preview_text = tk.Text(preview_frame, height=8, font=("Consolas", 9),
+            preview_text = tk.Text(preview_frame, height=8, font=("Consolas", 10),
                                  wrap=tk.WORD, state=tk.DISABLED)
             preview_scrollbar = ttk.Scrollbar(preview_frame, orient=tk.VERTICAL, command=preview_text.yview)
             preview_text.config(yscrollcommand=preview_scrollbar.set)
@@ -4270,22 +4314,23 @@ class OllamaChat:
             )
             
             # Create parser with main UI color scheme for consistency
+            scheme = self.theme_manager.get_current_scheme()
             color_scheme = {
-                'bg': self.bg_color,
-                'fg': self.fg_color,
-                'accent': self.accent_color,
-                'purple': self.subtle_accent,
-                'cyan': self.highlight_color,
-                'green': self.success_color,
-                'red': self.error_color,
-                'yellow': self.warning_color,
-                'code_bg': '#0D0E14',
-                'code_fg': '#E0E0E0',
-                'link': self.accent_color,
-                'quote_border': self.border_color,
-                'hr': self.border_color,
-                'border': self.border_color,
-                'header_bg': self.secondary_bg
+                'bg': scheme.bg_color,
+                'fg': scheme.fg_color,
+                'accent': scheme.accent_color,
+                'purple': scheme.markdown_h1 or scheme.subtle_accent,
+                'cyan': scheme.markdown_h2 or scheme.highlight_color,
+                'green': scheme.success_color,
+                'red': scheme.error_color,
+                'yellow': scheme.warning_color,
+                'code_bg': scheme.code_bg,
+                'code_fg': scheme.code_fg,
+                'link': scheme.link_color,
+                'quote_border': scheme.quote_border,
+                'hr': scheme.hr_color,
+                'border': scheme.border_color,
+                'header_bg': scheme.header_bg
             }
             parser = HTMLTextParser(self.chat_display, color_scheme=color_scheme)
             parser.feed(html)
@@ -4334,11 +4379,11 @@ class OllamaChat:
         text_widget.tag_configure('h5', font=('Segoe UI', 11, 'bold'), foreground=self.fg_color, spacing1=6, spacing3=3)
         text_widget.tag_configure('h6', font=('Segoe UI', 10, 'bold'), foreground=self.muted_text, spacing1=4, spacing3=2)
         
-        text_widget.tag_configure('bold', font=('Segoe UI', 10, 'bold'))
-        text_widget.tag_configure('italic', font=('Segoe UI', 10, 'italic'))
-        text_widget.tag_configure('bold_italic', font=('Segoe UI', 10, 'bold italic'))
-        text_widget.tag_configure('code', font=('Consolas', 9), background=self.secondary_bg, foreground=self.success_color)
-        text_widget.tag_configure('code_block', font=('Consolas', 9), background=self.secondary_bg, foreground=self.fg_color, spacing1=5, spacing3=5, lmargin1=20, lmargin2=20)
+        text_widget.tag_configure('bold', font=('Segoe UI', 11, 'bold'))
+        text_widget.tag_configure('italic', font=('Segoe UI', 11, 'italic'))
+        text_widget.tag_configure('bold_italic', font=('Segoe UI', 11, 'bold italic'))
+        text_widget.tag_configure('code', font=('Consolas', 10), background=self.secondary_bg, foreground=self.success_color)
+        text_widget.tag_configure('code_block', font=('Consolas', 10), background=self.secondary_bg, foreground=self.fg_color, spacing1=5, spacing3=5, lmargin1=20, lmargin2=20)
         text_widget.tag_configure('link', foreground=self.highlight_color, underline=True)
         text_widget.tag_configure('list_item', lmargin1=20, lmargin2=40)
         text_widget.tag_configure('blockquote', lmargin1=20, lmargin2=20, foreground=self.muted_text, background=self.tertiary_bg)
